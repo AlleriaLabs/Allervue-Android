@@ -20,7 +20,7 @@ data class TranscodeInfo(val url: String, val sessionId: String)
 data class PlaybackPlan(val url: String, val hls: Boolean, val transcoding: Boolean, val sessionId: String, val label: String)
 
 object Api {
-    const val SERVER = "https://flix.alleriafilmotheque.fyi"
+    const val SERVER = "https://www.alleriafilmotheque.fyi"
     var base = SERVER
     var token = ""
     var userId = ""
@@ -39,7 +39,14 @@ object Api {
 
     fun load(ctx: Context) {
         val p = ctx.getSharedPreferences("allerix", Context.MODE_PRIVATE)
-        base = p.getString("server", SERVER) ?: SERVER
+        val savedServer = p.getString("server", null)
+        base = if (savedServer == null || savedServer == "https://flix.alleriafilmotheque.fyi") SERVER else savedServer
+        if (savedServer == null || savedServer == "https://flix.alleriafilmotheque.fyi") {
+            token = ""
+            userId = ""
+            username = ""
+            save(ctx)
+        }
         token = p.getString("token", "") ?: ""
         userId = p.getString("user", "") ?: ""
         username = p.getString("username", "") ?: ""
