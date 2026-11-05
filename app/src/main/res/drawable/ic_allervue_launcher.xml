@@ -3,7 +3,7 @@
     android:width="128dp" android:height="128dp"
     android:viewportWidth="128" android:viewportHeight="128">
     <path android:fillColor="#1A1819" android:pathData="M0,0h128v128h-128z"/>
-    <group android:scaleX="1.10" android:scaleY="1.10" android:pivotX="64" android:pivotY="64">
+    <group android:scaleX="1.06" android:scaleY="1.06" android:pivotX="64" android:pivotY="64">
         <path
         android:fillColor="#D8B77E"
         android:fillType="evenOdd"
