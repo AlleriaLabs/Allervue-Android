@@ -123,6 +123,8 @@ class PlayerActivity : ComponentActivity() {
     private var quality = Quality.ORIGINAL
     private var audioMode = AudioMode.ORIGINAL
     private var decoder = DecoderMode.HW
+    private var playbackEngine = PlaybackEngine.AUTO
+    private var vlcFallbackAttempted = false
     private var siblings: List<Item> = emptyList()
     private var siblingIndex = -1
     private var introSegments: List<Pair<Long, Long>> = emptyList()
@@ -206,6 +208,13 @@ class PlayerActivity : ComponentActivity() {
             .getOrDefault(AudioMode.ORIGINAL)
         decoder = runCatching { DecoderMode.valueOf(prefs.getString("decoder", "HW") ?: "HW") }
             .getOrDefault(DecoderMode.HW)
+        playbackEngine = runCatching { PlaybackEngine.valueOf(prefs.getString("playback_engine", "AUTO") ?: "AUTO") }
+            .getOrDefault(PlaybackEngine.AUTO)
+        vlcFallbackAttempted = intent.getBooleanExtra("skip_vlc_fallback", false)
+        if (playbackEngine == PlaybackEngine.VLC) {
+            launchVlc(intent.getLongExtra("start_position_ms", 0L), null)
+            return
+        }
         speed = prefs.getFloat("speed", 1f)
         autoPlayNext = prefs.getBoolean("autoplay", true)
         subPos = prefs.getFloat("sub_pos", 0.12f)
@@ -235,6 +244,34 @@ class PlayerActivity : ComponentActivity() {
         handler.post(subTick)
         showControls()
         loadAndPlay()
+    }
+
+    private fun launchVlc(positionMs: Long, url: String?) {
+        if (::player.isInitialized) report("stop")
+        val i = Intent(this, VlcPlayerActivity::class.java)
+            .putExtra("id", itemId)
+            .putExtra("file", offlinePath)
+            .putExtra("stream_url", url ?: plan?.url)
+            .putExtra("source_id", sourceId)
+            .putExtra("session_id", sessionId)
+            .putExtra("position_ms", positionMs)
+            .putExtra("title", if (::titleView.isInitialized) titleView.text.toString() else intent.getStringExtra("title"))
+            .putExtra("autoplay_next", autoPlayNext)
+        startActivity(i)
+        finish()
+    }
+
+    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
+        val all = PlaybackEngine.values()
+        box.addView(radioGroup(100, all.map { "${it.label}  ·  ${it.description}" }, playbackEngine.ordinal) { index ->
+            val selected = all[index]
+            prefs.edit().putString("playback_engine", selected.name).apply()
+            playbackEngine = selected
+            dlg.dismiss()
+            if (selected == PlaybackEngine.VLC) launchVlc(player.currentPosition, null)
+            else showHud("Playback engine: ${selected.label}", 1800)
+        })
+        box.addView(noteText("Auto tries ExoPlayer first. If the Android decoder fails, Allervue opens the same stream in VLC at the current position."))
     }
 
     /** Builds an ExoPlayer using the chosen decoder mode. 4K/8K play whenever the device decoder supports them. */
@@ -713,6 +750,7 @@ class PlayerActivity : ComponentActivity() {
             box.addView(sheetRow(label, value) { dlg.dismiss(); onClick() })
         }
         row("This phone & playback info") { showDeviceSheet() }
+        row("Playback engine", playbackEngine.label) { showPlaybackEngineSheet() }
         row("Video quality", qualityText()) { showQualitySheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
         row("Subtitle style") { showSubtitleStyleSheet() }
@@ -1125,7 +1163,15 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachEnhancer(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
-                // Auto mode: if this phone's decoder chokes on a direct-played file, switch to a transcode once
+                // Auto engine: retry decoder/codec failures in LibVLC before giving up.
+                if (playbackEngine == PlaybackEngine.AUTO && !vlcFallbackAttempted &&
+                    error.errorCode in 4001..4005) {
+                    vlcFallbackAttempted = true
+                    showHud("Android decoder failed. Switching to VLC…", 2200)
+                    launchVlc(player.currentPosition, plan?.url)
+                    return
+                }
+                // Auto quality mode: if this phone's decoder chokes on a direct-played file, switch to a transcode once
                 if (quality == Quality.AUTO && plan?.transcoding == false && !autoRetried && offlinePath == null &&
                     error.errorCode in 4001..4005) {
                     fallbackTranscode(); return
@@ -1183,7 +1229,9 @@ class PlayerActivity : ComponentActivity() {
             player.setMediaItem(buildMediaItem())
             player.prepare()
             val resumeMs = (item.userData?.positionTicks ?: 0L) / 10_000
-            if (resumeMs > 5_000) player.seekTo(resumeMs)
+            val requestedStart = intent.getLongExtra("start_position_ms", 0L)
+            val resumeAt = if (requestedStart > 0L) requestedStart else resumeMs
+            if (resumeAt > 5_000) player.seekTo(resumeAt)
             player.playWhenReady = true
             report("start")
             handler.postDelayed(progressTick, 10_000)
