@@ -125,7 +125,12 @@ class VlcPlayerActivity : ComponentActivity() {
                     }
                     MediaPlayer.Event.EncounteredError -> {
                         spinner.visibility = View.GONE
-                        state.text = "VLC couldn't open this stream"
+                        if (prefs.getString("playback_engine", "AUTO") == PlaybackEngine.AUTO.name &&
+                            !transcoding && filePath == null) {
+                            fallbackToExoTranscode()
+                        } else {
+                            state.text = "VLC couldn't open this stream"
+                        }
                     }
                 }
             }
@@ -271,6 +276,19 @@ class VlcPlayerActivity : ComponentActivity() {
         reporting = false
         vlc.stop()
         lifecycleScope.launch { loadAndPlay() }
+    }
+
+    private fun fallbackToExoTranscode() {
+        state.text = "VLC couldn't decode this file. Trying Jellyfin transcoding…"
+        reportStopped()
+        // Return to ExoPlayer in Auto mode; its decoder-error handler will request a Jellyfin HLS transcode.
+        prefs.edit().putString("quality", Quality.AUTO.name).apply()
+        val intent = Intent(this, PlayerActivity::class.java)
+            .putExtra("id", itemId)
+            .putExtra("start_position_ms", vlc.time)
+            .putExtra("skip_vlc_fallback", true)
+        startActivity(intent)
+        finish()
     }
 
     private fun chooseSpeed() {
