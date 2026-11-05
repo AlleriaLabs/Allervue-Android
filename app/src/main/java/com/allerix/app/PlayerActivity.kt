@@ -367,15 +367,22 @@ class PlayerActivity : ComponentActivity() {
     }
 
     /** Icon with a small label underneath; one entry in the bottom glass card. */
+    /** Individual floating action: no shared toolbar slab or glass panel. */
     private fun action(res: Int, label: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-        setPadding(0, dp(8), 0, dp(2))
+        setPadding(0, dp(3), 0, dp(2))
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
-        addView(ImageView(context).apply { setImageResource(res); setColorFilter(Color.WHITE) },
-            LinearLayout.LayoutParams(dp(24), dp(24)))
+        addView(FrameLayout(context).apply {
+            background = circleBg(0x66131822)
+            elevation = dp(5).toFloat()
+            addView(ImageView(context).apply {
+                setImageResource(res); setColorFilter(Color.WHITE)
+                setPadding(dp(10), dp(10), dp(10), dp(10))
+            }, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER))
+        }, LinearLayout.LayoutParams(dp(48), dp(48)))
         addView(TextView(context).apply {
-            text = label; setTextColor(0xFFD0D0D6.toInt()); textSize = 10f
-            gravity = Gravity.CENTER; maxLines = 1; setPadding(0, dp(3), 0, 0)
+            text = label; setTextColor(0xFFE4E4E8.toInt()); textSize = 10f
+            gravity = Gravity.CENTER; maxLines = 1; setPadding(0, dp(5), 0, 0)
         })
     }
 
@@ -429,7 +436,10 @@ class PlayerActivity : ComponentActivity() {
 
         // ---- centre: skip back, big play (red ring), skip forward
         val rewBtn = skipButton(false)
-        playBtn = icon(R.drawable.ic_pause, 88, 22).apply { background = circleBg(0xB3000000.toInt(), accent) }
+        playBtn = icon(R.drawable.ic_pause, 82, 20).apply {
+            background = circleBg(accent, 0x88FFFFFF.toInt())
+            elevation = dp(12).toFloat()
+        }
         val fwdBtn = skipButton(true)
         val center = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
@@ -481,19 +491,21 @@ class PlayerActivity : ComponentActivity() {
             addView(lockItem); addView(subsItem); addView(audioItem); addView(speedItem)
             addView(decoderItem); addView(volItem); addView(moreItem)
         }
-        val card = LinearLayout(this).apply {
+        // Floating transport controls: timeline and independent action buttons sit directly over video.
+        val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(6))
-            background = GradientDrawable().apply {
-                setColor(0xCC121216.toInt()); cornerRadius = dp(24).toFloat(); setStroke(dp(1), 0x26FFFFFF)
-            }
-            addView(seekRow); addView(actionRow)
+            setPadding(dp(22), dp(8), dp(22), dp(18))
+            elevation = dp(10).toFloat()
+            addView(seekRow)
+            addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(7) })
         }
 
         controls = FrameLayout(this).apply {
             addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             addView(center, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
-            addView(card, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply { setMargins(dp(16), 0, dp(16), dp(14)) })
+            addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
+                setMargins(dp(10), 0, dp(10), dp(8))
+            })
         }
 
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -548,8 +560,8 @@ class PlayerActivity : ComponentActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
             topBar.setPadding(dp(12) + i.left, dp(10) + i.top, dp(8) + i.right, dp(22))
-            (card.layoutParams as FrameLayout.LayoutParams).setMargins(dp(16) + i.left, 0, dp(16) + i.right, dp(14))
-            card.requestLayout()
+            (bottomPanel.layoutParams as FrameLayout.LayoutParams).setMargins(dp(10) + i.left, 0, dp(10) + i.right, dp(8))
+            bottomPanel.requestLayout()
             insets
         }
         ViewCompat.requestApplyInsets(root)
