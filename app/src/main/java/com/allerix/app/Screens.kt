@@ -114,8 +114,8 @@ fun HomeScreen(
             if (resume.isNotEmpty()) item { MediaRow("Continue Watching", resume, onClick = onPlay) }
             val popularMovies = trending.filter { it.type == "Movie" }
             val popularShows = trending.filter { it.type == "Series" }
-            if (popularMovies.isNotEmpty()) item { MediaRow("Popular Movies", popularMovies, onClick = onOpen) }
-            if (popularShows.isNotEmpty()) item { MediaRow("Popular Series", popularShows, onClick = onOpen) }
+            if (popularMovies.isNotEmpty()) item { MediaRow("Recently Added Movies", popularMovies, onClick = onOpen) }
+            if (popularShows.isNotEmpty()) item { MediaRow("Recently Added Series", popularShows, onClick = onOpen) }
             val picks = recommended.filter { pick -> trending.none { it.id == pick.id } }.take(12)
             if (picks.isNotEmpty()) item { MediaRow("Picked for You", picks, onClick = onOpen) }
             items(rows, key = { it.first.id }) { (lib, list) ->
