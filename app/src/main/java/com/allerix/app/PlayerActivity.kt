@@ -550,7 +550,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun updateIntroSkip() {
-        if (!::skipIntroBtn.isInitialized || offlinePath != null || introSegments.isEmpty()) {
+        if (!::skipIntroBtn.isInitialized || locked || offlinePath != null || introSegments.isEmpty()) {
             if (::skipIntroBtn.isInitialized) skipIntroBtn.visibility = View.GONE
             return
         }
