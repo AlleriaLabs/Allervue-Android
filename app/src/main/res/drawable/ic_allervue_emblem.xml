@@ -4,6 +4,7 @@
     android:height="128dp"
     android:viewportWidth="128"
     android:viewportHeight="128">
+    <group android:scaleX="0.64" android:scaleY="0.64" android:pivotX="64" android:pivotY="64">
     <path
         android:fillColor="#D8B77E"
         android:fillType="evenOdd"
