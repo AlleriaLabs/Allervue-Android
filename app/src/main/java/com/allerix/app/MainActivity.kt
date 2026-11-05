@@ -168,7 +168,7 @@ fun MainShell(onLogout: () -> Unit) {
                         onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, onLogout = signOut
                     )
                     NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
-                    NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
+                    NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true)
                     NavTab.LIST -> MyListTab(onOpen, onSettings = openSettings)
                     NavTab.DOWNLOADS -> DownloadsTab(openSettings)
                 }
