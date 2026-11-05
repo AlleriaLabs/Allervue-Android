@@ -289,6 +289,7 @@ class VlcPlayerActivity : ComponentActivity() {
                 reportStopped()
                 val intent = Intent(this, PlayerActivity::class.java)
                     .putExtra("id", itemId).putExtra("start_position_ms", vlc.time)
+                    .putExtra("skip_vlc_fallback", true)
                 startActivity(intent); finish()
             }
         }.setNegativeButton("Cancel", null).show()
