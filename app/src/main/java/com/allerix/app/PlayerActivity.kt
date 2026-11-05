@@ -211,14 +211,13 @@ class PlayerActivity : ComponentActivity() {
         playbackEngine = runCatching { PlaybackEngine.valueOf(prefs.getString("playback_engine", "AUTO") ?: "AUTO") }
             .getOrDefault(PlaybackEngine.AUTO)
         vlcFallbackAttempted = intent.getBooleanExtra("skip_vlc_fallback", false)
+        speed = prefs.getFloat("speed", 1f)
+        autoPlayNext = prefs.getBoolean("autoplay", true)
+        subPos = prefs.getFloat("sub_pos", 0.12f)
         if (playbackEngine == PlaybackEngine.VLC) {
             launchVlc(intent.getLongExtra("start_position_ms", 0L), null)
             return
         }
-        speed = prefs.getFloat("speed", 1f)
-        autoPlayNext = prefs.getBoolean("autoplay", true)
-        subPos = prefs.getFloat("sub_pos", 0.12f)
-
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (Build.VERSION.SDK_INT >= 28) {
