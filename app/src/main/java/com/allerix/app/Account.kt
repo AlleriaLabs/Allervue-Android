@@ -49,7 +49,12 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 90.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
         ) {
-            Image(painterResource(R.drawable.logo_banner), "Allerix", Modifier.width(280.dp).aspectRatio(4.472f))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(72.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            }
             Spacer(Modifier.height(24.dp))
             Text("Sign In", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White,
                 modifier = Modifier.align(Alignment.Start))
@@ -84,7 +89,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             Text("⚙", fontSize = 24.sp, color = Grey)
         }
         Text(
-            "DISCLAIMER: Allerix is a private service for authorized members only. " +
+            "DISCLAIMER: Allervue is a private service for authorized members only. " +
                 "Content is provided for personal, non-commercial viewing. Copying, recording, " +
                 "sharing your account or redistributing any content is prohibited. " +
                 "By signing in you accept these terms.",
@@ -140,7 +145,7 @@ fun SettingsMenuScreen(
         SettingsRow("?", "Help & Support", "Account portal and password reset") { help = true }
         SettingsRow("⎋", "Sign out", "", onSignOut)
         Spacer(Modifier.weight(1f))
-        Text("Allerix 1.0", color = Color(0xFF666666), fontSize = 12.sp,
+        Text("Allervue 1.0", color = Color(0xFF666666), fontSize = 12.sp,
             modifier = Modifier.padding(20.dp))
     }
     if (help) AlertDialog(
