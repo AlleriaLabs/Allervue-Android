@@ -8,8 +8,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:icon="@drawable/ic_allervue_launcher"
+        android:roundIcon="@drawable/ic_allervue_launcher"
         android:label="Allervue"
         android:theme="@style/Theme.Allervue"
         android:usesCleartextTraffic="true">
