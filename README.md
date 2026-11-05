@@ -1,5 +1,5 @@
 # Allervue Android
-Allervue is an Android Jellyfin client for the Alleria Labs media ecosystem, with an custom gesture-based media player.
+Allervue is an Android Jellyfin client for the Alleria Labs media ecosystem, with a custom gesture-based media player.
 Server is built in (Api.kt, `SERVER`) and hidden from the login screen.
 
 Build: push to GitHub and run the "Build APK" workflow (see .github/workflows/build.yml),
