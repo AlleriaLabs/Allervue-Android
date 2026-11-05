@@ -20,6 +20,7 @@ import android.widget.SeekBar
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
@@ -110,7 +111,8 @@ class VlcPlayerActivity : ComponentActivity() {
                         state.text = "VLC · Playing"
                         if (!reporting && sourceId.isNotEmpty()) {
                             reporting = true
-                            Api.report("start", itemId, sourceId, vlc.time, false, transcoding, sessionId)
+                            val id = itemId; val src = sourceId; val pos = vlc.time; val transcode = transcoding; val sid = sessionId
+                            lifecycleScope.launch(Dispatchers.IO) { Api.report("start", id, src, pos, false, transcode, sid) }
                         }
                     }
                     MediaPlayer.Event.Paused -> { play.text = "▶"; state.text = "VLC · Paused"; reportProgress() }
@@ -234,6 +236,7 @@ class VlcPlayerActivity : ComponentActivity() {
                         }
                         url = plan.url
                         sessionId = plan.sessionId
+                        transcoding = plan.transcoding
                     }
                     val parentId = item.parentId
                     if (item.type == "Episode" && parentId != null) {
@@ -297,13 +300,16 @@ class VlcPlayerActivity : ComponentActivity() {
 
     private fun reportProgress() {
         if (sourceId.isEmpty() || !reporting) return
-        Api.report("progress", itemId, sourceId, vlc.time, !vlc.isPlaying, transcoding, sessionId)
+        val id = itemId; val src = sourceId; val pos = vlc.time; val paused = !vlc.isPlaying
+        val transcode = transcoding; val sid = sessionId
+        lifecycleScope.launch(Dispatchers.IO) { Api.report("progress", id, src, pos, paused, transcode, sid) }
     }
 
     private fun reportStopped() {
         if (sourceId.isEmpty() || !reporting || !::vlc.isInitialized) return
-        Api.report("stop", itemId, sourceId, vlc.time, true, transcoding, sessionId)
+        val id = itemId; val src = sourceId; val pos = vlc.time; val transcode = transcoding; val sid = sessionId
         reporting = false
+        lifecycleScope.launch(Dispatchers.IO) { Api.report("stop", id, src, pos, true, transcode, sid) }
     }
 
     private fun clock(ms: Long): String {
