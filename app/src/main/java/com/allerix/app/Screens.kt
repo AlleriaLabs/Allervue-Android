@@ -131,7 +131,8 @@ fun HomeScreen(
                 .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(painterResource(R.drawable.logo_banner), "Allervue", Modifier.height(30.dp).aspectRatio(4.472f))
+            Image(painterResource(R.drawable.logo_square), "Allervue emblem", Modifier.size(34.dp))
+            Text("ALLERVUE", color = Color(0xFFD9B77D), fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp, modifier = Modifier.padding(start = 8.dp))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { SmallIcon(R.drawable.ic_search) }
             IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
@@ -249,6 +250,27 @@ fun MediaCard(item: Item, modifier: Modifier, landscape: Boolean = false, onClic
 private fun Item.isAnimeSeries(): Boolean =
     (tags.orEmpty() + genres.orEmpty()).any { it.equals("Anime", ignoreCase = true) }
 
+/** Derive movie origin from Jellyfin ProductionLocations metadata; never infer from a title. */
+private fun Item.movieOriginCategory(): String {
+    val countries = productionLocations.orEmpty().map { it.trim().lowercase() }
+    if (countries.isEmpty()) return "Unclassified"
+    return when {
+        countries.any { it in setOf("philippines", "the philippines", "ph") } -> "Filipino"
+        countries.any { it in setOf("united states", "united states of america", "usa", "us") } -> "Hollywood"
+        countries.any { it.contains("south korea") || it == "korea" || it == "republic of korea" } -> "Korean"
+        countries.any { it == "japan" } -> "Japanese"
+        countries.any { it == "china" || it == "mainland china" } -> "Chinese"
+        countries.any { it == "india" } -> "Indian"
+        countries.any { it in setOf("united kingdom", "uk", "great britain") } -> "British"
+        else -> "Other International"
+    }
+}
+
+private val movieOriginOrder = listOf(
+    "Filipino", "Hollywood", "Korean", "Japanese", "Chinese", "Indian",
+    "British", "Other International", "Unclassified"
+)
+
 @Composable
 fun LibraryTab(
     title: String, type: String, onOpen: (Item) -> Unit,
@@ -257,6 +279,7 @@ fun LibraryTab(
     var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
     var loading by remember(type) { mutableStateOf(true) }
     var selectedGenre by remember(type) { mutableStateOf("All") }
+    var selectedOrigin by remember(type) { mutableStateOf("All") }
     var showFilter by remember(type) { mutableStateOf("All") }
 
     LaunchedEffect(type) {
@@ -269,8 +292,13 @@ fun LibraryTab(
         if (isShows) emptyList() else list.flatMap { it.genres.orEmpty() }
             .filter { it.isNotBlank() }.distinct().sorted()
     }
-    val visible = remember(list, selectedGenre, showFilter, isShows) {
+    val originCategories = remember(list, isShows) {
+        if (isShows) emptyList() else list.map { it.movieOriginCategory() }.distinct()
+            .sortedBy { movieOriginOrder.indexOf(it).let { index -> if (index < 0) Int.MAX_VALUE else index } }
+    }
+    val visible = remember(list, selectedGenre, selectedOrigin, showFilter, isShows) {
         list.filter { item ->
+            val originMatch = isShows || selectedOrigin == "All" || item.movieOriginCategory() == selectedOrigin
             val showMatch = !isShows || when (showFilter) {
                 "Anime" -> item.isAnimeSeries()
                 "TV Series" -> !item.isAnimeSeries()
@@ -279,7 +307,7 @@ fun LibraryTab(
             val genreMatch = selectedGenre == "All" || item.genres.orEmpty().any {
                 it.equals(selectedGenre, ignoreCase = true)
             }
-            showMatch && genreMatch
+            originMatch && showMatch && genreMatch
         }
     }
 
@@ -304,7 +332,26 @@ fun LibraryTab(
                         )
                     }
                 }
-            } else if (genres.isNotEmpty()) {
+            } else {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(listOf("All") + originCategories) { origin ->
+                        FilterChip(
+                            selected = selectedOrigin == origin,
+                            onClick = { selectedOrigin = origin },
+                            label = { Text(origin) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Red.copy(alpha = 0.22f),
+                                selectedLabelColor = Color.White,
+                                labelColor = Grey
+                            )
+                        )
+                    }
+                }
+            }
+            if (!isShows && genres.isNotEmpty()) {
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -330,6 +377,7 @@ fun LibraryTab(
                 Text(
                     when {
                         isShows && showFilter != "All" -> showFilter
+                        !isShows && selectedOrigin != "All" -> selectedOrigin
                         selectedGenre != "All" -> selectedGenre
                         else -> title
                     },
