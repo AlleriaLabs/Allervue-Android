@@ -169,10 +169,6 @@ class PlayerActivity : ComponentActivity() {
     private var brightness = 0.5f
     private var volF = 0f
 
-    private val subFilePicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) loadSubtitleFile(uri)
-    }
-
     private val isTranscoding get() = offlinePath == null && plan?.transcoding == true
     private val hasNext get() = siblingIndex >= 0 && siblingIndex < siblings.size - 1
     private val hasPrev get() = siblingIndex > 0
@@ -264,19 +260,6 @@ class PlayerActivity : ComponentActivity() {
         finish()
     }
 
-    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
-        val all = PlaybackEngine.values()
-        box.addView(radioGroup(100, all.map { "${it.label}  ·  ${it.description}" }, playbackEngine.ordinal) { index ->
-            val selected = all[index]
-            prefs.edit().putString("playback_engine", selected.name).apply()
-            playbackEngine = selected
-            dlg.dismiss()
-            if (selected == PlaybackEngine.VLC) launchVlc(player.currentPosition, null)
-            else showHud("Playback engine: ${selected.label}", 1800)
-        })
-        box.addView(noteText("Auto tries ExoPlayer first. If the Android decoder fails, Allervue opens the same stream in VLC at the current position."))
-    }
-
     /** Builds an ExoPlayer using the chosen decoder mode. 4K/8K play whenever the device decoder supports them. */
     private fun createPlayer(): ExoPlayer {
         val selector = MediaCodecSelector { mime, secure, tunneling ->
@@ -350,11 +333,11 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun glassIcon(res: Int, size: Int = 44, pad: Int = 11) =
-        icon(res, size, pad).apply { background = circleBg() }
+        icon(res, size, pad).apply { background = null }
 
     /** 10-second skip button: a circular arrow with "10" in the middle, on a glass disc. */
     private fun skipButton(forward: Boolean): FrameLayout = FrameLayout(this).apply {
-        background = circleBg()
+        background = circleBg(0xAA17171B.toInt())
         setPadding(dp(10), dp(10), dp(10), dp(10))
         addView(ImageView(context).apply {
             setImageResource(R.drawable.ic_replay); setColorFilter(Color.WHITE)
@@ -373,8 +356,8 @@ class PlayerActivity : ComponentActivity() {
         setPadding(0, dp(3), 0, dp(2))
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         addView(FrameLayout(context).apply {
-            background = circleBg(0x66131822)
-            elevation = dp(5).toFloat()
+            background = null
+            elevation = 0f
             addView(ImageView(context).apply {
                 setImageResource(res); setColorFilter(Color.WHITE)
                 setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -437,7 +420,7 @@ class PlayerActivity : ComponentActivity() {
         // ---- centre: skip back, big play (red ring), skip forward
         val rewBtn = skipButton(false)
         playBtn = icon(R.drawable.ic_pause, 82, 20).apply {
-            background = circleBg(accent, 0x88FFFFFF.toInt())
+            background = circleBg(accent)
             elevation = dp(12).toFloat()
         }
         val fwdBtn = skipButton(true)
@@ -448,7 +431,7 @@ class PlayerActivity : ComponentActivity() {
             addView(fwdBtn, LinearLayout.LayoutParams(dp(64), dp(64)).apply { leftMargin = dp(48) })
         }
 
-        // ---- bottom glass card: seek row + action row
+        // ---- cinematic timeline and tool strip
         curTime = TextView(this).apply {
             text = "00:00"; setTextColor(Color.WHITE); textSize = 13f; minWidth = dp(52); gravity = Gravity.CENTER
         }
@@ -495,7 +478,8 @@ class PlayerActivity : ComponentActivity() {
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(22), dp(8), dp(22), dp(18))
-            elevation = dp(10).toFloat()
+            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(0xF20A0A0D.toInt(), 0xB20A0A0D.toInt(), 0x00000000))
             addView(seekRow)
             addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(7) })
         }
@@ -532,7 +516,6 @@ class PlayerActivity : ComponentActivity() {
                 setPadding(dp(20), dp(12), dp(20), dp(12))
                 background = GradientDrawable().apply {
                     setColor(accent); cornerRadius = dp(22).toFloat()
-                    setStroke(dp(1), 0x66FFFFFF)
                 }
                 visibility = View.GONE
                 elevation = dp(8).toFloat()
@@ -765,7 +748,6 @@ class PlayerActivity : ComponentActivity() {
             box.addView(sheetRow(label, value) { dlg.dismiss(); onClick() })
         }
         row("This phone & playback info") { showDeviceSheet() }
-        row("Playback engine", playbackEngine.label) { showPlaybackEngineSheet() }
         row("Video quality", qualityText()) { showQualitySheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
         row("Subtitle style") { showSubtitleStyleSheet() }
@@ -948,18 +930,15 @@ class PlayerActivity : ComponentActivity() {
         val labels = ArrayList<String>()
         labels.add("Off")
         subStreams.forEach { labels.add(streamLabel(it) + (if (it.isText) "" else "  (image)")) }
-        labels.add("Load from file…")
         val checked = when {
             !subOn -> 0
             activeSub >= 0 -> activeSub + 1
-            activeSub == -2 -> labels.size - 1
             else -> 0
         }
         box.addView(radioGroup(100, labels, checked) { i ->
             dlg.dismiss()
             when {
                 i == 0 -> subtitlesOff()
-                i == labels.size - 1 -> subFilePicker.launch(arrayOf("*/*"))
                 else -> selectSubStream(i - 1)
             }
         })
