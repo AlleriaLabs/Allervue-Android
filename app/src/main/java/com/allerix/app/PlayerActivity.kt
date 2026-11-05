@@ -256,6 +256,7 @@ class PlayerActivity : ComponentActivity() {
             .putExtra("position_ms", positionMs)
             .putExtra("title", if (::titleView.isInitialized) titleView.text.toString() else intent.getStringExtra("title"))
             .putExtra("autoplay_next", autoPlayNext)
+            .putExtra("transcoding", isTranscoding)
         startActivity(i)
         finish()
     }
