@@ -196,7 +196,6 @@ class VlcPlayerActivity : ComponentActivity() {
         actions.addView(play, LinearLayout.LayoutParams(dp(58), dp(48)).apply { leftMargin = dp(12); rightMargin = dp(12) })
         actions.addView(button("+10s") { vlc.time = (vlc.time + 10_000).coerceAtMost(vlc.length) })
         actions.addView(button("1×") { chooseSpeed() }.apply { tag = "speed" })
-        actions.addView(button("⚙") { chooseEngine() }.apply { contentDescription = "Playback engine" })
         bottom.addView(actions)
 
         skipIntro = button("SKIP INTRO  ›") { 
@@ -297,22 +296,6 @@ class VlcPlayerActivity : ComponentActivity() {
         AlertDialog.Builder(this).setTitle("Playback speed").setSingleChoiceItems(labels, values.indexOfFirst { it == speed }.coerceAtLeast(0)) { d, i ->
             speed = values[i]; prefs.edit().putFloat("speed", speed).apply()
             vlc.setRate(speed); d.dismiss()
-        }.setNegativeButton("Cancel", null).show()
-    }
-
-    private fun chooseEngine() {
-        val values = arrayOf("Auto (ExoPlayer with VLC fallback)", "ExoPlayer", "VLC")
-        AlertDialog.Builder(this).setTitle("Playback engine").setSingleChoiceItems(values, 2) { d, i ->
-            val engine = PlaybackEngine.values()[i]
-            prefs.edit().putString("playback_engine", engine.name).apply()
-            d.dismiss()
-            if (engine != PlaybackEngine.VLC) {
-                reportStopped()
-                val intent = Intent(this, PlayerActivity::class.java)
-                    .putExtra("id", itemId).putExtra("start_position_ms", vlc.time)
-                    .putExtra("skip_vlc_fallback", true)
-                startActivity(intent); finish()
-            }
         }.setNegativeButton("Cancel", null).show()
     }
 
