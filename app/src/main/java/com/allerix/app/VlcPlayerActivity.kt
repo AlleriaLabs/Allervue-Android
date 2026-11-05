@@ -54,6 +54,7 @@ class VlcPlayerActivity : ComponentActivity() {
     private var autoPlayNext = true
     private var started = false
     private var reporting = false
+    private var transcoding = false
     private var siblings: List<Item> = emptyList()
     private var siblingIndex = -1
     private var introSegments: List<Pair<Long, Long>> = emptyList()
@@ -88,6 +89,7 @@ class VlcPlayerActivity : ComponentActivity() {
         streamUrl = intent.getStringExtra("stream_url")
         positionMs = intent.getLongExtra("position_ms", 0L)
         autoPlayNext = intent.getBooleanExtra("autoplay_next", true)
+        transcoding = intent.getBooleanExtra("transcoding", false)
         speed = prefs.getFloat("speed", 1f)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.decorView.systemUiVisibility =
@@ -108,7 +110,7 @@ class VlcPlayerActivity : ComponentActivity() {
                         state.text = "VLC · Playing"
                         if (!reporting && sourceId.isNotEmpty()) {
                             reporting = true
-                            Api.report("start", itemId, sourceId, vlc.time, false, false, sessionId)
+                            Api.report("start", itemId, sourceId, vlc.time, false, transcoding, sessionId)
                         }
                     }
                     MediaPlayer.Event.Paused -> { play.text = "▶"; state.text = "VLC · Paused"; reportProgress() }
@@ -294,12 +296,12 @@ class VlcPlayerActivity : ComponentActivity() {
 
     private fun reportProgress() {
         if (sourceId.isEmpty() || !reporting) return
-        Api.report("progress", itemId, sourceId, vlc.time, !vlc.isPlaying, false, sessionId)
+        Api.report("progress", itemId, sourceId, vlc.time, !vlc.isPlaying, transcoding, sessionId)
     }
 
     private fun reportStopped() {
         if (sourceId.isEmpty() || !reporting || !::vlc.isInitialized) return
-        Api.report("stop", itemId, sourceId, vlc.time, true, false, sessionId)
+        Api.report("stop", itemId, sourceId, vlc.time, true, transcoding, sessionId)
         reporting = false
     }
 
