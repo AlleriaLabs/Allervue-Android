@@ -107,17 +107,17 @@ fun SplashScreen() {
         0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "slide"
     )
     Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Red.copy(alpha = glow), BgDark), radius = 1100f)),
+        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFD8B77E).copy(alpha = glow), BgDark), radius = 1100f)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
-                painterResource(R.drawable.logo_square), null,
-                Modifier.size(230.dp).scale(logoScale).alpha(logoAlpha)
+                painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem",
+                Modifier.size(190.dp).scale(logoScale).alpha(logoAlpha)
             )
             Spacer(Modifier.height(22.dp))
             Text(
-                "Great stories.\nAnytime. Anywhere.", color = Grey, fontSize = 14.sp,
+                "ALLERVUE\nGREAT STORIES. ANYTIME. ANYWHERE.", color = Grey, fontSize = 14.sp,
                 textAlign = TextAlign.Center, modifier = Modifier.alpha(tagAlpha)
             )
         }
@@ -125,7 +125,7 @@ fun SplashScreen() {
             Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).width(120.dp).height(3.dp)
                 .clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))
         ) {
-            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Red))
+            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Color(0xFFD8B77E)))
         }
     }
 }
