@@ -68,6 +68,7 @@ fun HomeScreen(
     var featured by remember { mutableStateOf<List<Item>>(emptyList()) }
     var resume by remember { mutableStateOf<List<Item>>(emptyList()) }
     var trending by remember { mutableStateOf<List<Item>>(emptyList()) }
+    var recommended by remember { mutableStateOf<List<Item>>(emptyList()) }
     var rows by remember { mutableStateOf<List<Pair<Item, List<Item>>>>(emptyList()) }
     var error by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
@@ -77,6 +78,7 @@ fun HomeScreen(
             featured = runCatching { Api.featured() }.getOrDefault(emptyList())
             resume = Api.resume()
             trending = runCatching { Api.trending() }.getOrDefault(emptyList())
+            recommended = runCatching { Api.suggestions() }.getOrDefault(emptyList())
             rows = Api.views().map { it to Api.latest(it.id) }.filter { it.second.isNotEmpty() }
         } catch (e: Exception) {
             if (e.message?.contains("401") == true) onLogout() else error = "Can't reach the server. Check your connection."
@@ -109,8 +111,13 @@ fun HomeScreen(
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item { HeroCarousel(heroes, pager, onPlay, onOpen) }
-            if (trending.isNotEmpty()) item { MediaRow("Trending Now  ›", trending, onClick = onOpen) }
-            if (resume.isNotEmpty()) item { MediaRow("Continue Watching  ›", resume, onClick = onPlay) }
+            if (resume.isNotEmpty()) item { MediaRow("Continue Watching", resume, onClick = onPlay) }
+            val popularMovies = trending.filter { it.type == "Movie" }
+            val popularShows = trending.filter { it.type == "Series" }
+            if (popularMovies.isNotEmpty()) item { MediaRow("Popular Movies", popularMovies, onClick = onOpen) }
+            if (popularShows.isNotEmpty()) item { MediaRow("Popular Series", popularShows, onClick = onOpen) }
+            val picks = recommended.filter { pick -> trending.none { it.id == pick.id } }.take(12)
+            if (picks.isNotEmpty()) item { MediaRow("Picked for You", picks, onClick = onOpen) }
             items(rows, key = { it.first.id }) { (lib, list) ->
                 MediaRow("Latest in ${lib.name}", list, onClick = onOpen, onSeeAll = { onSeeAll(lib) })
             }
@@ -239,24 +246,114 @@ fun MediaCard(item: Item, modifier: Modifier, landscape: Boolean = false, onClic
 }
 
 // ------------------------------------------------------------------ movies / tv shows tabs
+private fun Item.isAnimeSeries(): Boolean =
+    (tags.orEmpty() + genres.orEmpty()).any { it.equals("Anime", ignoreCase = true) }
+
 @Composable
-fun LibraryTab(title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
-    var list by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+fun LibraryTab(
+    title: String, type: String, onOpen: (Item) -> Unit,
+    onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false
+) {
+    var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
+    var loading by remember(type) { mutableStateOf(true) }
+    var selectedGenre by remember(type) { mutableStateOf("All") }
+    var showFilter by remember(type) { mutableStateOf("All") }
+
     LaunchedEffect(type) {
+        loading = true
         list = runCatching { Api.byType(type) }.getOrDefault(emptyList())
         loading = false
     }
+
+    val genres = remember(list, isShows) {
+        if (isShows) emptyList() else list.flatMap { it.genres.orEmpty() }
+            .filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val visible = remember(list, selectedGenre, showFilter, isShows) {
+        list.filter { item ->
+            val showMatch = !isShows || when (showFilter) {
+                "Anime" -> item.isAnimeSeries()
+                "TV Series" -> !item.isAnimeSeries()
+                else -> true
+            }
+            val genreMatch = selectedGenre == "All" || item.genres.orEmpty().any {
+                it.equals(selectedGenre, ignoreCase = true)
+            }
+            showMatch && genreMatch
+        }
+    }
+
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TabHeader(title, onSearch, onSettings)
+            if (isShows) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(listOf("All", "Anime", "TV Series")) { filter ->
+                        FilterChip(
+                            selected = showFilter == filter,
+                            onClick = { showFilter = filter },
+                            label = { Text(filter) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Red.copy(alpha = 0.22f),
+                                selectedLabelColor = Color.White,
+                                labelColor = Grey
+                            )
+                        )
+                    }
+                }
+            } else if (genres.isNotEmpty()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(listOf("All") + genres) { genre ->
+                        FilterChip(
+                            selected = selectedGenre == genre,
+                            onClick = { selectedGenre = genre },
+                            label = { Text(genre) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Red.copy(alpha = 0.22f),
+                                selectedLabelColor = Color.White,
+                                labelColor = Grey
+                            )
+                        )
+                    }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    when {
+                        isShows && showFilter != "All" -> showFilter
+                        selectedGenre != "All" -> selectedGenre
+                        else -> title
+                    },
+                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text("${visible.size} titles", color = Dim, fontSize = 12.sp)
+            }
             Box(Modifier.fillMaxSize()) {
                 if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
-                LazyVerticalGrid(
-                    GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(list, key = { it.id }) { MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) } }
+                else if (visible.isEmpty()) {
+                    Text(
+                        if (isShows && showFilter == "Anime")
+                            "No Anime titles found. Add an Anime genre or tag in Jellyfin to classify shows here."
+                        else "No titles in this category yet.",
+                        color = Grey, modifier = Modifier.align(Alignment.Center).padding(28.dp)
+                    )
+                } else {
+                    LazyVerticalGrid(
+                        GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(visible, key = { it.id }) { MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) } }
+                    }
                 }
             }
         }
