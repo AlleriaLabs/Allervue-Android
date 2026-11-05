@@ -151,8 +151,28 @@ object Api {
     ).items
 
     suspend fun byType(type: String): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500&fields=Genres,Tags,Overview")
     ).items
+
+    /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */
+    suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
+        val root = json.parseToJsonElement(call("GET", "/MediaSegments/$id"))
+        val array = when {
+            root is kotlinx.serialization.json.JsonArray -> root
+            root is kotlinx.serialization.json.JsonObject ->
+                (root["MediaSegments"] ?: root["Items"]) as? kotlinx.serialization.json.JsonArray
+                    ?: kotlinx.serialization.json.JsonArray(emptyList())
+            else -> kotlinx.serialization.json.JsonArray(emptyList())
+        }
+        array.mapNotNull { element ->
+            val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+            val type = obj["Type"]?.toString()?.trim('"').orEmpty()
+            if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
+            val start = obj["StartTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
+            val end = obj["EndTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
+            if (end <= start) null else (start / 10_000L) to (end / 10_000L)
+        }
+    }.getOrDefault(emptyList())
 
     suspend fun favorites(): List<Item> = json.decodeFromString<ItemsResult>(
         call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName")
