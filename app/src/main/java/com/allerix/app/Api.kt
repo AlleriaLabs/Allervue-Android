@@ -71,7 +71,7 @@ object Api {
     fun authHeader(): String = auth()
 
     private fun auth(): String {
-        val s = "MediaBrowser Client=\"Allerix\", Device=\"Android\", DeviceId=\"allerix-android\", Version=\"1.0\""
+        val s = "MediaBrowser Client=\"Allervue\", Device=\"Android\", DeviceId=\"allervue-android\", Version=\"1.0\""
         return if (token.isNotEmpty()) "$s, Token=\"$token\"" else s
     }
 
