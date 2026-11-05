@@ -83,7 +83,7 @@ import kotlin.math.abs
 import kotlin.math.log10
 
 /**
- * Allerix player: floating glass control card, selectable decoder (HW / HW+ / SW), 4K/8K direct play,
+ * Allervue player: floating glass control card, selectable decoder (HW / HW+ / SW), 4K/8K direct play,
  * custom subtitle engine (srt, ass/ssa, vtt, text sub) with style, sync and swipe gestures,
  * and software volume boost up to 200%.
  */
@@ -1300,9 +1300,9 @@ class PlayerActivity : ComponentActivity() {
     @RequiresApi(29)
     private fun saveBitmap(bmp: Bitmap) {
         val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, "Allerix_${System.currentTimeMillis()}.png")
+            put(MediaStore.Images.Media.DISPLAY_NAME, "Allervue_${System.currentTimeMillis()}.png")
             put(MediaStore.Images.Media.MIME_TYPE, "image/png")
-            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Allerix")
+            put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Allervue")
         }
         val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
         if (uri != null) {
