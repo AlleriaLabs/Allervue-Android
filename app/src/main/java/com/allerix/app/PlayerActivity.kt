@@ -105,6 +105,9 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var curTime: TextView
     private lateinit var durTime: TextView
     private lateinit var playBtn: ImageView
+    private lateinit var prevEpisodeBtn: TextView
+    private lateinit var nextEpisodeBtn: TextView
+    private lateinit var skipIntroBtn: TextView
     private lateinit var subText: TextView
     private lateinit var speedLabel: TextView
     private lateinit var decoderLabel: TextView
@@ -122,6 +125,7 @@ class PlayerActivity : ComponentActivity() {
     private var decoder = DecoderMode.HW
     private var siblings: List<Item> = emptyList()
     private var siblingIndex = -1
+    private var introSegments: List<Pair<Long, Long>> = emptyList()
     private var plan: PlaybackPlan? = null
     private var autoRetried = false
 
@@ -180,6 +184,7 @@ class PlayerActivity : ComponentActivity() {
     private val uiTick = object : Runnable {
         override fun run() {
             if (controlsVisible && !scrubbing) updateProgress()
+            updateIntroSkip()
             handler.postDelayed(this, 500)
         }
     }
@@ -375,7 +380,11 @@ class PlayerActivity : ComponentActivity() {
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, intArrayOf(0xCC000000.toInt(), 0))
             addView(backBtn)
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(badgeRow); addView(castBtn); addView(pipBtn)
+            addView(badgeRow)
+            prevEpisodeBtn = episodeNavButton("‹ Prev")
+            nextEpisodeBtn = episodeNavButton("Next ›")
+            addView(prevEpisodeBtn); addView(nextEpisodeBtn)
+            addView(castBtn); addView(pipBtn)
         }
 
         // ---- centre: skip back, big play (red ring), skip forward
@@ -465,6 +474,29 @@ class PlayerActivity : ComponentActivity() {
             addView(subText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
             addView(controls, FrameLayout.LayoutParams(-1, -1))
+            skipIntroBtn = TextView(this@PlayerActivity).apply {
+                text = "SKIP INTRO  ›"
+                setTextColor(Color.WHITE); textSize = 13f; typeface = Typeface.DEFAULT_BOLD
+                setPadding(dp(20), dp(12), dp(20), dp(12))
+                background = GradientDrawable().apply {
+                    setColor(accent); cornerRadius = dp(22).toFloat()
+                    setStroke(dp(1), 0x66FFFFFF)
+                }
+                visibility = View.GONE
+                elevation = dp(8).toFloat()
+                setOnClickListener {
+                    val active = introSegments.firstOrNull {
+                        player.currentPosition >= it.first && player.currentPosition < it.second
+                    }
+                    if (active != null) {
+                        player.seekTo(active.second)
+                        showHud("Intro skipped")
+                        visibility = View.GONE
+                    }
+                }
+            }
+            addView(skipIntroBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+                .apply { bottomMargin = dp(148) })
             addView(hud, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             addView(lockOverlay, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM or Gravity.START)
                 .apply { leftMargin = dp(32); bottomMargin = dp(32) })
@@ -488,6 +520,8 @@ class PlayerActivity : ComponentActivity() {
         act(rewBtn) { seekBy(-10_000); showHud("-10s") }
         act(fwdBtn) { seekBy(10_000); showHud("+10s") }
         act(playBtn) { if (player.isPlaying) player.pause() else player.play() }
+        act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
+        act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
         act(lockItem) { toggleLock() }
         act(subsItem) { showSubtitleSheet() }
         act(audioItem) { showAudioSheet() }
@@ -496,6 +530,34 @@ class PlayerActivity : ComponentActivity() {
         act(volItem) { showVolumeSheet() }
         act(moreItem) { showMoreSheet() }
         lockOverlay.setOnClickListener { toggleLock() }
+    }
+
+    private fun episodeNavButton(label: String) = TextView(this).apply {
+        text = label; textSize = 11f; setTextColor(Color.WHITE)
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setPadding(dp(9), dp(7), dp(9), dp(7))
+        background = GradientDrawable().apply {
+            setColor(0xAA202026.toInt()); cornerRadius = dp(14).toFloat()
+            setStroke(dp(1), 0x55FFFFFF)
+        }
+        visibility = View.GONE
+    }
+
+    private fun updateEpisodeButtons() {
+        prevEpisodeBtn.visibility = if (hasPrev) View.VISIBLE else View.GONE
+        nextEpisodeBtn.visibility = if (hasNext) View.VISIBLE else View.GONE
+    }
+
+    private fun updateIntroSkip() {
+        if (!::skipIntroBtn.isInitialized || offlinePath != null || introSegments.isEmpty()) {
+            if (::skipIntroBtn.isInitialized) skipIntroBtn.visibility = View.GONE
+            return
+        }
+        val active = introSegments.firstOrNull {
+            player.currentPosition >= it.first && player.currentPosition < it.second
+        }
+        skipIntroBtn.visibility = if (active != null) View.VISIBLE else View.GONE
     }
 
     private fun act(v: View, f: () -> Unit) = v.setOnClickListener { scheduleHide(); f() }
@@ -1091,6 +1153,7 @@ class PlayerActivity : ComponentActivity() {
         }
         try {
             val item = Api.item(itemId)
+            introSegments = runCatching { Api.introSegments(itemId) }.getOrDefault(emptyList())
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
             if (item.type == "Episode" && item.seriesName != null) {
@@ -1131,13 +1194,16 @@ class PlayerActivity : ComponentActivity() {
                     .filter { it.type == "Episode" }
                 siblingIndex = siblings.indexOfFirst { it.id == itemId }
             }
+            updateEpisodeButtons()
+            updateIntroSkip()
         } catch (e: Exception) { showHud("Error: ${e.message}", 4000) }
     }
 
     private fun switchTo(newId: String) {
         report("stop")
         handler.removeCallbacks(progressTick)
-        sourceId = ""; itemId = newId
+        sourceId = ""; itemId = newId; introSegments = emptyList()
+        updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
         autoRetried = false; plan = null
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
