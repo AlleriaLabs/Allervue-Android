@@ -8,6 +8,10 @@ or open in Android Studio and Build > Build APK(s).
 Player: swipe left/right half for brightness/volume, swipe sideways to seek, double-tap sides for ±10s,
 pinch to zoom, long-press for 2x, lock button, PiP with Home, resume + progress sync. Episode navigation is shown in the player header; Skip Intro appears when Jellyfin has intro segment markers for the episode.
 
+## Playback engines
+- Playback engine: Auto (ExoPlayer first, LibVLC fallback on decoder failures), ExoPlayer-only, or VLC-only. The engine preference is remembered.
+- VLC is embedded through the official VideoLAN LibVLC Android library. The VLC fallback receives the current stream and playback position; it also supports local downloads, seek, speed control, Jellyfin progress reporting, and intro markers.
+
 ## Discovery and categories
 - Home keeps the featured hero carousel and adds Continue Watching, separate Popular Movies / Popular Series rows, and personalized picks.
 - Movies can be filtered by the genres present in the Jellyfin library.
