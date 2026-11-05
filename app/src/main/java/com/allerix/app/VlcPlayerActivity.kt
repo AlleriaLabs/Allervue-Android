@@ -276,7 +276,7 @@ class VlcPlayerActivity : ComponentActivity() {
     private fun chooseSpeed() {
         val values = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 1.75f, 2f)
         val labels = values.map { "${it}×" }.toTypedArray()
-        AlertDialog.Builder(this).setTitle("Playback speed").setSingleChoiceItems(labels, values.indexOf(speed).coerceAtLeast(2)) { d, i ->
+        AlertDialog.Builder(this).setTitle("Playback speed").setSingleChoiceItems(labels, values.indexOfFirst { it == speed }.coerceAtLeast(0)) { d, i ->
             speed = values[i]; prefs.edit().putFloat("speed", speed).apply()
             vlc.setRate(speed); d.dismiss()
         }.setNegativeButton("Cancel", null).show()
