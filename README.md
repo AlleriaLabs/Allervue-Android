@@ -1,5 +1,5 @@
-# Allervue
-Netflix-style Android client for the Allerix Jellyfin server, with an MX Player-style player.
+# Allervue Android
+Allervue is an Android Jellyfin client for the Alleria Labs media ecosystem, with an custom gesture-based media player.
 Server is built in (Api.kt, `SERVER`) and hidden from the login screen.
 
 Build: push to GitHub and run the "Build APK" workflow (see .github/workflows/build.yml),
