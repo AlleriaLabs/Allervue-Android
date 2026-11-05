@@ -246,7 +246,10 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun launchVlc(positionMs: Long, url: String?) {
-        if (::player.isInitialized) report("stop")
+        if (::player.isInitialized && sourceId.isNotEmpty()) {
+            report("stop")
+            sourceId = "" // The VLC activity takes over this Jellyfin playback session.
+        }
         val i = Intent(this, VlcPlayerActivity::class.java)
             .putExtra("id", itemId)
             .putExtra("file", offlinePath)
