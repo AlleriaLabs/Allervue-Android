@@ -10,8 +10,8 @@
     <application
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Allerix"
-        android:theme="@style/Theme.Allerix"
+        android:label="Allervue"
+        android:theme="@style/Theme.Allervue"
         android:usesCleartextTraffic="true">
 
         <activity android:name=".MainActivity" android:exported="true">
