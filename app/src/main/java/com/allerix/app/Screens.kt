@@ -131,7 +131,7 @@ fun HomeScreen(
                 .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(painterResource(R.drawable.logo_banner), "Allerix", Modifier.height(30.dp).aspectRatio(4.472f))
+            Image(painterResource(R.drawable.logo_banner), "Allervue", Modifier.height(30.dp).aspectRatio(4.472f))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { SmallIcon(R.drawable.ic_search) }
             IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
