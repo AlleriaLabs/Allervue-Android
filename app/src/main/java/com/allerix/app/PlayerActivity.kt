@@ -956,7 +956,7 @@ class PlayerActivity : ComponentActivity() {
         row.addView(pill("Sync  (" + delayText() + ")") { dlg.dismiss(); showSubtitleSyncSheet() })
         box.addView(row)
         box.addView(noteText(
-            "Supports .srt, .ass/.ssa, .vtt and text .sub. Tip: swipe left or right on the subtitle text to jump " +
+            "Choose an embedded subtitle track. Tip: swipe left or right on the subtitle text to jump " +
                 "between lines, and drag it up or down to move it."))
     }
 
