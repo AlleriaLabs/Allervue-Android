@@ -151,7 +151,7 @@ object Api {
     ).items
 
     suspend fun byType(type: String): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500&fields=Genres,Tags,Overview,ProductionLocations")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500&fields=Genres,Tags,Overview")
     ).items
 
     /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */

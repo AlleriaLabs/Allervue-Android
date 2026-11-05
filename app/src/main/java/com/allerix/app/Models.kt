@@ -26,7 +26,6 @@ import kotlinx.serialization.Serializable
     @SerialName("SeriesId") val seriesId: String? = null,
     @SerialName("ParentId") val parentId: String? = null,
     @SerialName("Genres") val genres: List<String>? = null,
-    @SerialName("ProductionLocations") val productionLocations: List<String>? = null,
     @SerialName("Tags") val tags: List<String>? = null,
     @SerialName("People") val people: List<Person>? = null,
     @SerialName("Studios") val studios: List<NameOnly>? = null,
