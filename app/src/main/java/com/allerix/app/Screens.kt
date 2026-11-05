@@ -279,7 +279,6 @@ fun LibraryTab(
     var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
     var loading by remember(type) { mutableStateOf(true) }
     var selectedGenre by remember(type) { mutableStateOf("All") }
-    var selectedOrigin by remember(type) { mutableStateOf("All") }
     var showFilter by remember(type) { mutableStateOf("All") }
 
     LaunchedEffect(type) {
@@ -292,13 +291,8 @@ fun LibraryTab(
         if (isShows) emptyList() else list.flatMap { it.genres.orEmpty() }
             .filter { it.isNotBlank() }.distinct().sorted()
     }
-    val originCategories = remember(list, isShows) {
-        if (isShows) emptyList() else list.map { it.movieOriginCategory() }.distinct()
-            .sortedBy { movieOriginOrder.indexOf(it).let { index -> if (index < 0) Int.MAX_VALUE else index } }
-    }
-    val visible = remember(list, selectedGenre, selectedOrigin, showFilter, isShows) {
+    val visible = remember(list, selectedGenre, showFilter, isShows) {
         list.filter { item ->
-            val originMatch = isShows || selectedOrigin == "All" || item.movieOriginCategory() == selectedOrigin
             val showMatch = !isShows || when (showFilter) {
                 "Anime" -> item.isAnimeSeries()
                 "TV Series" -> !item.isAnimeSeries()
@@ -307,7 +301,13 @@ fun LibraryTab(
             val genreMatch = selectedGenre == "All" || item.genres.orEmpty().any {
                 it.equals(selectedGenre, ignoreCase = true)
             }
-            originMatch && showMatch && genreMatch
+            showMatch && genreMatch
+        }
+    }
+    val originRows = remember(visible, isShows) {
+        if (isShows) emptyList() else movieOriginOrder.mapNotNull { origin ->
+            val titles = visible.filter { it.movieOriginCategory() == origin }
+            if (titles.isEmpty()) null else origin to titles
         }
     }
 
@@ -315,92 +315,65 @@ fun LibraryTab(
         Column(Modifier.fillMaxSize()) {
             TabHeader(title, onSearch, onSettings)
             if (isShows) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Anime", "TV Series")) { filter ->
-                        FilterChip(
-                            selected = showFilter == filter,
-                            onClick = { showFilter = filter },
+                        FilterChip(selected = showFilter == filter, onClick = { showFilter = filter },
                             label = { Text(filter) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Red.copy(alpha = 0.22f),
-                                selectedLabelColor = Color.White,
-                                labelColor = Grey
-                            )
-                        )
+                                selectedLabelColor = Color.White, labelColor = Grey))
                     }
                 }
-            } else {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(listOf("All") + originCategories) { origin ->
-                        FilterChip(
-                            selected = selectedOrigin == origin,
-                            onClick = { selectedOrigin = origin },
-                            label = { Text(origin) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = Red.copy(alpha = 0.22f),
-                                selectedLabelColor = Color.White,
-                                labelColor = Grey
-                            )
-                        )
-                    }
-                }
-            }
-            if (!isShows && genres.isNotEmpty()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+            } else if (genres.isNotEmpty()) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All") + genres) { genre ->
-                        FilterChip(
-                            selected = selectedGenre == genre,
-                            onClick = { selectedGenre = genre },
+                        FilterChip(selected = selectedGenre == genre, onClick = { selectedGenre = genre },
                             label = { Text(genre) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Red.copy(alpha = 0.22f),
-                                selectedLabelColor = Color.White,
-                                labelColor = Grey
-                            )
-                        )
+                                selectedLabelColor = Color.White, labelColor = Grey))
                     }
                 }
             }
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    when {
-                        isShows && showFilter != "All" -> showFilter
-                        !isShows && selectedOrigin != "All" -> selectedOrigin
-                        selectedGenre != "All" -> selectedGenre
-                        else -> title
-                    },
-                    color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f)
-                )
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(when {
+                    isShows && showFilter != "All" -> showFilter
+                    !isShows && selectedGenre != "All" -> "$selectedGenre Movies"
+                    else -> title
+                }, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f))
                 Text("${visible.size} titles", color = Dim, fontSize = 12.sp)
             }
             Box(Modifier.fillMaxSize()) {
                 if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
                 else if (visible.isEmpty()) {
-                    Text(
-                        if (isShows && showFilter == "Anime")
-                            "No Anime titles found. Add an Anime genre or tag in Jellyfin to classify shows here."
-                        else "No titles in this category yet.",
-                        color = Grey, modifier = Modifier.align(Alignment.Center).padding(28.dp)
-                    )
+                    Text(if (isShows && showFilter == "Anime")
+                        "No Anime titles found. Add an Anime genre or tag in Jellyfin to classify shows here."
+                    else "No titles in this category yet.",
+                        color = Grey, modifier = Modifier.align(Alignment.Center).padding(28.dp))
+                } else if (isShows) {
+                    LazyVerticalGrid(GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(visible, key = { it.id }) {
+                            MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) }
+                        }
+                    }
                 } else {
-                    LazyVerticalGrid(
-                        GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(visible, key = { it.id }) { MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) } }
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                        items(originRows, key = { it.first }) { (origin, movies) ->
+                            val shelfTitle = when (origin) {
+                                "Filipino" -> "Filipino Movies"
+                                "Hollywood" -> "Hollywood Movies"
+                                "Other International" -> "Other International Movies"
+                                "Unclassified" -> "Other Movies"
+                                else -> "$origin Movies"
+                            }
+                            MediaRow(shelfTitle, movies, onClick = onOpen)
+                        }
                     }
                 }
             }
