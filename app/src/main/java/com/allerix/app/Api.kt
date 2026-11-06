@@ -113,6 +113,36 @@ object Api {
         return json.decodeFromString(call("POST", "/Users/ForgotPassword/Pin", body))
     }
 
+    /** Complete a JFA-Go password reset. The reset PIN is issued by the Jellyfin/JFA-Go reset flow. */
+    suspend fun setPasswordWithResetPin(pin: String, newPassword: String) = withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("pin", pin.trim())
+            put("password", newPassword)
+        }.toString()
+        val req = Request.Builder()
+            .url(JFA_URL.trimEnd('/') + "/reset")
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        http.newCall(req).execute().use { response ->
+            val payload = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val message = runCatching {
+                    val obj = json.parseToJsonElement(payload).jsonObject
+                    obj["error"]?.toString()?.trim('"') ?: obj["message"]?.toString()?.trim('"')
+                }.getOrNull()
+                error(message ?: when (response.code) {
+                    400 -> "The PIN or password was rejected. Check the details and password requirements."
+                    401 -> "That reset PIN has expired. Request a new one."
+                    else -> "Password reset failed (HTTP ${response.code})."
+                })
+            }
+            val success = runCatching {
+                json.parseToJsonElement(payload).jsonObject["success"]?.toString()?.toBoolean()
+            }.getOrNull()
+            if (success == false) error("The reset PIN was not accepted or has already been used.")
+        }
+    }
+
     suspend fun changePassword(currentPw: String, newPw: String) {
         val body = buildJsonObject { put("CurrentPw", currentPw); put("NewPw", newPw) }.toString()
         call("POST", "/Users/$userId/Password", body)
