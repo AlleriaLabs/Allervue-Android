@@ -19,12 +19,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-val Red = Color(0xFFE50914)
+val Red = Color(0xFFD8B77E)
+val BrandGold = Color(0xFFD8B77E)
+val BrandGoldBright = Color(0xFFE8CCA0)
+val BrandInk = Color(0xFF101013)
+val BrandSurface = Color(0xFF19191E)
+val BrandIvory = Color(0xFFF4EFE5)
 val BgDark = Color(0xFF0A0A0C)
 val Grey = Color(0xFFB3B3B3)
 val Dim = Color(0xFF8A8A90)
-val GlassColor = Color(0xCC16161B)
-val GlassBorder = Color(0x26FFFFFF)
+val GlassColor = Color(0xE619191E)
+val GlassBorder = Color(0x14D8B77E)
 
 fun Modifier.glass(radius: Dp = 16.dp): Modifier {
     val shape = RoundedCornerShape(radius)
@@ -35,7 +40,7 @@ fun Modifier.glass(radius: Dp = 16.dp): Modifier {
 fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier.fillMaxSize().background(
-            Brush.verticalGradient(0f to Color(0xFF1C060A), 0.4f to BgDark, 1f to BgDark)
+            Brush.verticalGradient(0f to Color(0xFF211C16), 0.28f to Color(0xFF121216), 0.72f to BgDark, 1f to BgDark)
         ),
         content = content
     )
@@ -61,7 +66,7 @@ fun TabHeader(title: String, onSearch: (() -> Unit)?, onSettings: (() -> Unit)? 
         Modifier.fillMaxWidth().padding(start = 20.dp, end = 4.dp, top = 14.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+        Text(title, color = BrandIvory, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
         if (onSearch != null) IconButton(onClick = onSearch) { SmallIcon(R.drawable.ic_search) }
         if (onSettings != null) IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
     }
@@ -80,8 +85,8 @@ fun MyListButton(item: Item, modifier: Modifier = Modifier) {
         },
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(10.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0x33FFFFFF), contentColor = Color.White),
-        border = BorderStroke(1.dp, Color(0x55FFFFFF))
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28231B), contentColor = BrandIvory),
+        border = BorderStroke(1.dp, BrandGold.copy(alpha = 0.32f))
     ) {
         SmallIcon(if (fav) R.drawable.ic_check else R.drawable.ic_add, size = 18)
         Spacer(Modifier.width(6.dp))
