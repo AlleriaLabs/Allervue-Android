@@ -408,11 +408,11 @@ class PlayerActivity : ComponentActivity() {
             text = intent.getStringExtra("title") ?: ""
             setTextColor(0xFFF7F4EE.toInt()); textSize = 16f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
-            maxLines = 2; ellipsize = TextUtils.TruncateAt.END
+            maxLines = 1; maxWidth = dp(160); ellipsize = TextUtils.TruncateAt.END
         }
         subTitle = TextView(this).apply {
             textSize = 10f; setTextColor(0xFFD8B77E.toInt())
-            text = nowPlayingText(true); letterSpacing = 0.04f
+            text = nowPlayingText(true); letterSpacing = 0.04f; maxLines = 1; maxWidth = dp(160)
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
@@ -432,7 +432,7 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(8), dp(8), dp(8), dp(5))
             addView(backBtn)
-            addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(titleCol, LinearLayout.LayoutParams(-2, -2))
             addView(badgeRow)
             addView(castBtn)
             addView(pipBtn)
@@ -1181,7 +1181,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun applyDefaultAudioTrack() {
-        if (defaultAudioApplied) return
+        if (defaultAudioApplied || audioStreams.isEmpty()) return
         val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
         if (groups.isEmpty()) return
         val preferred = audioStreams.firstOrNull { it.isDefault } ?: audioStreams.firstOrNull()
@@ -1196,7 +1196,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun applyDefaultSubtitle() {
-        if (defaultSubtitleApplied) return
+        if (defaultSubtitleApplied || subStreams.isEmpty()) return
         val english = subStreams.indexOfFirst {
             it.isText && (it.language?.startsWith("en", true) == true ||
                 languageName(it.language).equals("English", true))
@@ -1303,6 +1303,22 @@ class PlayerActivity : ComponentActivity() {
                 updateIntroSkip()
             }
 
+            // Start the common direct-play path immediately. Jellyfin can choose its
+            // default media source when MediaSourceId is omitted, so metadata loading
+            // no longer sits in front of the first video request.
+            val canStartDirectly = quality in listOf(Quality.AUTO, Quality.ORIGINAL) &&
+                audioMode == AudioMode.ORIGINAL
+            if (canStartDirectly) {
+                val url = Api.streamUrl(itemId)
+                plan = PlaybackPlan(url, false, false, sessionId, "Direct play · metadata loading in parallel")
+                player.setMediaItem(MediaItem.fromUri(url))
+                val requestedStart = intent.getLongExtra("start_position_ms", 0L)
+                if (requestedStart > 5_000) player.seekTo(requestedStart)
+                player.playWhenReady = true
+                player.prepare()
+                DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: direct stream request started before metadata")
+            }
+
             val metadataStarted = SystemClock.elapsedRealtime()
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
@@ -1337,16 +1353,23 @@ class PlayerActivity : ComponentActivity() {
 
             // AUTO starts with Jellyfin's static stream immediately. If this device cannot decode it,
             // the existing decoder-error handler falls back to a Jellyfin transcode.
-            player.setMediaItem(buildMediaItem())
             val resumeMs = (item.userData?.positionTicks ?: 0L) / 10_000
             val requestedStart = intent.getLongExtra("start_position_ms", 0L)
             val resumeAt = if (requestedStart > 0L) requestedStart else resumeMs
-            if (resumeAt > 5_000) player.seekTo(resumeAt)
-            player.playWhenReady = true
-            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
-            val prepareStarted = SystemClock.elapsedRealtime()
-            player.prepare()
-            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: prepare() returned in " + (SystemClock.elapsedRealtime() - prepareStarted) + "ms")
+            if (canStartDirectly) {
+                if (resumeAt > 5_000) player.seekTo(resumeAt)
+                applyDefaultAudioTrack()
+                applyDefaultSubtitle()
+                DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: continuing early direct stream with resolved media metadata")
+            } else {
+                player.setMediaItem(buildMediaItem())
+                if (resumeAt > 5_000) player.seekTo(resumeAt)
+                player.playWhenReady = true
+                DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
+                val prepareStarted = SystemClock.elapsedRealtime()
+                player.prepare()
+                DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: prepare() returned in " + (SystemClock.elapsedRealtime() - prepareStarted) + "ms")
+            }
             report("start")
             handler.postDelayed(progressTick, 10_000)
 
