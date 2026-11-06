@@ -345,9 +345,9 @@ class PlayerActivity : ComponentActivity() {
     private fun glassIcon(res: Int, size: Int = 44, pad: Int = 11) =
         icon(res, size, pad).apply { background = null }
 
-    /** 10-second skip button: a circular arrow with "10" in the middle, on a glass disc. */
+    /** 10-second skip button: a clean solid charcoal disc, with no glass treatment. */
     private fun skipButton(forward: Boolean): FrameLayout = FrameLayout(this).apply {
-        background = circleBg(0xAA17171B.toInt())
+        background = circleBg(0xFF202024.toInt())
         setPadding(dp(10), dp(10), dp(10), dp(10))
         addView(ImageView(context).apply {
             setImageResource(R.drawable.ic_replay); setColorFilter(Color.WHITE)
@@ -400,14 +400,14 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        // Cinematic Allervue layout: minimal title bar, centered transport controls,
-        // warm gold timeline, and a compact lower utility dock.
+        // Rebuilt from the mockup: clean cinematic layout, strict alignment,
+        // opaque/transparent surfaces only. No glass cards, strokes, or blur.
         val backBtn = glassIcon(R.drawable.ic_back, 30, 7)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF8F6F0.toInt()); textSize = 15f
+            setTextColor(0xFFF4EFE5.toInt()); textSize = 15f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
-            maxLines = 1; maxWidth = dp(220); ellipsize = TextUtils.TruncateAt.END
+            maxLines = 1; maxWidth = dp(240); ellipsize = TextUtils.TruncateAt.END
         }
         subTitle = TextView(this).apply {
             textSize = 10f; setTextColor(0xFFD8B77E.toInt())
@@ -415,13 +415,13 @@ class PlayerActivity : ComponentActivity() {
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(5), 0, dp(4), 0)
+            setPadding(dp(6), 0, dp(4), 0)
             addView(titleView)
-            addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
+            addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) })
         }
         badgeRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE; setPadding(0, 0, dp(3), 0)
+            visibility = View.GONE
         }
         val castBtn = glassIcon(R.drawable.ic_cast, 28, 6)
         val pipBtn = glassIcon(R.drawable.ic_pip, 28, 6).apply {
@@ -429,75 +429,87 @@ class PlayerActivity : ComponentActivity() {
         }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(10), dp(12), dp(8))
+            setPadding(dp(16), dp(10), dp(16), dp(8))
             addView(backBtn, LinearLayout.LayoutParams(dp(34), dp(38)))
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
-            addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
+            addView(badgeRow, LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8) })
             addView(castBtn, LinearLayout.LayoutParams(dp(34), dp(38)))
             addView(pipBtn, LinearLayout.LayoutParams(dp(34), dp(38)))
         }
         val topPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xD9101013.toInt(), 0x66101013, 0x00101013))
+                intArrayOf(0xE6101013.toInt(), 0x99101013.toInt(), 0x00101013))
             addView(topBar, LinearLayout.LayoutParams(-1, -2))
         }
 
         fun featureAction(res: Int, label: String): LinearLayout =
             LinearLayout(this@PlayerActivity).apply {
-                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                setPadding(dp(4), dp(3), dp(4), dp(3))
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER
+                setPadding(dp(1), dp(5), dp(1), dp(5))
                 addView(ImageView(this@PlayerActivity).apply {
-                    setImageResource(res); setColorFilter(0xFFE4C58B.toInt())
+                    setImageResource(res)
+                    setColorFilter(0xFFD8B77E.toInt())
                     scaleType = ImageView.ScaleType.CENTER_INSIDE
-                }, LinearLayout.LayoutParams(dp(21), dp(21)))
+                }, LinearLayout.LayoutParams(dp(19), dp(19)))
                 addView(TextView(this@PlayerActivity).apply {
-                    text = label; textSize = 9f; gravity = Gravity.CENTER
-                    setTextColor(0xFFE1DED7.toInt()); maxLines = 1
-                }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(4) })
+                    text = label; textSize = 8f; gravity = Gravity.CENTER
+                    setTextColor(0xFFF4EFE5.toInt()); maxLines = 1
+                }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(5) })
             }
 
-        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subtitles")
+        val lockAction = featureAction(R.drawable.ic_lock, "Lock")
+        val engineAction = featureAction(R.drawable.ic_settings, "Engine")
+        val qualityAction = featureAction(R.drawable.ic_tune, "Quality")
+        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subs")
         val audioAction = featureAction(R.drawable.ic_music, "Audio")
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
         val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
         speedLabel = speedAction.getChildAt(1) as TextView
+        val engineLabel = engineAction.getChildAt(1) as TextView
+        val qualityLabel = qualityAction.getChildAt(1) as TextView
+        engineLabel.text = "Engine"
+        qualityLabel.text = "Quality"
 
         prevEpisodeBtn = episodeNavButton("‹|").apply {
-            textSize = 18f; background = null; setPadding(dp(4), dp(4), dp(4), dp(4))
+            textSize = 17f; background = null; setPadding(0, 0, 0, 0)
         }
         nextEpisodeBtn = episodeNavButton("|›").apply {
-            textSize = 18f; background = null; setPadding(dp(4), dp(4), dp(4), dp(4))
+            textSize = 17f; background = null; setPadding(0, 0, 0, 0)
         }
         val rewBtn = skipButton(false).apply {
-            background = circleBg(0x55202024); setPadding(dp(9), dp(9), dp(9), dp(9))
+            background = circleBg(0xFF202024.toInt())
+            setPadding(dp(10), dp(10), dp(10), dp(10))
         }
-        playBtn = icon(R.drawable.ic_pause, 58, 14).apply {
-            background = circleBg(0xFFE4C58B.toInt())
-            setColorFilter(0xFF17130D.toInt())
-            elevation = dp(8).toFloat()
+        playBtn = icon(R.drawable.ic_pause, 68, 18).apply {
+            background = circleBg(0xFFD8B77E.toInt())
+            setColorFilter(0xFF101013.toInt())
+            elevation = dp(5).toFloat()
         }
         val fwdBtn = skipButton(true).apply {
-            background = circleBg(0x55202024); setPadding(dp(9), dp(9), dp(9), dp(9))
+            background = circleBg(0xFF202024.toInt())
+            setPadding(dp(10), dp(10), dp(10), dp(10))
         }
 
-        // Keep transport controls as one compact cluster. Weighted children here
-        // used to expand across the full screen width and made the buttons look scattered.
+        // A single fixed-width transport group is centered as one unit.
+        // Every control shares the same vertical centerline; the main action is exact center.
         val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(8), 0, dp(8))
-            fun fixed(v: View, width: Int, height: Int, start: Int = 0, end: Int = 0) {
+            fun slot(v: View, width: Int, height: Int, marginStart: Int = 0, marginEnd: Int = 0) {
                 addView(v, LinearLayout.LayoutParams(dp(width), dp(height)).apply {
-                    leftMargin = dp(start)
-                    rightMargin = dp(end)
+                    leftMargin = dp(marginStart)
+                    rightMargin = dp(marginEnd)
+                    gravity = Gravity.CENTER_VERTICAL
                 })
             }
-            fixed(prevEpisodeBtn, 34, 46, end = 10)
-            fixed(rewBtn, 48, 48, end = 14)
-            fixed(playBtn, 68, 68, end = 14)
-            fixed(fwdBtn, 48, 48, end = 10)
-            fixed(nextEpisodeBtn, 34, 46)
+            slot(prevEpisodeBtn, 30, 48, marginEnd = 12)
+            slot(rewBtn, 48, 48, marginEnd = 16)
+            slot(playBtn, 68, 68, marginEnd = 16)
+            slot(fwdBtn, 48, 48, marginEnd = 12)
+            slot(nextEpisodeBtn, 30, 48)
         }
         val centerControls = FrameLayout(this).apply {
             addView(transport, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
@@ -505,7 +517,7 @@ class PlayerActivity : ComponentActivity() {
         }
 
         curTime = TextView(this).apply {
-            text = "00:00"; setTextColor(0xFFF5F1E8.toInt()); textSize = 10f
+            text = "00:00"; setTextColor(0xFFF4EFE5.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -515,11 +527,12 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            progressTintList = ColorStateList.valueOf(0xFFE4C58B.toInt())
-            thumbTintList = ColorStateList.valueOf(0xFFFFF8E9.toInt())
-            progressBackgroundTintList = ColorStateList.valueOf(0x66FFFFFF)
+            progressTintList = ColorStateList.valueOf(0xFFD8B77E.toInt())
+            thumbTintList = ColorStateList.valueOf(0xFFF4EFE5.toInt())
+            progressBackgroundTintList = ColorStateList.valueOf(0x667A7772)
             secondaryProgressTintList = ColorStateList.valueOf(0x99FFFFFF.toInt())
-            minimumHeight = dp(18); setPadding(dp(2), 0, dp(2), 0)
+            minimumHeight = dp(18)
+            setPadding(dp(2), 0, dp(2), 0)
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
@@ -533,40 +546,37 @@ class PlayerActivity : ComponentActivity() {
             }
         })
         val timeline = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(7), dp(18), dp(1))
-            addView(curTime, LinearLayout.LayoutParams(-2, dp(26)))
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(2))
+            addView(curTime, LinearLayout.LayoutParams(-2, dp(28)))
             addView(seek, LinearLayout.LayoutParams(0, dp(28), 1f).apply {
-                leftMargin = dp(10); rightMargin = dp(10)
+                leftMargin = dp(12); rightMargin = dp(12)
             })
-            addView(durTime, LinearLayout.LayoutParams(-2, dp(26)))
+            addView(durTime, LinearLayout.LayoutParams(-2, dp(28)))
         }
 
+        // No enclosing dock card: four evenly sized actions sit directly on the bottom fade.
         val utilityDock = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            setPadding(dp(14), dp(2), dp(14), dp(8))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
-                setColor(0x331E1E22)
-                setStroke(dp(1), 0x22FFFFFF)
-            }
-            listOf(subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
-                addView(v, LinearLayout.LayoutParams(0, dp(54), 1f))
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(3), dp(18), dp(10))
+            background = null
+            listOf(lockAction, engineAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
+                addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0x00101013, 0xC9101013.toInt(), 0xF5101013.toInt()))
+                intArrayOf(0x00101013, 0xB8101013.toInt(), 0xF5101013.toInt()))
             addView(timeline, LinearLayout.LayoutParams(-1, -2))
-            addView(utilityDock, LinearLayout.LayoutParams(-1, -2).apply {
-                leftMargin = dp(12); rightMargin = dp(12); topMargin = dp(3)
-            })
+            addView(utilityDock, LinearLayout.LayoutParams(-1, -2))
         }
 
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-            addView(centerControls, FrameLayout.LayoutParams(-1, dp(100), Gravity.CENTER))
+            addView(centerControls, FrameLayout.LayoutParams(-1, dp(112), Gravity.CENTER))
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -574,18 +584,19 @@ class PlayerActivity : ComponentActivity() {
             setTextColor(Color.WHITE); textSize = 15f
             setPadding(dp(20), dp(12), dp(20), dp(12))
             background = GradientDrawable().apply {
-                setColor(0xE617171B.toInt()); cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), 0x44E4C58B)
+                setColor(0xFF17171B.toInt()); cornerRadius = dp(10).toFloat()
             }
             visibility = View.GONE
         }
         spinner = ProgressBar(this).apply {
-            isIndeterminate = true; indeterminateTintList = ColorStateList.valueOf(0xFFE4C58B.toInt())
+            isIndeterminate = true
+            indeterminateTintList = ColorStateList.valueOf(0xFFD8B77E.toInt())
             visibility = View.GONE
         }
         lockOverlay = ImageView(this).apply {
             setImageResource(R.drawable.ic_lock); setColorFilter(Color.WHITE)
-            setPadding(dp(12), dp(12), dp(12), dp(12)); background = circleBg()
+            setPadding(dp(12), dp(12), dp(12), dp(12))
+            background = circleBg(0xFF17171B.toInt())
             visibility = View.GONE
         }
         root = FrameLayout(this).apply {
@@ -595,11 +606,13 @@ class PlayerActivity : ComponentActivity() {
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
             addView(controls, FrameLayout.LayoutParams(-1, -1))
             skipIntroBtn = TextView(this@PlayerActivity).apply {
-                text = "SKIP INTRO  ›"; setTextColor(0xFF17130D.toInt())
+                text = "SKIP INTRO  ›"; setTextColor(0xFF101013.toInt())
                 textSize = 11f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.06f
                 setPadding(dp(18), dp(10), dp(18), dp(10))
-                background = GradientDrawable().apply { setColor(0xFFE4C58B.toInt()); cornerRadius = dp(22).toFloat() }
-                visibility = View.GONE; elevation = dp(8).toFloat()
+                background = GradientDrawable().apply {
+                    setColor(0xFFD8B77E.toInt()); cornerRadius = dp(22).toFloat()
+                }
+                visibility = View.GONE; elevation = dp(5).toFloat()
                 setOnClickListener {
                     val active = introSegments.firstOrNull {
                         player.currentPosition >= it.first && player.currentPosition < it.second
@@ -610,7 +623,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
             addView(skipIntroBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                .apply { bottomMargin = dp(126) })
+                .apply { bottomMargin = dp(132) })
             addView(hud, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             addView(lockOverlay, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER_VERTICAL or Gravity.END)
                 .apply { rightMargin = dp(18) })
@@ -620,9 +633,11 @@ class PlayerActivity : ComponentActivity() {
         layoutSubtitle()
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            topBar.setPadding(dp(12) + i.left, dp(10) + i.top, dp(12) + i.right, dp(8))
+            topBar.setPadding(dp(16) + i.left, dp(10) + i.top, dp(16) + i.right, dp(8))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply {
-                leftMargin = i.left; rightMargin = i.right; bottomMargin = i.bottom
+                leftMargin = i.left
+                rightMargin = i.right
+                bottomMargin = i.bottom
             }
             bottomPanel.requestLayout()
             insets
@@ -637,6 +652,9 @@ class PlayerActivity : ComponentActivity() {
         act(playBtn) { if (player.isPlaying) player.pause() else player.play() }
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
+        act(lockAction) { toggleLock() }
+        act(engineAction) { showPlaybackEngineSheet() }
+        act(qualityAction) { showQualitySheet() }
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
         act(speedAction) { showSpeedSheet() }
@@ -653,12 +671,13 @@ class PlayerActivity : ComponentActivity() {
             setColor(0xAA202026.toInt()); cornerRadius = dp(14).toFloat()
             setStroke(dp(1), 0x55FFFFFF)
         }
-        visibility = View.GONE
+        // Keep the outer transport slots in the layout even when unavailable.
+        visibility = View.INVISIBLE
     }
 
     private fun updateEpisodeButtons() {
-        prevEpisodeBtn.visibility = if (hasPrev) View.VISIBLE else View.GONE
-        nextEpisodeBtn.visibility = if (hasNext) View.VISIBLE else View.GONE
+        prevEpisodeBtn.visibility = if (hasPrev) View.VISIBLE else View.INVISIBLE
+        nextEpisodeBtn.visibility = if (hasNext) View.VISIBLE else View.INVISIBLE
     }
 
     private fun updateIntroSkip() {
@@ -682,7 +701,7 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(14), dp(20), dp(22))
             background = GradientDrawable().apply {
-                setColor(0xF2141418.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(0xD9141418.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
             }
         }
         val head = LinearLayout(this).apply {
@@ -788,6 +807,21 @@ class PlayerActivity : ComponentActivity() {
         })
     }
 
+    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
+        val all = PlaybackEngine.values()
+        box.addView(radioGroup(100, all.map { "${it.label}  ·  ${it.description}" }, playbackEngine.ordinal) { i ->
+            val selected = all[i]
+            dlg.dismiss()
+            playbackEngine = selected
+            prefs.edit().putString("playback_engine", selected.name).apply()
+            if (selected == PlaybackEngine.VLC) {
+                launchVlc(player.currentPosition, plan?.url)
+            } else {
+                showHud("Playback engine: ${selected.label}")
+            }
+        })
+    }
+
     private fun showDecoderSheet() = sheet("Decoder") { box, dlg ->
         val all = DecoderMode.values()
         box.addView(radioGroup(100, all.map { it.label + "  ·  " + it.desc }, decoder.ordinal) { i ->
@@ -840,21 +874,14 @@ class PlayerActivity : ComponentActivity() {
         fun row(label: String, value: String = "", onClick: () -> Unit) {
             box.addView(sheetRow(label, value) { dlg.dismiss(); onClick() })
         }
-        row("Lock controls", if (locked) "On" else "Off") { toggleLock() }
-        row("Playback engine", decoder.label) { showDecoderSheet() }
         row("Volume", "${volumePercent()}%") { showVolumeSheet() }
         row("This phone & playback info") { showDeviceSheet() }
-        row("Video quality", qualityText()) { showQualitySheet() }
+        row("Decoder", decoder.label) { showDecoderSheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
         row("Subtitle sync", delayText()) { showSubtitleSyncSheet() }
         row("Aspect ratio", aspectName()) { cycleAspect() }
-        row("Audio only", if (audioOnly) "On" else "Off") { toggleAudioOnly() }
-        row("Repeat", if (loopOne) "On" else "Off") { toggleLoop() }
         row("Screenshot") { takeScreenshot() }
-        row("Picture-in-picture") { enterPip() }
-        row("Cast screen") { openCast() }
         row("Rotate screen") { rotateScreen() }
-        row("Skip +90s") { seekBy(90_000); showHud("+90s") }
         if (hasPrev) row("Previous episode") { switchTo(siblings[siblingIndex - 1].id) }
         if (hasNext) row("Next episode") { switchTo(siblings[siblingIndex + 1].id) }
     }
@@ -869,7 +896,7 @@ class PlayerActivity : ComponentActivity() {
     // ================================================================= subtitles
     private fun applySubStyle() {
         // Allervue subtitle standard: clean white text with a restrained black shadow.
-        subText.textSize = 20f
+        subText.textSize = if (isInPictureInPictureMode) 12f else 20f
         subText.setTextColor(Color.WHITE)
         subText.setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
         subText.setPadding(0, 0, 0, 0)
@@ -879,9 +906,12 @@ class PlayerActivity : ComponentActivity() {
 
     private fun layoutSubtitle() {
         val lp = subText.layoutParams as FrameLayout.LayoutParams
+        val pip = isInPictureInPictureMode
         val h = if (root.height > 0) root.height else resources.displayMetrics.heightPixels
-        lp.bottomMargin = (subPos * h).toInt() + (if (controlsVisible) dp(110) else 0)
-        subText.maxWidth = (resources.displayMetrics.widthPixels * 0.85f).toInt()
+        val w = if (root.width > 0) root.width else resources.displayMetrics.widthPixels
+        subText.textSize = if (pip) 12f else 20f
+        lp.bottomMargin = if (pip) dp(8) else (subPos * h).toInt() + (if (controlsVisible) dp(110) else 0)
+        subText.maxWidth = (w * if (pip) 0.82f else 0.85f).toInt()
         subText.layoutParams = lp
     }
 
@@ -1725,8 +1755,14 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
-        if (isInPip) { hideControls(); lockOverlay.visibility = View.GONE }
-        else if (!locked) showControls()
+        if (isInPip) {
+            hideControls()
+            lockOverlay.visibility = View.GONE
+            root.post { applySubStyle(); layoutSubtitle() }
+        } else {
+            root.post { applySubStyle(); layoutSubtitle() }
+            if (!locked) showControls()
+        }
     }
 
     override fun onStop() {
