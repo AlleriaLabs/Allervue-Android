@@ -397,59 +397,67 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        // Cinematic, low-profile controls: generous spacing, quiet surfaces, clear hierarchy.
-        val backBtn = glassIcon(R.drawable.ic_back, 46, 12)
+        // Just Player-inspired layout: a centered transport row, a slim bottom control
+        // strip, and a restrained title bar. All Allervue playback actions remain native.
+        val backBtn = glassIcon(R.drawable.ic_back, 44, 12)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF5F1E9.toInt()); textSize = 19f
+            setTextColor(0xFFF5F1E9.toInt()); textSize = 17f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
             maxLines = 1; ellipsize = TextUtils.TruncateAt.END
         }
         subTitle = TextView(this).apply {
             textSize = 10f; setTextColor(0xFFD8B77E.toInt()); text = nowPlayingText(true)
-            letterSpacing = 0.08f
+            letterSpacing = 0.04f
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), 0, dp(12), 0)
-            addView(titleView); addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) })
+            setPadding(dp(12), 0, dp(8), 0)
+            addView(titleView)
+            addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         }
         badgeRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE; setPadding(0, 0, dp(10), 0)
+            visibility = View.GONE; setPadding(0, 0, dp(8), 0)
         }
-        val castBtn = glassIcon(R.drawable.ic_cast, 42, 11)
-        val pipBtn = glassIcon(R.drawable.ic_pip, 42, 11).apply {
+        val castBtn = glassIcon(R.drawable.ic_cast, 40, 11)
+        val pipBtn = glassIcon(R.drawable.ic_pip, 40, 11).apply {
             if (!pipSupported()) visibility = View.GONE
         }
-        prevEpisodeBtn = episodeNavButton("‹")
-        nextEpisodeBtn = episodeNavButton("›")
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(30), dp(18), dp(26), dp(30))
+            setPadding(dp(22), dp(14), dp(18), dp(18))
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(0xD9101013.toInt(), 0x00101013))
             addView(backBtn)
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow)
-            addView(prevEpisodeBtn); addView(nextEpisodeBtn)
             addView(castBtn); addView(pipBtn)
         }
 
-        val rewBtn = skipButton(false)
-        playBtn = icon(R.drawable.ic_pause, 64, 17).apply {
-            background = circleBg(accent); elevation = dp(5).toFloat()
+        // Main transport is a single centered row, matching Just Player's visual hierarchy.
+        prevEpisodeBtn = episodeNavButton("⏮").apply {
+            setTextColor(0xFFECE8E0.toInt()); textSize = 18f
+            background = null; setPadding(dp(5), dp(8), dp(5), dp(8))
         }
-        val fwdBtn = skipButton(true)
+        nextEpisodeBtn = episodeNavButton("⏭").apply {
+            setTextColor(0xFFECE8E0.toInt()); textSize = 18f
+            background = null; setPadding(dp(5), dp(8), dp(5), dp(8))
+        }
+        val rewBtn = skipButton(false).apply { background = null }
+        playBtn = icon(R.drawable.ic_pause, 62, 16).apply {
+            background = circleBg(accent); elevation = dp(3).toFloat()
+        }
+        val fwdBtn = skipButton(true).apply { background = null }
         val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            addView(rewBtn, LinearLayout.LayoutParams(dp(54), dp(54)).apply { rightMargin = dp(42) })
-            addView(playBtn, LinearLayout.LayoutParams(dp(70), dp(70)))
-            addView(fwdBtn, LinearLayout.LayoutParams(dp(54), dp(54)).apply { leftMargin = dp(42) })
+            addView(prevEpisodeBtn, LinearLayout.LayoutParams(dp(42), dp(52)).apply { rightMargin = dp(10) })
+            addView(rewBtn, LinearLayout.LayoutParams(dp(48), dp(52)).apply { rightMargin = dp(14) })
+            addView(playBtn, LinearLayout.LayoutParams(dp(62), dp(62)))
+            addView(fwdBtn, LinearLayout.LayoutParams(dp(48), dp(52)).apply { leftMargin = dp(14) })
+            addView(nextEpisodeBtn, LinearLayout.LayoutParams(dp(42), dp(52)).apply { leftMargin = dp(10) })
         }
-        // Use a full-screen centering layer so the transport cluster is centered against
-        // the actual video viewport, not positioned by the cluster's own measured bounds.
         val center = FrameLayout(this).apply {
             addView(transport, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         }
@@ -457,18 +465,20 @@ class PlayerActivity : ComponentActivity() {
         curTime = TextView(this).apply {
             text = "00:00"; setTextColor(0xFFF0ECE4.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            minWidth = dp(44); gravity = Gravity.CENTER_VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
         }
         durTime = TextView(this).apply {
             text = "--:--"; setTextColor(0xFFAAA7A1.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-            minWidth = dp(44); gravity = Gravity.CENTER
+            gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
             progressTintList = ColorStateList.valueOf(accent)
             thumbTintList = ColorStateList.valueOf(0xFFF4EFE5.toInt())
-            progressBackgroundTintList = ColorStateList.valueOf(0x55FFFFFF)
-            secondaryProgressTintList = ColorStateList.valueOf(0x88FFFFFF.toInt())
+            progressBackgroundTintList = ColorStateList.valueOf(0x66FFFFFF)
+            secondaryProgressTintList = ColorStateList.valueOf(0x99FFFFFF.toInt())
+            minimumHeight = dp(18)
+            setPadding(0, 0, 0, 0)
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
@@ -479,46 +489,61 @@ class PlayerActivity : ComponentActivity() {
                 scrubbing = false; player.seekTo(s.progress.toLong()); scheduleHide()
             }
         })
-        val seekRow = LinearLayout(this).apply {
+
+        fun bottomTool(res: Int, label: String): LinearLayout =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                setPadding(dp(5), dp(2), dp(5), dp(1))
+                addView(ImageView(this@PlayerActivity).apply {
+                    setImageResource(res); setColorFilter(0xFFE9E5DD.toInt())
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }, LinearLayout.LayoutParams(dp(25), dp(25)))
+                addView(TextView(this@PlayerActivity).apply {
+                    text = label; textSize = 9f; gravity = Gravity.CENTER
+                    setTextColor(0xFFD2CEC6.toInt()); maxLines = 1
+                }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(1) })
+            }
+
+        val subsItem = bottomTool(R.drawable.ic_subtitles, "Subtitles")
+        val audioItem = bottomTool(R.drawable.ic_music, "Audio")
+        val speedItem = bottomTool(R.drawable.ic_schedule, speedText(speed))
+        val moreItem = bottomTool(R.drawable.ic_more_horiz, "More")
+        speedLabel = speedItem.getChildAt(1) as TextView
+
+        val timeGroup = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             addView(curTime)
-            addView(seek, LinearLayout.LayoutParams(0, dp(26), 1f).apply {
-                leftMargin = dp(8); rightMargin = dp(8)
+            addView(TextView(this@PlayerActivity).apply {
+                text = "  /  "; textSize = 10f; setTextColor(0xFF777777.toInt())
             })
             addView(durTime)
         }
-
-        val subsItem = action(R.drawable.ic_subtitles, "Subtitles")
-        val audioItem = action(R.drawable.ic_music, "Audio")
-        val speedItem = action(R.drawable.ic_schedule, speedText(speed))
-        val moreItem = action(R.drawable.ic_more_horiz, "More")
-        speedLabel = speedItem.getChildAt(1) as TextView
         val tools = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            listOf(subsItem, audioItem, speedItem, moreItem).forEach {
-                addView(it, LinearLayout.LayoutParams(0, dp(58), 1f))
-            }
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(subsItem, LinearLayout.LayoutParams(dp(52), dp(46)))
+            addView(audioItem, LinearLayout.LayoutParams(dp(46), dp(46)))
+            addView(speedItem, LinearLayout.LayoutParams(dp(46), dp(46)))
+            addView(moreItem, LinearLayout.LayoutParams(dp(46), dp(46)))
         }
-
+        val bottomActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(timeGroup)
+            addView(View(this@PlayerActivity), LinearLayout.LayoutParams(0, 1, 1f))
+            addView(tools)
+        }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(5))
-            background = GradientDrawable().apply {
-                setColor(0xD9141417.toInt())
-                cornerRadius = dp(18).toFloat()
-                setStroke(dp(1), 0x18D8B77E)
-            }
-            elevation = dp(8).toFloat()
-            addView(seekRow)
-            addView(tools, LinearLayout.LayoutParams(-1, dp(58)).apply { topMargin = dp(1) })
+            setPadding(dp(24), dp(26), dp(24), dp(10))
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x00101013, 0xD9101013.toInt(), 0xF5101013.toInt()))
+            addView(bottomActions, LinearLayout.LayoutParams(-1, dp(48)))
+            addView(seek, LinearLayout.LayoutParams(-1, dp(20)).apply { topMargin = dp(2) })
         }
 
         controls = FrameLayout(this).apply {
             addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             addView(center, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
-            addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
-                leftMargin = dp(24); rightMargin = dp(24); bottomMargin = dp(18)
-            })
+            addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
 
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -564,7 +589,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
             addView(skipIntroBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                .apply { bottomMargin = dp(132) })
+                .apply { bottomMargin = dp(116) })
             addView(hud, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             addView(lockOverlay, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.BOTTOM or Gravity.START)
                 .apply { leftMargin = dp(24); bottomMargin = dp(24) })
@@ -574,11 +599,9 @@ class PlayerActivity : ComponentActivity() {
         layoutSubtitle()
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            topBar.setPadding(dp(30) + i.left, dp(18) + i.top, dp(26) + i.right, dp(30))
+            topBar.setPadding(dp(22) + i.left, dp(14) + i.top, dp(18) + i.right, dp(18))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply {
-                leftMargin = dp(24) + i.left
-                rightMargin = dp(24) + i.right
-                bottomMargin = dp(18) + i.bottom
+                leftMargin = i.left; rightMargin = i.right; bottomMargin = i.bottom
             }
             bottomPanel.requestLayout()
             insets
