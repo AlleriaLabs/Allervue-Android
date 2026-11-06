@@ -1,6 +1,8 @@
 package com.allerix.app
 
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.webkit.WebChromeClient
 import android.webkit.WebView
@@ -359,7 +361,7 @@ private fun SettingsRow(icon: String, title: String, subtitle: String, onClick: 
 @Composable
 fun SettingsMenuScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit, onPlayback: () -> Unit,
-    onSignOut: () -> Unit, onWeb: (String, String) -> Unit
+    onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit
 ) {
     var help by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(BgDark)) {
@@ -367,6 +369,7 @@ fun SettingsMenuScreen(
         SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
         SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
         SettingsRow("⚙", "Client settings", "Server address and password", onClient)
+        SettingsRow("⌁", "Diagnostics", "Capture player crashes and share a log", onDiagnostics)
         SettingsRow("?", "Help & Support", "Account portal and password reset") { help = true }
         SettingsRow("⎋", "Sign out", "", onSignOut)
         Spacer(Modifier.weight(1f))
@@ -750,5 +753,38 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
                 }
             }
         )
+    }
+}
+
+
+@Composable
+fun DiagnosticScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
+    var log by remember { mutableStateOf(DiagnosticLog.read(ctx)) }
+    Column(Modifier.fillMaxSize().background(BgDark)) {
+        ScreenHeader("Diagnostics", back)
+        Text("If Allervue closes when you tap a video, reproduce the issue and return here. The log records player startup and crash details without your Jellyfin password or access token.",
+            color = Grey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = { log = DiagnosticLog.read(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF29272A))) {
+                Text("Refresh log", color = Color.White)
+            }
+            Button(onClick = {
+                val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Allervue diagnostics", log.ifBlank { "No diagnostic log yet." }))
+                android.widget.Toast.makeText(ctx, "Diagnostic log copied", android.widget.Toast.LENGTH_SHORT).show()
+            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF29272A))) { Text("Copy", color = Color.White) }
+            Button(onClick = {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "Allervue diagnostic log")
+                    putExtra(Intent.EXTRA_TEXT, log.ifBlank { "No diagnostic log yet." })
+                }
+                ctx.startActivity(Intent.createChooser(send, "Share diagnostic log"))
+            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD8B77E))) { Text("Share", color = Color(0xFF171515)) }
+        }
+        Text(if (log.isBlank()) "No diagnostic entries yet. Play a video, then return and tap Refresh log." else log,
+            color = Color(0xFFD5D1CA), fontSize = 11.sp, lineHeight = 15.sp,
+            modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()))
     }
 }
