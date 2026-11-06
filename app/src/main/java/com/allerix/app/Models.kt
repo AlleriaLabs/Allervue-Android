@@ -55,7 +55,11 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data class UserData(
     @SerialName("PlaybackPositionTicks") val positionTicks: Long = 0,
-    @SerialName("IsFavorite") val isFavorite: Boolean = false
+    @SerialName("IsFavorite") val isFavorite: Boolean = false,
+    @SerialName("Played") val isPlayed: Boolean = false,
+    @SerialName("PlayCount") val playCount: Int = 0,
+    @SerialName("LastPlayedDate") val lastPlayedDate: String? = null,
+    @SerialName("PlayedPercentage") val playedPercentage: Double? = null
 )
 
 @Serializable data class PublicInfo(
