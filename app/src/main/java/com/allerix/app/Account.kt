@@ -214,6 +214,116 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
     }
 }
 
+
+@Composable
+fun ForgotPasswordScreen(onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var stage by remember { mutableIntStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    var success by remember { mutableStateOf(false) }
+    val colors = appFieldColors()
+
+    AppBackground {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 26.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(76.dp))
+            Spacer(Modifier.height(12.dp))
+            Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 22.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            Spacer(Modifier.height(30.dp))
+            Text(if (success) "Password updated" else "Reset password", color = Color.White,
+                fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when {
+                    success -> "Your password has been changed. You can now return to sign in."
+                    stage == 0 -> "Enter your Allervue username to request a password reset."
+                    else -> "Enter the reset PIN sent through your account recovery process, then choose a new password."
+                },
+                color = Grey, fontSize = 14.sp, modifier = Modifier.align(Alignment.Start)
+            )
+            Spacer(Modifier.height(22.dp))
+            if (success) {
+                Text("✓", color = Color(0xFFD8B77E), fontSize = 48.sp)
+                Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Back to sign in") }
+            } else if (stage == 0) {
+                OutlinedTextField(username, { username = it; message = "" }, label = { Text("Username or email") },
+                    singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    enabled = !busy && username.isNotBlank(), onClick = {
+                        busy = true; message = ""
+                        scope.launch {
+                            try {
+                                Api.forgotPassword(username.trim())
+                                stage = 1
+                                message = "If the account is eligible, follow the reset instructions sent to your registered contact method."
+                            } catch (e: Exception) {
+                                message = "Couldn't start password recovery. Check the username and try again."
+                            }
+                            busy = false
+                        }
+                    }, modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) { Text(if (busy) "Requesting…" else "Send reset instructions", fontWeight = FontWeight.Bold) }
+            } else {
+                OutlinedTextField(pin, { pin = it; message = "" }, label = { Text("Reset PIN") },
+                    singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(password, { password = it; message = "" }, label = { Text("New password") },
+                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(confirm, { confirm = it; message = "" }, label = { Text("Confirm new password") },
+                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    enabled = !busy && pin.isNotBlank() && password.isNotBlank() && confirm.isNotBlank(),
+                    onClick = {
+                        when {
+                            password.length < 8 -> message = "Choose a longer password (at least 8 characters)."
+                            password != confirm -> message = "The passwords don't match."
+                            else -> {
+                                busy = true; message = ""
+                                scope.launch {
+                                    try {
+                                        Api.setPasswordWithResetPin(pin, password)
+                                        success = true
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "Password reset failed. Please try again."
+                                    }
+                                    busy = false
+                                }
+                            }
+                        }
+                    }, modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) { Text(if (busy) "Updating…" else "Update password", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = {
+                    stage = 0; pin = ""; password = ""; confirm = ""; message = ""
+                }) { Text("Request a new PIN", color = Grey) }
+            }
+            if (message.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Text(message, color = if (success) Color(0xFFD8B77E) else Grey, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+            TextButton(onClick = onBack) { Text("Back to sign in", color = Grey) }
+        }
+    }
+    BackHandler { onBack() }
+}
+
 // ------------------------------------------------------------------ settings
 @Composable
 private fun appFieldColors() = OutlinedTextFieldDefaults.colors(
