@@ -306,8 +306,10 @@ object Api {
     }
 
     // ---- playback ----
-    fun streamUrl(id: String, sourceId: String) =
-        "$base/Videos/$id/stream?static=true&MediaSourceId=$sourceId&api_key=$token"
+    fun streamUrl(id: String, sourceId: String? = null): String {
+        val sourceParam = sourceId?.takeIf { it.isNotBlank() }?.let { "&MediaSourceId=$it" }.orEmpty()
+        return "$base/Videos/$id/stream?static=true$sourceParam&api_key=$token"
+    }
 
     /** HLS transcode URL honoring the chosen quality (max height/bitrate) and audio channel layout. */
     fun hlsUrl(id: String, sourceId: String, q: Quality, a: AudioMode, sessionId: String): String {
