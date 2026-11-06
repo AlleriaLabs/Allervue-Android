@@ -403,20 +403,20 @@ class PlayerActivity : ComponentActivity() {
         // Waleed Talha VideoPlayer-inspired composition:
         // compact top toolbar + shortcut strip, then a full-width timeline and
         // evenly weighted transport row at the bottom. Playback remains Media3/Jellyfin.
-        val backBtn = glassIcon(R.drawable.ic_back, 36, 9)
+        val backBtn = glassIcon(R.drawable.ic_back, 30, 7)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
             setTextColor(0xFFF7F4EE.toInt()); textSize = 16f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
-            maxLines = 1; maxWidth = dp(160); ellipsize = TextUtils.TruncateAt.END
+            maxLines = 1; maxWidth = dp(112); ellipsize = TextUtils.TruncateAt.END
         }
         subTitle = TextView(this).apply {
             textSize = 10f; setTextColor(0xFFD8B77E.toInt())
-            text = nowPlayingText(true); letterSpacing = 0.04f; maxLines = 1; maxWidth = dp(160)
+            text = nowPlayingText(true); letterSpacing = 0.04f; maxLines = 1; maxWidth = dp(112)
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), 0, dp(4), 0)
+            setPadding(dp(2), 0, dp(2), 0)
             addView(titleView)
             addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         }
@@ -424,18 +424,18 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE; setPadding(0, 0, dp(4), 0)
         }
-        val castBtn = glassIcon(R.drawable.ic_cast, 34, 9)
-        val pipBtn = glassIcon(R.drawable.ic_pip, 34, 9).apply {
+        val castBtn = glassIcon(R.drawable.ic_cast, 30, 7)
+        val pipBtn = glassIcon(R.drawable.ic_pip, 30, 7).apply {
             if (!pipSupported()) visibility = View.GONE
         }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), dp(8), dp(8), dp(5))
-            addView(backBtn)
-            addView(titleCol, LinearLayout.LayoutParams(-2, -2))
-            addView(badgeRow)
-            addView(castBtn)
-            addView(pipBtn)
+            setPadding(dp(4), dp(6), dp(4), dp(4))
+            addView(backBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
+            addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
+            addView(castBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
+            addView(pipBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
         }
 
         fun featureAction(res: Int, label: String): LinearLayout =
