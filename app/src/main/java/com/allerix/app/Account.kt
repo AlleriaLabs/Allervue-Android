@@ -83,7 +83,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                                 val credentials = BiometricLogin.decrypt(ctx, unlockedCipher)
                                 scope.launch {
                                     try { Api.login(ctx, credentials.username, credentials.password); onDone() }
-                                    catch (e: Exception) { err = "Biometric sign-in failed. Please use your password." }
+                                    catch (e: Exception) { BiometricLogin.clear(ctx); err = "Saved biometric login is no longer valid. Sign in with your password and enable it again." }
                                 }
                             } catch (e: Exception) {
                                 BiometricLogin.clear(ctx)
