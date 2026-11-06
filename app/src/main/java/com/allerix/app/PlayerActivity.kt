@@ -400,56 +400,61 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        // Waleed Talha VideoPlayer-inspired composition:
-        // compact top toolbar + shortcut strip, then a full-width timeline and
-        // evenly weighted transport row at the bottom. Playback remains Media3/Jellyfin.
+        // Cinematic Allervue layout: minimal title bar, centered transport controls,
+        // warm gold timeline, and a compact lower utility dock.
         val backBtn = glassIcon(R.drawable.ic_back, 30, 7)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF7F4EE.toInt()); textSize = 16f
+            setTextColor(0xFFF8F6F0.toInt()); textSize = 15f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
-            maxLines = 1; maxWidth = dp(112); ellipsize = TextUtils.TruncateAt.END
+            maxLines = 1; maxWidth = dp(220); ellipsize = TextUtils.TruncateAt.END
         }
         subTitle = TextView(this).apply {
             textSize = 10f; setTextColor(0xFFD8B77E.toInt())
-            text = nowPlayingText(true); letterSpacing = 0.04f; maxLines = 1; maxWidth = dp(112)
+            text = nowPlayingText(true); letterSpacing = 0.05f; maxLines = 1
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(2), 0, dp(2), 0)
+            setPadding(dp(5), 0, dp(4), 0)
             addView(titleView)
             addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         }
         badgeRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            visibility = View.GONE; setPadding(0, 0, dp(4), 0)
+            visibility = View.GONE; setPadding(0, 0, dp(3), 0)
         }
-        val castBtn = glassIcon(R.drawable.ic_cast, 30, 7)
-        val pipBtn = glassIcon(R.drawable.ic_pip, 30, 7).apply {
+        val castBtn = glassIcon(R.drawable.ic_cast, 28, 6)
+        val pipBtn = glassIcon(R.drawable.ic_pip, 28, 6).apply {
             if (!pipSupported()) visibility = View.GONE
         }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(4), dp(6), dp(4), dp(4))
-            addView(backBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
+            setPadding(dp(12), dp(10), dp(12), dp(8))
+            addView(backBtn, LinearLayout.LayoutParams(dp(34), dp(38)))
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
-            addView(castBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
-            addView(pipBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
+            addView(castBtn, LinearLayout.LayoutParams(dp(34), dp(38)))
+            addView(pipBtn, LinearLayout.LayoutParams(dp(34), dp(38)))
+        }
+        val topPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xD9101013.toInt(), 0x66101013, 0x00101013))
+            addView(topBar, LinearLayout.LayoutParams(-1, -2))
         }
 
         fun featureAction(res: Int, label: String): LinearLayout =
             LinearLayout(this@PlayerActivity).apply {
                 orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-                setPadding(dp(8), dp(4), dp(8), dp(4))
+                setPadding(dp(4), dp(3), dp(4), dp(3))
                 addView(ImageView(this@PlayerActivity).apply {
-                    setImageResource(res); setColorFilter(0xFFF0EDE6.toInt())
+                    setImageResource(res); setColorFilter(0xFFE4C58B.toInt())
                     scaleType = ImageView.ScaleType.CENTER_INSIDE
-                }, LinearLayout.LayoutParams(dp(23), dp(23)))
+                }, LinearLayout.LayoutParams(dp(21), dp(21)))
                 addView(TextView(this@PlayerActivity).apply {
                     text = label; textSize = 9f; gravity = Gravity.CENTER
-                    setTextColor(0xFFD0CCC4.toInt()); maxLines = 1
-                }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(3) })
+                    setTextColor(0xFFE1DED7.toInt()); maxLines = 1
+                }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(4) })
             }
 
         val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subtitles")
@@ -457,50 +462,58 @@ class PlayerActivity : ComponentActivity() {
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
         val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
         speedLabel = speedAction.getChildAt(1) as TextView
-        val shortcutRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(12), dp(1), dp(12), dp(5))
-            addView(subtitlesAction, LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(audioAction, LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(speedAction, LinearLayout.LayoutParams(0, dp(48), 1f))
-            addView(moreAction, LinearLayout.LayoutParams(0, dp(48), 1f))
+
+        prevEpisodeBtn = episodeNavButton("‹|").apply {
+            textSize = 18f; background = null; setPadding(dp(4), dp(4), dp(4), dp(4))
         }
-        val topPanel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xD9101013.toInt(), 0x66101013, 0x00101013))
-            addView(topBar, LinearLayout.LayoutParams(-1, -2))
-            addView(shortcutRow, LinearLayout.LayoutParams(-1, -2))
+        nextEpisodeBtn = episodeNavButton("|›").apply {
+            textSize = 18f; background = null; setPadding(dp(4), dp(4), dp(4), dp(4))
+        }
+        val rewBtn = skipButton(false).apply {
+            background = circleBg(0x55202024); setPadding(dp(9), dp(9), dp(9), dp(9))
+        }
+        playBtn = icon(R.drawable.ic_pause, 58, 14).apply {
+            background = circleBg(0xFFE4C58B.toInt())
+            setColorFilter(0xFF17130D.toInt())
+            elevation = dp(8).toFloat()
+        }
+        val fwdBtn = skipButton(true).apply {
+            background = circleBg(0x55202024); setPadding(dp(9), dp(9), dp(9), dp(9))
         }
 
-        prevEpisodeBtn = episodeNavButton("⏮").apply {
-            textSize = 17f; background = null
-            setPadding(dp(3), dp(4), dp(3), dp(4))
+        val transport = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+            fun weighted(v: View, w: Float = 1f, h: Int = 58) {
+                addView(v, LinearLayout.LayoutParams(0, dp(h), w))
+            }
+            weighted(prevEpisodeBtn, 0.82f, 52)
+            weighted(rewBtn, 0.95f, 54)
+            weighted(playBtn, 1.2f, 66)
+            weighted(fwdBtn, 0.95f, 54)
+            weighted(nextEpisodeBtn, 0.82f, 52)
         }
-        nextEpisodeBtn = episodeNavButton("⏭").apply {
-            textSize = 17f; background = null
-            setPadding(dp(3), dp(4), dp(3), dp(4))
+        val centerControls = FrameLayout(this).apply {
+            addView(transport, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+            isClickable = false
         }
-        val rewBtn = skipButton(false).apply { background = null; setPadding(dp(7), dp(7), dp(7), dp(7)) }
-        playBtn = icon(R.drawable.ic_pause, 50, 12).apply { background = null }
-        val fwdBtn = skipButton(true).apply { background = null; setPadding(dp(7), dp(7), dp(7), dp(7)) }
 
         curTime = TextView(this).apply {
-            text = "00:00"; setTextColor(0xFFF4F1EA.toInt()); textSize = 10f
+            text = "00:00"; setTextColor(0xFFF5F1E8.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER_VERTICAL
         }
         durTime = TextView(this).apply {
-            text = "--:--"; setTextColor(0xFFB7B2A9.toInt()); textSize = 10f
+            text = "--:--"; setTextColor(0xFFAAA69E.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            progressTintList = ColorStateList.valueOf(accent)
-            thumbTintList = ColorStateList.valueOf(0xFFF5F0E5.toInt())
+            progressTintList = ColorStateList.valueOf(0xFFE4C58B.toInt())
+            thumbTintList = ColorStateList.valueOf(0xFFFFF8E9.toInt())
             progressBackgroundTintList = ColorStateList.valueOf(0x66FFFFFF)
             secondaryProgressTintList = ColorStateList.valueOf(0x99FFFFFF.toInt())
-            minimumHeight = dp(20); setPadding(dp(2), 0, dp(2), 0)
+            minimumHeight = dp(18); setPadding(dp(2), 0, dp(2), 0)
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
@@ -515,36 +528,39 @@ class PlayerActivity : ComponentActivity() {
         })
         val timeline = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(8), dp(16), dp(1))
-            addView(curTime, LinearLayout.LayoutParams(-2, dp(28)))
-            addView(seek, LinearLayout.LayoutParams(0, dp(30), 1f).apply {
-                leftMargin = dp(8); rightMargin = dp(8)
+            setPadding(dp(18), dp(7), dp(18), dp(1))
+            addView(curTime, LinearLayout.LayoutParams(-2, dp(26)))
+            addView(seek, LinearLayout.LayoutParams(0, dp(28), 1f).apply {
+                leftMargin = dp(10); rightMargin = dp(10)
             })
-            addView(durTime, LinearLayout.LayoutParams(-2, dp(28)))
+            addView(durTime, LinearLayout.LayoutParams(-2, dp(26)))
         }
 
-        val transport = LinearLayout(this).apply {
+        val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            setPadding(dp(8), dp(2), dp(8), dp(10))
-            fun weighted(v: View, w: Float = 1f) {
-                addView(v, LinearLayout.LayoutParams(0, dp(54), w))
+            setPadding(dp(14), dp(2), dp(14), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(0x331E1E22)
+                setStroke(dp(1), 0x22FFFFFF)
             }
-            weighted(prevEpisodeBtn)
-            weighted(rewBtn)
-            weighted(playBtn, 1.15f)
-            weighted(fwdBtn)
-            weighted(nextEpisodeBtn)
+            listOf(subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
+                addView(v, LinearLayout.LayoutParams(0, dp(54), 1f))
+            }
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0x00101013, 0xB8101013.toInt(), 0xF5101013.toInt()))
+                intArrayOf(0x00101013, 0xC9101013.toInt(), 0xF5101013.toInt()))
             addView(timeline, LinearLayout.LayoutParams(-1, -2))
-            addView(transport, LinearLayout.LayoutParams(-1, -2))
+            addView(utilityDock, LinearLayout.LayoutParams(-1, -2).apply {
+                leftMargin = dp(12); rightMargin = dp(12); topMargin = dp(3)
+            })
         }
 
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+            addView(centerControls, FrameLayout.LayoutParams(-1, dp(100), Gravity.CENTER))
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -553,12 +569,12 @@ class PlayerActivity : ComponentActivity() {
             setPadding(dp(20), dp(12), dp(20), dp(12))
             background = GradientDrawable().apply {
                 setColor(0xE617171B.toInt()); cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), 0x33D8B77E)
+                setStroke(dp(1), 0x44E4C58B)
             }
             visibility = View.GONE
         }
         spinner = ProgressBar(this).apply {
-            isIndeterminate = true; indeterminateTintList = ColorStateList.valueOf(accent)
+            isIndeterminate = true; indeterminateTintList = ColorStateList.valueOf(0xFFE4C58B.toInt())
             visibility = View.GONE
         }
         lockOverlay = ImageView(this).apply {
@@ -576,7 +592,7 @@ class PlayerActivity : ComponentActivity() {
                 text = "SKIP INTRO  ›"; setTextColor(0xFF17130D.toInt())
                 textSize = 11f; typeface = Typeface.DEFAULT_BOLD; letterSpacing = 0.06f
                 setPadding(dp(18), dp(10), dp(18), dp(10))
-                background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(22).toFloat() }
+                background = GradientDrawable().apply { setColor(0xFFE4C58B.toInt()); cornerRadius = dp(22).toFloat() }
                 visibility = View.GONE; elevation = dp(8).toFloat()
                 setOnClickListener {
                     val active = introSegments.firstOrNull {
@@ -588,7 +604,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
             addView(skipIntroBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                .apply { bottomMargin = dp(112) })
+                .apply { bottomMargin = dp(126) })
             addView(hud, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             addView(lockOverlay, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER_VERTICAL or Gravity.END)
                 .apply { rightMargin = dp(18) })
@@ -598,7 +614,7 @@ class PlayerActivity : ComponentActivity() {
         layoutSubtitle()
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            topBar.setPadding(dp(8) + i.left, dp(8) + i.top, dp(8) + i.right, dp(5))
+            topBar.setPadding(dp(12) + i.left, dp(10) + i.top, dp(12) + i.right, dp(8))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply {
                 leftMargin = i.left; rightMargin = i.right; bottomMargin = i.bottom
             }
