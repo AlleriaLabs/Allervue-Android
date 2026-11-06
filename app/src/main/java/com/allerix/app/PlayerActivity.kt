@@ -949,8 +949,6 @@ class PlayerActivity : ComponentActivity() {
             })
         }
         val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(0, dp(14), 0, 0) }
-        row.addView(pill("Style") { dlg.dismiss(); showSubtitleStyleSheet() },
-            LinearLayout.LayoutParams(-2, -2).apply { rightMargin = dp(8) })
         row.addView(pill("Sync  (" + delayText() + ")") { dlg.dismiss(); showSubtitleSyncSheet() })
         box.addView(row)
         box.addView(noteText(
