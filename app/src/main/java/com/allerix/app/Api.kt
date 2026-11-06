@@ -32,7 +32,7 @@ object Api {
     /** Your jfa-go address (e.g. https://jfa.example.com). Empty = hide the "account portal" buttons. */
     const val JFA_URL = "https://flixreg.alleriafilmotheque.fyi"
     const val ACCOUNT_URL = "$JFA_URL/my/account"
-    const val RESET_PASSWORD_URL = "$JFA_URL/my/account/password/reset"
+    const val RESET_PASSWORD_URL = JFA_URL
 
     private val http = OkHttpClient()
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
