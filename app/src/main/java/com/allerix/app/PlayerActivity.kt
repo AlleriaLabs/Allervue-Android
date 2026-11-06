@@ -460,8 +460,9 @@ class PlayerActivity : ComponentActivity() {
         val qualityAction = featureAction(R.drawable.ic_tune, "Quality")
         val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subs")
         val audioAction = featureAction(R.drawable.ic_music, "Audio")
+        val audioOutputAction = featureAction(R.drawable.ic_volume, "Output")
+        val aspectAction = featureAction(R.drawable.ic_aspect, "Aspect")
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
-        val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
         speedLabel = speedAction.getChildAt(1) as TextView
         val qualityLabel = qualityAction.getChildAt(1) as TextView
         qualityLabel.text = "Quality"
@@ -556,7 +557,7 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(3), dp(18), dp(10))
             background = null
-            listOf(lockAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
+            listOf(lockAction, qualityAction, subtitlesAction, audioAction, audioOutputAction, aspectAction, speedAction).forEach { v ->
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
         }
@@ -651,7 +652,8 @@ class PlayerActivity : ComponentActivity() {
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
         act(speedAction) { showSpeedSheet() }
-        act(moreAction) { showMoreSheet() }
+        act(audioOutputAction) { showAudioOutputSheet() }
+        act(aspectAction) { cycleAspect() }
         lockOverlay.setOnClickListener { toggleLock() }
     }
 
@@ -846,22 +848,6 @@ class PlayerActivity : ComponentActivity() {
             applyChoice(quality, all[i]); dlg.dismiss()
         })
         box.addView(noteText("Audio sets the maximum channels; sources with fewer channels are not upmixed."))
-    }
-
-    private fun showMoreSheet() = sheet("More") { box, dlg ->
-        fun row(label: String, value: String = "", onClick: () -> Unit) {
-            box.addView(sheetRow(label, value) { dlg.dismiss(); onClick() })
-        }
-        row("Volume", "${volumePercent()}%") { showVolumeSheet() }
-        row("This phone & playback info") { showDeviceSheet() }
-        row("Decoder", decoder.label) { showDecoderSheet() }
-        row("Audio output", audioMode.label) { showAudioOutputSheet() }
-        row("Subtitle sync", delayText()) { showSubtitleSyncSheet() }
-        row("Aspect ratio", aspectName()) { cycleAspect() }
-        row("Screenshot") { takeScreenshot() }
-        row("Rotate screen") { rotateScreen() }
-        if (hasPrev) row("Previous episode") { switchTo(siblings[siblingIndex - 1].id) }
-        if (hasNext) row("Next episode") { switchTo(siblings[siblingIndex + 1].id) }
     }
 
     private fun qualityText() = when (quality) {
