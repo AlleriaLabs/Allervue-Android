@@ -111,7 +111,6 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var subText: TextView
     private lateinit var speedLabel: TextView
     private lateinit var decoderLabel: TextView
-    private lateinit var volLabel: TextView
     private lateinit var audio: AudioManager
     private lateinit var prefs: SharedPreferences
     private val handler = Handler(Looper.getMainLooper())
@@ -1051,7 +1050,7 @@ class PlayerActivity : ComponentActivity() {
         audio.setStreamVolume(AudioManager.STREAM_MUSIC, minOf(l, m).toInt(), 0)
         boostPct = if (l > m) 100 + ((l - m) / m * 100).toInt() else 100
         applyBoost()
-        volLabel.text = "${volumePercent()}%"
+
     }
 
     private fun applyBoost() {
@@ -1101,7 +1100,7 @@ class PlayerActivity : ComponentActivity() {
         seek.secondaryProgress = player.bufferedPosition.toInt().coerceAtLeast(0)
         curTime.text = fmt(player.currentPosition)
         durTime.text = if (dur > 0) fmt(dur) else "--:--"
-        volLabel.text = "${volumePercent()}%"
+
     }
 
     // ================================================================= playback
@@ -1526,14 +1525,14 @@ class PlayerActivity : ComponentActivity() {
                 KeyEvent.KEYCODE_VOLUME_UP -> {
                     if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) >= maxVol() && boostPct < 200) {
                         boostPct = minOf(200, boostPct + 10); applyBoost()
-                        volLabel.text = "${volumePercent()}%"; showHud("Volume ${volumePercent()}%")
+                        showHud("Volume ${volumePercent()}%")
                         return true
                     }
                 }
                 KeyEvent.KEYCODE_VOLUME_DOWN -> {
                     if (boostPct > 100) {
                         boostPct = maxOf(100, boostPct - 10); applyBoost()
-                        volLabel.text = "${volumePercent()}%"; showHud("Volume ${volumePercent()}%")
+                        showHud("Volume ${volumePercent()}%")
                         return true
                     }
                 }
