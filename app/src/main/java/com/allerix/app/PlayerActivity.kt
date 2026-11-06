@@ -561,11 +561,12 @@ class PlayerActivity : ComponentActivity() {
             addView(durTime, LinearLayout.LayoutParams(-2, dp(28)))
         }
 
-        // No enclosing dock card: four evenly sized actions sit directly on the bottom fade.
+        // Full-width control row: each action gets an equal slot from the left edge
+        // to the right edge, using the previously unused horizontal space.
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
-            setPadding(dp(18), dp(3), dp(18), dp(10))
+            setPadding(0, dp(3), 0, dp(10))
             background = null
             listOf(lockAction, qualityAction, subtitlesAction, audioAction, audioOutputAction, aspectAction, speedAction).forEach { v ->
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
