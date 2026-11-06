@@ -447,23 +447,30 @@ class PlayerActivity : ComponentActivity() {
             LinearLayout(this@PlayerActivity).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
-                setPadding(dp(8), dp(5), dp(8), dp(5))
+                setPadding(dp(1), dp(5), dp(1), dp(5))
                 addView(ImageView(this@PlayerActivity).apply {
                     setImageResource(res)
                     setColorFilter(0xFFD8B77E.toInt())
                     scaleType = ImageView.ScaleType.CENTER_INSIDE
-                }, LinearLayout.LayoutParams(dp(22), dp(22)))
+                }, LinearLayout.LayoutParams(dp(19), dp(19)))
                 addView(TextView(this@PlayerActivity).apply {
-                    text = label; textSize = 10f; gravity = Gravity.CENTER
+                    text = label; textSize = 8f; gravity = Gravity.CENTER
                     setTextColor(0xFFF4EFE5.toInt()); maxLines = 1
                 }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(5) })
             }
 
-        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subtitles")
+        val lockAction = featureAction(R.drawable.ic_lock, "Lock")
+        val engineAction = featureAction(R.drawable.ic_settings, "Engine")
+        val qualityAction = featureAction(R.drawable.ic_tune, "Quality")
+        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subs")
         val audioAction = featureAction(R.drawable.ic_music, "Audio")
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
         val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
         speedLabel = speedAction.getChildAt(1) as TextView
+        val engineLabel = engineAction.getChildAt(1) as TextView
+        val qualityLabel = qualityAction.getChildAt(1) as TextView
+        engineLabel.text = playbackEngine.label
+        qualityLabel.text = qualityText()
 
         prevEpisodeBtn = episodeNavButton("‹|").apply {
             textSize = 17f; background = null; setPadding(0, 0, 0, 0)
@@ -555,7 +562,7 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(3), dp(18), dp(10))
             background = null
-            listOf(subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
+            listOf(lockAction, engineAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
         }
@@ -645,6 +652,9 @@ class PlayerActivity : ComponentActivity() {
         act(playBtn) { if (player.isPlaying) player.pause() else player.play() }
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
+        act(lockAction) { toggleLock() }
+        act(engineAction) { showPlaybackEngineSheet() }
+        act(qualityAction) { showQualitySheet() }
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
         act(speedAction) { showSpeedSheet() }
@@ -691,7 +701,7 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(14), dp(20), dp(22))
             background = GradientDrawable().apply {
-                setColor(0xF2141418.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(0xD9141418.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
             }
         }
         val head = LinearLayout(this).apply {
@@ -797,6 +807,21 @@ class PlayerActivity : ComponentActivity() {
         })
     }
 
+    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
+        val all = PlaybackEngine.values()
+        box.addView(radioGroup(100, all.map { "${it.label}  ·  ${it.description}" }, playbackEngine.ordinal) { i ->
+            val selected = all[i]
+            dlg.dismiss()
+            playbackEngine = selected
+            prefs.edit().putString("playback_engine", selected.name).apply()
+            if (selected == PlaybackEngine.VLC) {
+                launchVlc(player.currentPosition, plan?.url)
+            } else {
+                showHud("Playback engine: ${selected.label}")
+            }
+        })
+    }
+
     private fun showDecoderSheet() = sheet("Decoder") { box, dlg ->
         val all = DecoderMode.values()
         box.addView(radioGroup(100, all.map { it.label + "  ·  " + it.desc }, decoder.ordinal) { i ->
@@ -849,21 +874,13 @@ class PlayerActivity : ComponentActivity() {
         fun row(label: String, value: String = "", onClick: () -> Unit) {
             box.addView(sheetRow(label, value) { dlg.dismiss(); onClick() })
         }
-        row("Lock controls", if (locked) "On" else "Off") { toggleLock() }
-        row("Playback engine", decoder.label) { showDecoderSheet() }
         row("Volume", "${volumePercent()}%") { showVolumeSheet() }
         row("This phone & playback info") { showDeviceSheet() }
-        row("Video quality", qualityText()) { showQualitySheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
         row("Subtitle sync", delayText()) { showSubtitleSyncSheet() }
         row("Aspect ratio", aspectName()) { cycleAspect() }
-        row("Audio only", if (audioOnly) "On" else "Off") { toggleAudioOnly() }
-        row("Repeat", if (loopOne) "On" else "Off") { toggleLoop() }
         row("Screenshot") { takeScreenshot() }
-        row("Picture-in-picture") { enterPip() }
-        row("Cast screen") { openCast() }
         row("Rotate screen") { rotateScreen() }
-        row("Skip +90s") { seekBy(90_000); showHud("+90s") }
         if (hasPrev) row("Previous episode") { switchTo(siblings[siblingIndex - 1].id) }
         if (hasNext) row("Next episode") { switchTo(siblings[siblingIndex + 1].id) }
     }
@@ -878,7 +895,7 @@ class PlayerActivity : ComponentActivity() {
     // ================================================================= subtitles
     private fun applySubStyle() {
         // Allervue subtitle standard: clean white text with a restrained black shadow.
-        subText.textSize = 20f
+        subText.textSize = if (isInPictureInPictureMode) 12f else 20f
         subText.setTextColor(Color.WHITE)
         subText.setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
         subText.setPadding(0, 0, 0, 0)
@@ -888,9 +905,12 @@ class PlayerActivity : ComponentActivity() {
 
     private fun layoutSubtitle() {
         val lp = subText.layoutParams as FrameLayout.LayoutParams
+        val pip = isInPictureInPictureMode
         val h = if (root.height > 0) root.height else resources.displayMetrics.heightPixels
-        lp.bottomMargin = (subPos * h).toInt() + (if (controlsVisible) dp(110) else 0)
-        subText.maxWidth = (resources.displayMetrics.widthPixels * 0.85f).toInt()
+        val w = if (root.width > 0) root.width else resources.displayMetrics.widthPixels
+        subText.textSize = if (pip) 12f else 20f
+        lp.bottomMargin = if (pip) dp(8) else (subPos * h).toInt() + (if (controlsVisible) dp(110) else 0)
+        subText.maxWidth = (w * if (pip) 0.82f else 0.85f).toInt()
         subText.layoutParams = lp
     }
 
@@ -1734,8 +1754,16 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
         super.onPictureInPictureModeChanged(isInPip, newConfig)
-        if (isInPip) { hideControls(); lockOverlay.visibility = View.GONE }
-        else if (!locked) showControls()
+        if (isInPip) {
+            hideControls()
+            lockOverlay.visibility = View.GONE
+            applySubStyle()
+            layoutSubtitle()
+        } else {
+            applySubStyle()
+            layoutSubtitle()
+            if (!locked) showControls()
+        }
     }
 
     override fun onStop() {
