@@ -143,32 +143,47 @@ class VlcPlayerActivity : ComponentActivity() {
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         video = VLCVideoLayout(this)
         root.addView(video, FrameLayout.LayoutParams(-1, -1))
-        val top = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(16), dp(18), dp(12))
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xCC000000.toInt(), 0x00000000))
+
+        val back = TextView(this).apply {
+            text = "‹"; textSize = 34f; gravity = Gravity.CENTER
+            setTextColor(Color.WHITE); setPadding(dp(10), 0, dp(10), dp(4))
+            setOnClickListener { finish() }
         }
         title = TextView(this).apply {
             text = intent.getStringExtra("title") ?: "Allervue"
-            setTextColor(Color.WHITE); textSize = 18f; setTypeface(typeface, android.graphics.Typeface.BOLD)
-            maxLines = 1
+            setTextColor(0xFFF4EFE5.toInt()); textSize = 18f
+            setTypeface(null, android.graphics.Typeface.BOLD); maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        state = TextView(this).apply { text = "VLC · Connecting"; setTextColor(0xFFCCCCCC.toInt()); textSize = 12f }
-        top.addView(title); top.addView(state)
+        state = TextView(this).apply {
+            text = "VLC · Connecting"; setTextColor(accent); textSize = 11f
+        }
+        val heading = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
+            addView(title); addView(state)
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(14), dp(10), dp(20), dp(30))
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xD9101013.toInt(), 0x00101013))
+            addView(back, LinearLayout.LayoutParams(dp(44), dp(48)))
+            addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+        }
         root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
 
-        val bottom = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; setPadding(dp(18), dp(12), dp(18), dp(18))
-            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(0xDD08080A.toInt(), 0x00000000))
+        current = TextView(this).apply {
+            text = "00:00"; setTextColor(0xFFEDE9E2.toInt()); textSize = 11f
+            minWidth = dp(48); gravity = Gravity.CENTER_VERTICAL
         }
-        val times = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        current = TextView(this).apply { text = "00:00"; setTextColor(Color.WHITE); textSize = 12f }
-        duration = TextView(this).apply { text = "--:--"; setTextColor(Color.WHITE); textSize = 12f }
+        duration = TextView(this).apply {
+            text = "--:--"; setTextColor(0xFFB7B3AC.toInt()); textSize = 11f
+            minWidth = dp(48); gravity = Gravity.CENTER
+        }
         seek = SeekBar(this).apply {
             progressTintList = android.content.res.ColorStateList.valueOf(accent)
-            thumbTintList = android.content.res.ColorStateList.valueOf(accent)
+            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE5.toInt())
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x44FFFFFF)
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
@@ -177,39 +192,61 @@ class VlcPlayerActivity : ComponentActivity() {
             override fun onStartTrackingTouch(bar: SeekBar) {}
             override fun onStopTrackingTouch(bar: SeekBar) { if (::vlc.isInitialized) vlc.time = bar.progress.toLong() }
         })
-        times.addView(current)
-        times.addView(seek, LinearLayout.LayoutParams(0, dp(36), 1f).apply {
-            leftMargin = dp(10); rightMargin = dp(10)
-        })
-        times.addView(duration)
-        bottom.addView(times)
-
-        val actions = LinearLayout(this).apply { gravity = Gravity.CENTER; orientation = LinearLayout.HORIZONTAL }
-        fun button(label: String, action: () -> Unit): TextView = TextView(this).apply {
-            text = label; setTextColor(Color.WHITE); textSize = 15f; gravity = Gravity.CENTER
-            setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = GradientDrawable().apply { setColor(0xCC1B1B20.toInt()); cornerRadius = dp(18).toFloat() }
-            setOnClickListener { action() }
+        val times = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            addView(current)
+            addView(seek, LinearLayout.LayoutParams(0, dp(30), 1f))
+            addView(duration)
         }
-        actions.addView(button("−10s") { vlc.time = (vlc.time - 10_000).coerceAtLeast(0) })
-        play = button("▶") { if (vlc.isPlaying) vlc.pause() else vlc.play() }
-        actions.addView(play, LinearLayout.LayoutParams(dp(58), dp(48)).apply { leftMargin = dp(12); rightMargin = dp(12) })
-        actions.addView(button("+10s") { vlc.time = (vlc.time + 10_000).coerceAtMost(vlc.length) })
-        actions.addView(button("1×") { chooseSpeed() }.apply { tag = "speed" })
-        bottom.addView(actions)
 
-        skipIntro = button("SKIP INTRO  ›") { 
+        fun control(label: String, primary: Boolean = false, action: () -> Unit): TextView =
+            TextView(this).apply {
+                text = label; gravity = Gravity.CENTER
+                setTextColor(if (primary) 0xFF17130D.toInt() else Color.WHITE)
+                textSize = if (primary) 22f else 13f
+                setTypeface(null, android.graphics.Typeface.BOLD)
+                background = GradientDrawable().apply {
+                    setColor(if (primary) accent else 0x3319191E)
+                    cornerRadius = dp(if (primary) 30 else 16).toFloat()
+                    if (!primary) setStroke(dp(1), 0x33FFFFFF)
+                }
+                setOnClickListener { action() }
+            }
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            addView(control("↶ 10") { vlc.time = (vlc.time - 10_000).coerceAtLeast(0) },
+                LinearLayout.LayoutParams(dp(64), dp(48)).apply { rightMargin = dp(18) })
+            play = control("Ⅱ", true) { if (vlc.isPlaying) vlc.pause() else vlc.play() }
+            addView(play, LinearLayout.LayoutParams(dp(58), dp(58)))
+            addView(control("10 ↷") { vlc.time = (vlc.time + 10_000).coerceAtMost(vlc.length) },
+                LinearLayout.LayoutParams(dp(64), dp(48)).apply { leftMargin = dp(18) })
+            addView(control("1×") { chooseSpeed() },
+                LinearLayout.LayoutParams(dp(54), dp(44)).apply { leftMargin = dp(12) })
+        }
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(22), dp(20), dp(14))
+            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(0xF5101013.toInt(), 0xE6101013.toInt(), 0x00101013))
+            addView(times)
+            addView(actions, LinearLayout.LayoutParams(-1, dp(64)).apply { topMargin = dp(8) })
+        }
+
+        skipIntro = control("SKIP INTRO  ›", true) {
             val active = introSegments.firstOrNull { vlc.time >= it.first && vlc.time < it.second }
             if (active != null) vlc.time = active.second
             skipIntro.visibility = View.GONE
         }.apply {
-            textSize = 13f; visibility = View.GONE
-            background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(20).toFloat() }
+            textSize = 12f; visibility = View.GONE
+            setPadding(dp(18), dp(10), dp(18), dp(10))
         }
-        spinner = ProgressBar(this).apply { isIndeterminate = true; indeterminateTintList = android.content.res.ColorStateList.valueOf(accent) }
+        spinner = ProgressBar(this).apply {
+            isIndeterminate = true
+            indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
+        }
         root.addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
         root.addView(skipIntro, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-            .apply { bottomMargin = dp(142) })
+            .apply { bottomMargin = dp(128) })
         root.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         setContentView(root)
     }
