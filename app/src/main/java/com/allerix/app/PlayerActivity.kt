@@ -469,8 +469,8 @@ class PlayerActivity : ComponentActivity() {
         speedLabel = speedAction.getChildAt(1) as TextView
         val engineLabel = engineAction.getChildAt(1) as TextView
         val qualityLabel = qualityAction.getChildAt(1) as TextView
-        engineLabel.text = playbackEngine.label
-        qualityLabel.text = qualityText()
+        engineLabel.text = "Engine"
+        qualityLabel.text = "Quality"
 
         prevEpisodeBtn = episodeNavButton("‹|").apply {
             textSize = 17f; background = null; setPadding(0, 0, 0, 0)
@@ -876,6 +876,7 @@ class PlayerActivity : ComponentActivity() {
         }
         row("Volume", "${volumePercent()}%") { showVolumeSheet() }
         row("This phone & playback info") { showDeviceSheet() }
+        row("Decoder", decoder.label) { showDecoderSheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
         row("Subtitle sync", delayText()) { showSubtitleSyncSheet() }
         row("Aspect ratio", aspectName()) { cycleAspect() }
@@ -1757,11 +1758,9 @@ class PlayerActivity : ComponentActivity() {
         if (isInPip) {
             hideControls()
             lockOverlay.visibility = View.GONE
-            applySubStyle()
-            layoutSubtitle()
+            root.post { applySubStyle(); layoutSubtitle() }
         } else {
-            applySubStyle()
-            layoutSubtitle()
+            root.post { applySubStyle(); layoutSubtitle() }
             if (!locked) showControls()
         }
     }
