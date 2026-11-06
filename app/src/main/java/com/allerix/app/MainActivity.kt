@@ -76,6 +76,12 @@ fun App() {
     var forgotPassword by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(2400); splash = false }
 
+    var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
+    LaunchedEffect(Unit) {
+        delay(2800)
+        availableUpdate = runCatching { UpdateChecker.checkForUpdate(ctx) }.getOrNull()
+    }
+
     if (splash) {
         SplashScreen()
     } else if (loggedIn) {
@@ -89,6 +95,16 @@ fun App() {
         LoginScreen(
             onDone = { loggedIn = true }, onSettings = { loginSettings = true },
             onForgot = { forgotPassword = true }
+        )
+    }
+
+    availableUpdate?.let { update ->
+        UpdateAvailableDialog(
+            update = update,
+            onDismiss = {
+                UpdateChecker.dismissUpdate(ctx, update.tag)
+                availableUpdate = null
+            }
         )
     }
 }
