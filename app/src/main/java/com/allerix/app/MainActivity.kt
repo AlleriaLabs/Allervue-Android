@@ -70,22 +70,22 @@ fun App() {
     var splash by remember { mutableStateOf(true) }
     var loggedIn by remember { mutableStateOf(Api.token.isNotEmpty()) }
     var loginSettings by remember { mutableStateOf(false) }
-    var loginWeb by remember { mutableStateOf<String?>(null) }
+    var forgotPassword by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(2400); splash = false }
 
     if (splash) {
         SplashScreen()
     } else if (loggedIn) {
         MainShell(onLogout = { Api.logout(ctx); loggedIn = false })
-    } else if (loginWeb != null) {
-        WebScreen(loginWeb.orEmpty(), "Reset password", back = { loginWeb = null })
+    } else if (forgotPassword) {
+        ForgotPasswordScreen(onBack = { forgotPassword = false })
     } else if (loginSettings) {
         BackHandler { loginSettings = false }
         ClientSettingsScreen(back = { loginSettings = false }, onServerChanged = { loginSettings = false }, loggedIn = false)
     } else {
         LoginScreen(
             onDone = { loggedIn = true }, onSettings = { loginSettings = true },
-            onForgot = { loginWeb = Api.RESET_PASSWORD_URL }
+            onForgot = { forgotPassword = true }
         )
     }
 }
