@@ -135,6 +135,8 @@ class PlayerActivity : ComponentActivity() {
     // subtitles (own engine)
     private var subStreams: List<MediaStream> = emptyList()
     private var audioStreams: List<MediaStream> = emptyList()
+    private var defaultAudioApplied = false
+    private var defaultSubtitleApplied = false
     private var cues: List<SubCue> = emptyList()
     private var subOn = false
     private var activeSub = -1          // index in subStreams, -2 = loaded from file, -1 = none
@@ -401,7 +403,7 @@ class PlayerActivity : ComponentActivity() {
         // Waleed Talha VideoPlayer-inspired composition:
         // compact top toolbar + shortcut strip, then a full-width timeline and
         // evenly weighted transport row at the bottom. Playback remains Media3/Jellyfin.
-        val backBtn = glassIcon(R.drawable.ic_back, 44, 12)
+        val backBtn = glassIcon(R.drawable.ic_back, 36, 9)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
             setTextColor(0xFFF7F4EE.toInt()); textSize = 16f
@@ -414,7 +416,7 @@ class PlayerActivity : ComponentActivity() {
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), 0, dp(8), 0)
+            setPadding(dp(4), 0, dp(4), 0)
             addView(titleView)
             addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         }
@@ -422,13 +424,13 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE; setPadding(0, 0, dp(4), 0)
         }
-        val castBtn = glassIcon(R.drawable.ic_cast, 40, 11)
-        val pipBtn = glassIcon(R.drawable.ic_pip, 40, 11).apply {
+        val castBtn = glassIcon(R.drawable.ic_cast, 34, 9)
+        val pipBtn = glassIcon(R.drawable.ic_pip, 34, 9).apply {
             if (!pipSupported()) visibility = View.GONE
         }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(12), dp(12), dp(8))
+            setPadding(dp(8), dp(8), dp(8), dp(5))
             addView(backBtn)
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow)
@@ -596,7 +598,7 @@ class PlayerActivity : ComponentActivity() {
         layoutSubtitle()
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            topBar.setPadding(dp(14) + i.left, dp(12) + i.top, dp(12) + i.right, dp(8))
+            topBar.setPadding(dp(8) + i.left, dp(8) + i.top, dp(8) + i.right, dp(5))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply {
                 leftMargin = i.left; rightMargin = i.right; bottomMargin = i.bottom
             }
@@ -719,36 +721,26 @@ class PlayerActivity : ComponentActivity() {
         setOnClickListener { onClick() }
     }
 
+    private fun languageName(raw: String?): String {
+        val tag = raw?.trim().orEmpty()
+        if (tag.isEmpty() || tag.equals("und", true) || tag.equals("unknown", true)) return "Unknown"
+        val normalized = when (tag.lowercase(Locale.ROOT).substringBefore("-").substringBefore("_")) {
+            "eng" -> "en"; "spa" -> "es"; "jpn" -> "ja"; "kor" -> "ko"
+            "zho", "chi" -> "zh"; "fra", "fre" -> "fr"; "deu", "ger" -> "de"
+            "ita" -> "it"; "por" -> "pt"; "rus" -> "ru"; "ara" -> "ar"
+            "fil", "tgl" -> "fil"; "tha" -> "th"; "vie" -> "vi"
+            else -> tag
+        }
+        val name = Locale.forLanguageTag(normalized).getDisplayLanguage(Locale.getDefault())
+        return name.takeIf { it.isNotBlank() && !it.equals("und", true) } ?: "Unknown"
+    }
+
     private fun trackLabel(g: Tracks.Group, i: Int): String {
         val f = g.getTrackFormat(0)
-        fun clean(value: String?): String? = value?.trim()?.takeIf {
-            it.isNotEmpty() && !it.equals("und", ignoreCase = true) &&
-                !it.equals("unknown", ignoreCase = true)
-        }
-
-        // Prefer Jellyfin's MediaStream metadata where available. ExoPlayer's
-        // Format.language can legitimately be "und" even when Jellyfin knows it.
-        val serverStream = if (g.type == C.TRACK_TYPE_AUDIO) {
-            val byIndex = f.id?.toIntOrNull()?.let { id -> audioStreams.firstOrNull { it.index == id } }
-            byIndex ?: audioStreams.getOrNull(i)
-        } else null
-        val serverTitle = clean(serverStream?.title)
-        val serverLanguage = clean(serverStream?.language)
-        val formatLabel = clean(f.label)
-        val rawLanguage = serverLanguage ?: clean(f.language)
-        val language = rawLanguage?.let { tag ->
-            val locale = Locale.forLanguageTag(tag)
-            locale.displayLanguage.takeIf {
-                it.isNotBlank() && !it.equals("und", ignoreCase = true)
-            }
-        }
-        val details = listOfNotNull(
-            serverStream?.codec?.uppercase(Locale.ROOT),
-            f.channelCount.takeIf { it > 0 }?.let { if (it == 1) "Mono" else "${it}ch" },
-            f.sampleMimeType?.substringAfter("/")?.uppercase(Locale.ROOT)
-        ).distinct().joinToString(" · ")
-        return listOfNotNull(serverTitle, formatLabel, language, details).distinct()
-            .joinToString(" · ").ifEmpty { if (g.type == C.TRACK_TYPE_AUDIO) "Audio track ${i + 1}" else "Track ${i + 1}" }
+        val streams = if (g.type == C.TRACK_TYPE_AUDIO) audioStreams else subStreams
+        val serverStream = f.id?.toIntOrNull()?.let { id -> streams.firstOrNull { it.index == id } }
+            ?: streams.getOrNull(i)
+        return languageName(serverStream?.language ?: f.language)
     }
 
     private fun showAudioSheet() = sheet("Audio") { box, _ ->
@@ -901,7 +893,7 @@ class PlayerActivity : ComponentActivity() {
         else -> "srt"
     }
 
-    private fun streamLabel(s: MediaStream): String = s.title ?: s.language ?: ("Subtitle " + s.index)
+    private fun streamLabel(s: MediaStream): String = languageName(s.language)
 
     private fun nativeImageGroups(): List<Tracks.Group> = player.currentTracks.groups.filter {
         it.type == C.TRACK_TYPE_TEXT && it.isSupported &&
@@ -1188,8 +1180,60 @@ class PlayerActivity : ComponentActivity() {
         return b.build()
     }
 
+    private fun applyDefaultAudioTrack() {
+        if (defaultAudioApplied) return
+        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
+        if (groups.isEmpty()) return
+        val preferred = audioStreams.firstOrNull { it.isDefault } ?: audioStreams.firstOrNull()
+        val target = preferred?.let { stream ->
+            groups.firstOrNull { group ->
+                group.getTrackFormat(0).id?.toIntOrNull() == stream.index
+            }
+        } ?: groups.firstOrNull { it.isSelected } ?: groups.first()
+        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+            .setOverrideForType(TrackSelectionOverride(target.mediaTrackGroup, 0)).build()
+        defaultAudioApplied = true
+    }
+
+    private fun applyDefaultSubtitle() {
+        if (defaultSubtitleApplied) return
+        val english = subStreams.indexOfFirst {
+            it.isText && (it.language?.startsWith("en", true) == true ||
+                languageName(it.language).equals("English", true))
+        }
+        val preferred = if (english >= 0) english else
+            subStreams.indexOfFirst { it.isDefault && it.isText }.takeIf { it >= 0 }
+                ?: subStreams.indexOfFirst { it.isText }
+        if (preferred != null && preferred >= 0) {
+            defaultSubtitleApplied = true
+            selectSubStream(preferred)
+            return
+        }
+        val imageGroups = nativeImageGroups()
+        if (imageGroups.isEmpty()) return
+        val englishImage = imageGroups.firstOrNull { group ->
+            val fmt = group.getTrackFormat(0)
+            val id = fmt.id?.toIntOrNull()
+            val stream = id?.let { n -> subStreams.firstOrNull { it.index == n } }
+            (stream?.language ?: fmt.language)?.startsWith("en", true) == true
+        }
+        val defaultImage = imageGroups.firstOrNull { group ->
+            val id = group.getTrackFormat(0).id?.toIntOrNull()
+            id?.let { n -> subStreams.firstOrNull { it.index == n }?.isDefault } == true
+        }
+        val target = englishImage ?: defaultImage ?: imageGroups.firstOrNull()
+        if (target != null) {
+            defaultSubtitleApplied = true
+            selectNativeSubtitle(target)
+        }
+    }
+
     private fun attachPlayerListener() {
         player.addListener(object : Player.Listener {
+            override fun onTracksChanged(tracks: Tracks) {
+                applyDefaultAudioTrack()
+                applyDefaultSubtitle()
+            }
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 playBtn.setImageResource(if (isPlaying) R.drawable.ic_pause else R.drawable.ic_play)
                 subTitle.text = nowPlayingText(isPlaying)
@@ -1238,15 +1282,17 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun loadAndPlay() = lifecycleScope.launch {
+        defaultAudioApplied = false
+        defaultSubtitleApplied = false
         startupStartedAt = SystemClock.elapsedRealtime()
         DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: begin; offline=" + (offlinePath != null))
         val file = offlinePath
         if (file != null) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(file))))
-            player.prepare()
             val saved = Downloads.position(this@PlayerActivity, itemId)
             if (saved > 5_000) { player.seekTo(saved); showHud("Resuming at " + fmt(saved), 1500) }
             player.playWhenReady = true
+            player.prepare()
             handler.postDelayed(progressTick, 10_000)
             return@launch
         }
@@ -1257,9 +1303,10 @@ class PlayerActivity : ComponentActivity() {
                 updateIntroSkip()
             }
 
+            val metadataStarted = SystemClock.elapsedRealtime()
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
-            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received; mediaSources=" + (item.mediaSources?.size ?: 0))
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received in " + (SystemClock.elapsedRealtime() - metadataStarted) + "ms; mediaSources=" + (item.mediaSources?.size ?: 0))
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
             if (item.type == "Episode" && item.seriesName != null) {
@@ -1286,20 +1333,24 @@ class PlayerActivity : ComponentActivity() {
             badgeRow.visibility = if (badgeRow.childCount > 0) View.VISIBLE else View.GONE
             subStreams = src.streams.filter { it.type == "Subtitle" }
             audioStreams = src.streams.filter { it.type == "Audio" }
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: streams audio=${audioStreams.size} subtitles=${subStreams.size}")
 
             // AUTO starts with Jellyfin's static stream immediately. If this device cannot decode it,
             // the existing decoder-error handler falls back to a Jellyfin transcode.
             player.setMediaItem(buildMediaItem())
-            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
-            player.prepare()
             val resumeMs = (item.userData?.positionTicks ?: 0L) / 10_000
             val requestedStart = intent.getLongExtra("start_position_ms", 0L)
             val resumeAt = if (requestedStart > 0L) requestedStart else resumeMs
             if (resumeAt > 5_000) player.seekTo(resumeAt)
             player.playWhenReady = true
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
+            val prepareStarted = SystemClock.elapsedRealtime()
+            player.prepare()
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: prepare() returned in " + (SystemClock.elapsedRealtime() - prepareStarted) + "ms")
             report("start")
             handler.postDelayed(progressTick, 10_000)
 
+            applyDefaultSubtitle()
             siblings = emptyList(); siblingIndex = -1
             if (item.type == "Episode" && item.parentId != null) {
                 siblings = runCatching { Api.children(item.parentId) }.getOrDefault(emptyList())
@@ -1318,10 +1369,12 @@ class PlayerActivity : ComponentActivity() {
         report("stop")
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
+        defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
         autoRetried = false; plan = null
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
+        defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
         player.stop(); player.clearMediaItems()
         loadAndPlay()
