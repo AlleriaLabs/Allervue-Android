@@ -481,20 +481,26 @@ class PlayerActivity : ComponentActivity() {
             background = circleBg(0x55202024); setPadding(dp(9), dp(9), dp(9), dp(9))
         }
 
+        // Keep transport controls as one compact cluster. Weighted children here
+        // used to expand across the full screen width and made the buttons look scattered.
         val transport = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            setPadding(dp(18), dp(8), dp(18), dp(8))
-            fun weighted(v: View, w: Float = 1f, h: Int = 58) {
-                addView(v, LinearLayout.LayoutParams(0, dp(h), w))
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(8), 0, dp(8))
+            fun fixed(v: View, width: Int, height: Int, start: Int = 0, end: Int = 0) {
+                addView(v, LinearLayout.LayoutParams(dp(width), dp(height)).apply {
+                    leftMargin = dp(start)
+                    rightMargin = dp(end)
+                })
             }
-            weighted(prevEpisodeBtn, 0.82f, 52)
-            weighted(rewBtn, 0.95f, 54)
-            weighted(playBtn, 1.2f, 66)
-            weighted(fwdBtn, 0.95f, 54)
-            weighted(nextEpisodeBtn, 0.82f, 52)
+            fixed(prevEpisodeBtn, 34, 46, end = 10)
+            fixed(rewBtn, 48, 48, end = 14)
+            fixed(playBtn, 68, 68, end = 14)
+            fixed(fwdBtn, 48, 48, end = 10)
+            fixed(nextEpisodeBtn, 34, 46)
         }
         val centerControls = FrameLayout(this).apply {
-            addView(transport, FrameLayout.LayoutParams(-1, -2, Gravity.CENTER))
+            addView(transport, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             isClickable = false
         }
 
