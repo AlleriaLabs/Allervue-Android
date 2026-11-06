@@ -30,7 +30,7 @@ object Api {
     const val REQUEST_WEBHOOK = ""
 
     /** Your jfa-go address (e.g. https://jfa.example.com). Empty = hide the "account portal" buttons. */
-    const val JFA_URL = "https://flixregister.alleriafilmotheque.fyi"
+    const val JFA_URL = "https://flixreg.alleriafilmotheque.fyi"
     const val ACCOUNT_URL = "$JFA_URL/my/account"
     const val RESET_PASSWORD_URL = "$JFA_URL/my/account/password/reset"
 
