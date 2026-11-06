@@ -60,6 +60,15 @@ object Device {
         return d
     }
 
+    /** Lightweight display-only HDR check; does not enumerate every hardware/software codec. */
+    @Suppress("DEPRECATION")
+    fun supportsHdr(ctx: Context): Boolean = try {
+        val wm = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        wm.defaultDisplay.hdrCapabilities?.supportedHdrTypes?.isNotEmpty() == true
+    } catch (_: Exception) {
+        false
+    }
+
     /** Codec name used by Jellyfin plus the tallest picture this phone should direct-play for it. */
     fun directPlayVideo(c: DeviceCaps): List<Pair<String, Int>> {
         val out = ArrayList<Pair<String, Int>>()
