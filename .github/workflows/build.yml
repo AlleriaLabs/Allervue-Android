@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Publish a GitHub Release with this tag (e.g. v1). Leave empty to only build."
+        description: "Publish a GitHub Release with this tag (e.g. v1.0.1). Leave empty to only build."
         required: false
         default: ""
 permissions:
@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_RELEASE_SIGNING: ${{ secrets.ALLERVUE_KEYSTORE_BASE64 != '' && secrets.ALLERVUE_STORE_PASSWORD != '' && secrets.ALLERVUE_KEY_ALIAS != '' && secrets.ALLERVUE_KEY_PASSWORD != '' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -20,29 +22,55 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: 8.9 }
-      - run: gradle assembleDebug --no-daemon
+      - name: Configure permanent release signing
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ALLERVUE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.ALLERVUE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALLERVUE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ALLERVUE_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/allervue-release.p12"
+          {
+            echo "ALLERVUE_KEYSTORE_PATH=$RUNNER_TEMP/allervue-release.p12"
+            echo "ALLERVUE_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "ALLERVUE_KEY_ALIAS=$KEY_ALIAS"
+            echo "ALLERVUE_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+      - name: Build debug APK
+        run: gradle assembleDebug --no-daemon
+      - name: Build permanently signed release APK
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
+        run: gradle assembleRelease --no-daemon
       - name: Name the APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Allervue.apk
+        run: |
+          if [ "$HAS_RELEASE_SIGNING" = "true" ]; then
+            cp app/build/outputs/apk/release/app-release.apk Allervue.apk
+          else
+            cp app/build/outputs/apk/debug/app-debug.apk Allervue.apk
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: Allervue-apk
           path: Allervue.apk
       - name: Publish GitHub Release
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' && env.HAS_RELEASE_SIGNING == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event.inputs.release_tag }}
         run: |
           cat > notes.md <<'NOTES'
-          First release of the Allervue Android app.
+          Allervue Android release.
 
-          - Organized home discovery with a retained auto-rotating hero carousel
-          - Custom ExoPlayer: gesture controls, episode navigation, intro skipping when markers are available, PiP and resume sync
-          - Movie genre filters, Anime / TV Series categories, and player quality/audio settings
-          - Editable server URL in Settings
-
-          Install: download Allervue.apk on your Android phone and allow "Install unknown apps".
+          - In-app GitHub release update notifications
+          - Updates install over the existing app when signed with the permanent Allervue release key
+          - Player, Jellyfin library, and playback features
+          
+          Install: download Allervue.apk and allow "Install unknown apps" when Android asks.
           NOTES
           gh release create "$TAG" Allervue.apk \
             --repo "${{ github.repository }}" --target "${{ github.sha }}" \
             --title "Allervue $TAG" --notes-file notes.md
+      - name: Explain why release signing is unavailable
+        if: ${{ env.HAS_RELEASE_SIGNING != 'true' }}
+        run: echo "::warning::Permanent signing secrets are not configured. Only an unsigned-key debug build artifact is produced; no update release is published."
