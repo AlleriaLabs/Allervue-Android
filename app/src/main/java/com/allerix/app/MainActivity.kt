@@ -56,8 +56,6 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         DiagnosticLog.install(this)
         DiagnosticLog.record(this, "MainActivity onCreate")
-        DiagnosticLog.install(this)
-        DiagnosticLog.record(this, "MainActivity onCreate")
         Api.load(this)
         setContent {
             MaterialTheme(
