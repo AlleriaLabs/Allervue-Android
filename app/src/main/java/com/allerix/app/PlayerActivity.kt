@@ -103,6 +103,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var titleView: TextView
     private lateinit var subTitle: TextView
     private lateinit var badgeRow: LinearLayout
+    private lateinit var topPlaybackInfo: TextView
     private lateinit var seek: SeekBar
     private lateinit var curTime: TextView
     private lateinit var durTime: TextView
@@ -415,6 +416,15 @@ class PlayerActivity : ComponentActivity() {
             setPadding(dp(6), 0, dp(4), 0)
             addView(titleView)
             addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) })
+            topPlaybackInfo = TextView(this@PlayerActivity).apply {
+                textSize = 9f
+                setTextColor(0xFFD8B77E.toInt())
+                maxLines = 1
+                ellipsize = TextUtils.TruncateAt.END
+                text = "${Build.MANUFACTURER} ${Build.MODEL} · Auto playback"
+                setOnClickListener { showDeviceSheet() }
+            }
+            addView(topPlaybackInfo, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(3) })
         }
         badgeRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
@@ -1190,6 +1200,7 @@ class PlayerActivity : ComponentActivity() {
             }
         }
         plan = chosen
+        updateTopPlaybackInfo()
         sessionId = chosen.sessionId
         val b = MediaItem.Builder().setUri(chosen.url)
         if (chosen.hls) b.setMimeType(MimeTypes.APPLICATION_M3U8)
@@ -1327,6 +1338,7 @@ class PlayerActivity : ComponentActivity() {
             if (canStartDirectly) {
                 val url = Api.streamUrl(itemId)
                 plan = PlaybackPlan(url, false, false, sessionId, "Direct play · metadata loading in parallel")
+                updateTopPlaybackInfo()
                 player.setMediaItem(MediaItem.fromUri(url))
                 val requestedStart = intent.getLongExtra("start_position_ms", 0L)
                 if (requestedStart > 5_000) player.seekTo(requestedStart)
@@ -1630,6 +1642,18 @@ class PlayerActivity : ComponentActivity() {
     }
 
     // ================================================================= phone-aware helpers
+    private fun updateTopPlaybackInfo() {
+        if (!::topPlaybackInfo.isInitialized) return
+        val phone = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
+        val mode = when {
+            offlinePath != null -> "Offline playback"
+            plan?.transcoding == true -> "Transcoding"
+            plan != null -> "Direct play"
+            else -> "Auto playback"
+        }
+        topPlaybackInfo.text = "$phone · $mode"
+    }
+
     private fun showDeviceSheet() = sheet("This phone & playback") { box, _ ->
         Device.describe(this, plan?.label).forEach { (k, v) ->
             box.addView(TextView(this).apply {
@@ -1651,6 +1675,7 @@ class PlayerActivity : ComponentActivity() {
                 val t = Api.transcodeUrl(itemId, sourceId, Quality.P1080, AudioMode.ORIGINAL, sessionId)
                 sessionId = t.sessionId
                 plan = PlaybackPlan(t.url, true, true, t.sessionId, "Transcoding · 1080p (automatic fallback)")
+                updateTopPlaybackInfo()
                 player.setMediaItem(MediaItem.Builder().setUri(t.url).setMimeType(MimeTypes.APPLICATION_M3U8).build(), pos)
                 player.prepare(); player.play()
             } catch (e: Exception) { showHud("Fallback failed: ${e.message}", 4000) }
