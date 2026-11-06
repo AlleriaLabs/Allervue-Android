@@ -78,7 +78,9 @@ fun HomeScreen(
             featured = runCatching { Api.featured() }.getOrDefault(emptyList())
             resume = Api.resume()
             trending = runCatching { Api.trending() }.getOrDefault(emptyList())
-            recommended = runCatching { Api.suggestions() }.getOrDefault(emptyList())
+            recommended = runCatching {
+                Api.personalizedPicks((resume + trending).map { it.id }.toSet())
+            }.getOrDefault(emptyList())
             rows = Api.views().map { it to Api.latest(it.id) }.filter { it.second.isNotEmpty() }
         } catch (e: Exception) {
             if (e.message?.contains("401") == true) onLogout() else error = "Can't reach the server. Check your connection."
@@ -116,7 +118,7 @@ fun HomeScreen(
             val popularShows = trending.filter { it.type == "Series" }
             if (popularMovies.isNotEmpty()) item { MediaRow("Recently Added Movies", popularMovies, onClick = onOpen) }
             if (popularShows.isNotEmpty()) item { MediaRow("Recently Added Series", popularShows, onClick = onOpen) }
-            val picks = recommended.filter { pick -> trending.none { it.id == pick.id } }.take(12)
+            val picks = recommended.take(12)
             if (picks.isNotEmpty()) item { MediaRow("Picked for You", picks, onClick = onOpen) }
             items(rows, key = { it.first.id }) { (lib, list) ->
                 MediaRow("Latest in ${lib.name}", list, onClick = onOpen, onSeeAll = { onSeeAll(lib) })
