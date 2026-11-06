@@ -78,10 +78,14 @@ fun HomeScreen(
             featured = runCatching { Api.featured() }.getOrDefault(emptyList())
             resume = Api.resume()
             trending = runCatching { Api.trending() }.getOrDefault(emptyList())
-            recommended = runCatching {
-                Api.personalizedPicks((resume + trending).map { it.id }.toSet())
-            }.getOrDefault(emptyList())
             rows = Api.views().map { it to Api.latest(it.id) }.filter { it.second.isNotEmpty() }
+            loading = false
+            // Recommendation analysis runs after the core shelves render, so it never delays first paint.
+            launch {
+                recommended = runCatching {
+                    Api.personalizedPicks((resume + trending).map { it.id }.toSet())
+                }.getOrDefault(emptyList())
+            }
         } catch (e: Exception) {
             if (e.message?.contains("401") == true) onLogout() else error = "Can't reach the server. Check your connection."
         }
