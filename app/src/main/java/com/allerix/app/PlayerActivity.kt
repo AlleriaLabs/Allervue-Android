@@ -193,8 +193,10 @@ class PlayerActivity : ComponentActivity() {
     // ================================================================= lifecycle
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DiagnosticLog.record(this, "PlayerActivity onCreate: entered")
         Api.load(this)
         itemId = intent.getStringExtra("id") ?: return finish()
+        DiagnosticLog.record(this, "PlayerActivity onCreate: item id received")
         offlinePath = intent.getStringExtra("file")
         audio = getSystemService(AUDIO_SERVICE) as AudioManager
         prefs = getSharedPreferences("player", MODE_PRIVATE)
@@ -226,18 +228,22 @@ class PlayerActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
+        DiagnosticLog.record(this, "PlayerActivity: creating ExoPlayer; decoder=$decoder engine=$playbackEngine")
         player = createPlayer()
+        DiagnosticLog.record(this, "PlayerActivity: ExoPlayer created")
         playerView = PlayerView(this).apply {
             player = this@PlayerActivity.player
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
         buildUi()
+        DiagnosticLog.record(this, "PlayerActivity: UI built")
         setupGestures()
         attachPlayerListener()
         handler.post(uiTick)
         handler.post(subTick)
         showControls()
+        DiagnosticLog.record(this, "PlayerActivity: starting loadAndPlay")
         loadAndPlay()
     }
 
@@ -1137,6 +1143,7 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachEnhancer(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
+            DiagnosticLog.record(this, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
                 // Auto engine: retry decoder/codec failures in LibVLC before giving up.
                 if (playbackEngine == PlaybackEngine.AUTO && !vlcFallbackAttempted &&
                     error.errorCode in 4001..4005) {
