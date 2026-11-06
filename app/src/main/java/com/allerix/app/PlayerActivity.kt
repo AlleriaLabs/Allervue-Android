@@ -89,7 +89,7 @@ import kotlin.math.log10
  */
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
-    private val accent = 0xFFE50914.toInt()
+    private val accent = 0xFFD8B77E.toInt()
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
@@ -390,10 +390,10 @@ class PlayerActivity : ComponentActivity() {
         val backBtn = glassIcon(R.drawable.ic_back)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(Color.WHITE); textSize = 19f; setTypeface(typeface, Typeface.BOLD)
+            setTextColor(0xFFF4EFE5.toInt()); textSize = 20f; setTypeface(typeface, Typeface.BOLD)
             maxLines = 1; ellipsize = TextUtils.TruncateAt.END
         }
-        subTitle = TextView(this).apply { textSize = 12f; setTextColor(0xFFCCCCCC.toInt()); text = nowPlayingText(true) }
+        subTitle = TextView(this).apply { textSize = 12f; setTextColor(0xFFD8B77E.toInt()); text = nowPlayingText(true) }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; setPadding(dp(12), 0, dp(8), 0)
             addView(titleView); addView(subTitle)
@@ -469,19 +469,26 @@ class PlayerActivity : ComponentActivity() {
         speedLabel = speedItem.getChildAt(1) as TextView
         decoderLabel = decoderItem.getChildAt(1) as TextView
         volLabel = volItem.getChildAt(1) as TextView
-        val actionRow = LinearLayout(this).apply {
+        // Two-tier utility layout: playback essentials first, secondary tools below.
+        val primaryActionRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
             addView(lockItem); addView(subsItem); addView(audioItem); addView(speedItem)
+        }
+        val secondaryActionRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
             addView(decoderItem); addView(volItem); addView(moreItem)
         }
-        // Floating transport controls: timeline and independent action buttons sit directly over video.
+        // Cinematic lower dock: the timeline is the visual anchor, controls stay lightweight.
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(22), dp(8), dp(22), dp(18))
+            setPadding(dp(22), dp(14), dp(22), dp(20))
             background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(0xF20A0A0D.toInt(), 0xB20A0A0D.toInt(), 0x00000000))
+                intArrayOf(0xF2101013.toInt(), 0xD9101013.toInt(), 0x00101013))
             addView(seekRow)
-            addView(actionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(7) })
+            addView(primaryActionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+            addView(secondaryActionRow, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
         }
 
         controls = FrameLayout(this).apply {
