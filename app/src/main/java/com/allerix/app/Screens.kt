@@ -287,13 +287,13 @@ fun LibraryTab(
         loading = false
     }
 
-    val genres = remember(list, isShows) {
-        if (isShows) emptyList() else list.flatMap { it.genres.orEmpty() }
+    val genres = remember(list) {
+        list.flatMap { it.genres.orEmpty() }
             .filter { it.isNotBlank() }.distinct().sorted()
     }
     val visible = remember(list, selectedGenre, showFilter, isShows) {
         list.filter { item ->
-            val showMatch = !isShows || when (showFilter) {
+            val categoryMatch = !isShows || when (showFilter) {
                 "Anime" -> item.isAnimeSeries()
                 "TV Series" -> !item.isAnimeSeries()
                 else -> true
@@ -301,7 +301,7 @@ fun LibraryTab(
             val genreMatch = selectedGenre == "All" || item.genres.orEmpty().any {
                 it.equals(selectedGenre, ignoreCase = true)
             }
-            showMatch && genreMatch
+            categoryMatch && genreMatch
         }
     }
     val originRows = remember(visible, isShows) {
@@ -309,6 +309,12 @@ fun LibraryTab(
             val titles = visible.filter { it.movieOriginCategory() == origin }
             if (titles.isEmpty()) null else origin to titles
         }
+    }
+    val showRows = remember(visible, isShows) {
+        if (!isShows) emptyList() else listOf(
+            "Anime" to visible.filter { it.isAnimeSeries() },
+            "TV Series" to visible.filterNot { it.isAnimeSeries() }
+        ).filter { it.second.isNotEmpty() }
     }
 
     AppBackground {
@@ -318,14 +324,17 @@ fun LibraryTab(
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Anime", "TV Series")) { filter ->
-                        FilterChip(selected = showFilter == filter, onClick = { showFilter = filter },
-                            label = { Text(filter) },
+                        FilterChip(selected = showFilter == filter, onClick = {
+                            showFilter = filter
+                            selectedGenre = "All"
+                        }, label = { Text(filter) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Red.copy(alpha = 0.22f),
                                 selectedLabelColor = Color.White, labelColor = Grey))
                     }
                 }
-            } else if (genres.isNotEmpty()) {
+            }
+            if (genres.isNotEmpty()) {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All") + genres) { genre ->
@@ -352,14 +361,14 @@ fun LibraryTab(
                 else if (visible.isEmpty()) {
                     Text(if (isShows && showFilter == "Anime")
                         "No Anime titles found. Add an Anime genre or tag in Jellyfin to classify shows here."
+                    else if (isShows && showFilter == "TV Series")
+                        "No TV Series found in this category."
                     else "No titles in this category yet.",
                         color = Grey, modifier = Modifier.align(Alignment.Center).padding(28.dp))
                 } else if (isShows) {
-                    LazyVerticalGrid(GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(visible, key = { it.id }) {
-                            MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) }
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                        items(showRows, key = { it.first }) { (category, shows) ->
+                            MediaRow(category, shows, onClick = onOpen)
                         }
                     }
                 } else {
