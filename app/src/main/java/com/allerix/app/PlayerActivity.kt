@@ -661,12 +661,13 @@ class PlayerActivity : ComponentActivity() {
             setColor(0xAA202026.toInt()); cornerRadius = dp(14).toFloat()
             setStroke(dp(1), 0x55FFFFFF)
         }
-        visibility = View.GONE
+        // Keep the outer transport slots in the layout even when unavailable.
+        visibility = View.INVISIBLE
     }
 
     private fun updateEpisodeButtons() {
-        prevEpisodeBtn.visibility = if (hasPrev) View.VISIBLE else View.GONE
-        nextEpisodeBtn.visibility = if (hasNext) View.VISIBLE else View.GONE
+        prevEpisodeBtn.visibility = if (hasPrev) View.VISIBLE else View.INVISIBLE
+        nextEpisodeBtn.visibility = if (hasNext) View.VISIBLE else View.INVISIBLE
     }
 
     private fun updateIntroSkip() {
