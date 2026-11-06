@@ -47,12 +47,15 @@ sealed class Nav {
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
     object Diagnostics : Nav()
+    object Diagnostics : Nav()
     data class Web(val url: String, val title: String) : Nav()
 }
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DiagnosticLog.install(this)
+        DiagnosticLog.record(this, "MainActivity onCreate")
         DiagnosticLog.install(this)
         DiagnosticLog.record(this, "MainActivity onCreate")
         Api.load(this)
@@ -190,6 +193,7 @@ fun MainShell(onLogout: () -> Unit) {
                 )
                 is Nav.Web -> key(top) { WebScreen(top.url, top.title, back) }
                 Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
+                Nav.Diagnostics -> DiagnosticScreen(back)
                 Nav.Diagnostics -> DiagnosticScreen(back)
             }
         }
