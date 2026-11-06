@@ -356,12 +356,16 @@ class PlayerActivity : ComponentActivity() {
         setPadding(0, dp(3), 0, dp(2))
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         addView(FrameLayout(context).apply {
-            background = null
-            elevation = 0f
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x22222228)
+                setStroke(dp(1), 0x22FFFFFF)
+            }
+            elevation = dp(2).toFloat()
             addView(ImageView(context).apply {
-                setImageResource(res); setColorFilter(Color.WHITE)
-                setPadding(dp(10), dp(10), dp(10), dp(10))
-            }, FrameLayout.LayoutParams(dp(44), dp(44), Gravity.CENTER))
+                setImageResource(res); setColorFilter(0xFFD8B77E.toInt())
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+            }, FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER))
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         addView(TextView(context).apply {
             text = label; setTextColor(0xFFE4E4E8.toInt()); textSize = 10f
@@ -465,37 +469,33 @@ class PlayerActivity : ComponentActivity() {
             addView(durTime)
         }
 
-        val lockItem = action(R.drawable.ic_lock_open, "Lock")
         val subsItem = action(R.drawable.ic_subtitles, "Subtitles")
         val audioItem = action(R.drawable.ic_music, "Audio")
         val speedItem = action(R.drawable.ic_schedule, speedText(speed))
-        val decoderItem = action(R.drawable.ic_memory, decoder.label)
-        val volItem = action(R.drawable.ic_volume, "100%")
         val moreItem = action(R.drawable.ic_more_horiz, "More")
         speedLabel = speedItem.getChildAt(1) as TextView
-        decoderLabel = decoderItem.getChildAt(1) as TextView
-        volLabel = volItem.getChildAt(1) as TextView
 
         val tools = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            listOf(lockItem, subsItem, audioItem, speedItem, decoderItem, volItem, moreItem).forEach {
-                (it.layoutParams as? LinearLayout.LayoutParams)?.let { lp ->
-                    lp.width = dp(66); lp.weight = 0f; it.layoutParams = lp
-                }
-                addView(it, LinearLayout.LayoutParams(dp(66), -2))
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+            listOf(subsItem, audioItem, speedItem, moreItem).forEach {
+                addView(it, LinearLayout.LayoutParams(0, dp(66), 1f))
             }
         }
         val toolsScroll = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false; clipToPadding = false
-            addView(tools)
+            addView(tools, android.widget.HorizontalScrollView.LayoutParams(-1, -2))
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(22), dp(20), dp(12))
-            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(0xF5101013.toInt(), 0xE6101013.toInt(), 0x00101013))
+            setPadding(dp(18), dp(14), dp(18), dp(10))
+            background = GradientDrawable().apply {
+                setColor(0xF218181B.toInt())
+                cornerRadii = floatArrayOf(dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), dp(18).toFloat(), 0f, 0f, 0f, 0f)
+                setStroke(dp(1), 0x22D8B77E)
+            }
+            elevation = dp(12).toFloat()
             addView(seekRow)
-            addView(toolsScroll, LinearLayout.LayoutParams(-1, dp(68)).apply { topMargin = dp(8) })
+            addView(toolsScroll, LinearLayout.LayoutParams(-1, dp(70)).apply { topMargin = dp(5) })
         }
 
         controls = FrameLayout(this).apply {
@@ -572,12 +572,9 @@ class PlayerActivity : ComponentActivity() {
         act(playBtn) { if (player.isPlaying) player.pause() else player.play() }
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
-        act(lockItem) { toggleLock() }
         act(subsItem) { showSubtitleSheet() }
         act(audioItem) { showAudioSheet() }
         act(speedItem) { showSpeedSheet() }
-        act(decoderItem) { showDecoderSheet() }
-        act(volItem) { showVolumeSheet() }
         act(moreItem) { showMoreSheet() }
         lockOverlay.setOnClickListener { toggleLock() }
     }
@@ -762,6 +759,9 @@ class PlayerActivity : ComponentActivity() {
         fun row(label: String, value: String = "", onClick: () -> Unit) {
             box.addView(sheetRow(label, value) { dlg.dismiss(); onClick() })
         }
+        row("Lock controls", if (locked) "On" else "Off") { toggleLock() }
+        row("Playback engine", decoder.label) { showDecoderSheet() }
+        row("Volume", volLabel.text.toString()) { showVolumeSheet() }
         row("This phone & playback info") { showDeviceSheet() }
         row("Video quality", qualityText()) { showQualitySheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
