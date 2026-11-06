@@ -2,6 +2,8 @@ package com.allerix.app
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -106,6 +108,13 @@ object UpdateChecker {
                     file.delete()
                     error("The downloaded file does not look like a valid APK.")
                 }
+                if (!hasMatchingSigner(context, file)) {
+                    file.delete()
+                    error(
+                        "This update is signed with a different certificate. Android cannot install it over the current app. " +
+                            "A compatible signing key is required; your current installation has not been changed."
+                    )
+                }
                 val uri = FileProvider.getUriForFile(
                     context, "${context.packageName}.fileprovider", file
                 )
@@ -120,6 +129,35 @@ object UpdateChecker {
             null
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun hasMatchingSigner(context: Context, apk: File): Boolean = runCatching {
+        val manager = context.packageManager
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            PackageManager.GET_SIGNATURES
+        }
+        val installed = manager.getPackageInfo(context.packageName, flags)
+        val candidate = manager.getPackageArchiveInfo(apk.absolutePath, flags) ?: return false
+
+        fun signatures(info: PackageInfo): List<ByteArray> {
+            val values = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                info.signingInfo?.apkContentsSigners?.toList().orEmpty()
+            } else {
+                info.signatures?.toList().orEmpty()
+            }
+            return values.map { it.toByteArray() }
+        }
+
+        val currentHashes = signatures(installed).map { sha256(it) }.toSet()
+        val updateHashes = signatures(candidate).map { sha256(it) }.toSet()
+        currentHashes.isNotEmpty() && currentHashes == updateHashes
+    }.getOrDefault(false)
+
+    private fun sha256(bytes: ByteArray): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun currentVersion(context: Context): String =
         runCatching {
