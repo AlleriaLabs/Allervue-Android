@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
@@ -8,10 +9,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="Allerix"
-        android:theme="@style/Theme.Allerix"
+        android:icon="@drawable/ic_allervue_launcher"
+        android:roundIcon="@drawable/ic_allervue_launcher"
+        android:label="Allervue"
+        android:theme="@style/Theme.Allervue"
         android:usesCleartextTraffic="true">
 
         <activity android:name=".MainActivity" android:exported="true">
@@ -20,6 +21,8 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity android:name=".VlcPlayerActivity" android:exported="false" android:screenOrientation="sensorLandscape" />
 
         <activity
             android:name=".PlayerActivity"

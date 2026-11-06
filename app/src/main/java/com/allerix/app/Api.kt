@@ -2,12 +2,15 @@ package com.allerix.app
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.jsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import java.net.URLEncoder
 import okhttp3.OkHttpClient
@@ -20,7 +23,7 @@ data class TranscodeInfo(val url: String, val sessionId: String)
 data class PlaybackPlan(val url: String, val hls: Boolean, val transcoding: Boolean, val sessionId: String, val label: String)
 
 object Api {
-    const val SERVER = "https://flix.alleriafilmotheque.fyi"
+    const val SERVER = "https://www.alleriafilmotheque.fyi"
     var base = SERVER
     var token = ""
     var userId = ""
@@ -39,7 +42,14 @@ object Api {
 
     fun load(ctx: Context) {
         val p = ctx.getSharedPreferences("allerix", Context.MODE_PRIVATE)
-        base = p.getString("server", SERVER) ?: SERVER
+        val savedServer = p.getString("server", null)
+        base = if (savedServer == null || savedServer == "https://flix.alleriafilmotheque.fyi") SERVER else savedServer
+        if (savedServer == null || savedServer == "https://flix.alleriafilmotheque.fyi") {
+            token = ""
+            userId = ""
+            username = ""
+            save(ctx)
+        }
         token = p.getString("token", "") ?: ""
         userId = p.getString("user", "") ?: ""
         username = p.getString("username", "") ?: ""
@@ -71,7 +81,7 @@ object Api {
     fun authHeader(): String = auth()
 
     private fun auth(): String {
-        val s = "MediaBrowser Client=\"Allerix\", Device=\"Android\", DeviceId=\"allerix-android\", Version=\"1.0\""
+        val s = "MediaBrowser Client=\"Allervue\", Device=\"Android\", DeviceId=\"allervue-android\", Version=\"1.0\""
         return if (token.isNotEmpty()) "$s, Token=\"$token\"" else s
     }
 
@@ -104,6 +114,36 @@ object Api {
     suspend fun redeemPin(pin: String): PinResult {
         val body = buildJsonObject { put("Pin", pin) }.toString()
         return json.decodeFromString(call("POST", "/Users/ForgotPassword/Pin", body))
+    }
+
+    /** Complete a JFA-Go password reset. The reset PIN is issued by the Jellyfin/JFA-Go reset flow. */
+    suspend fun setPasswordWithResetPin(pin: String, newPassword: String) = withContext(Dispatchers.IO) {
+        val body = buildJsonObject {
+            put("pin", pin.trim())
+            put("password", newPassword)
+        }.toString()
+        val req = Request.Builder()
+            .url(JFA_URL.trimEnd('/') + "/reset")
+            .post(body.toRequestBody("application/json".toMediaType()))
+            .build()
+        http.newCall(req).execute().use { response ->
+            val payload = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val message = runCatching {
+                    val obj = json.parseToJsonElement(payload).jsonObject
+                    obj["error"]?.toString()?.trim('"') ?: obj["message"]?.toString()?.trim('"')
+                }.getOrNull()
+                error(message ?: when (response.code) {
+                    400 -> "The PIN or password was rejected. Check the details and password requirements."
+                    401 -> "That reset PIN has expired. Request a new one."
+                    else -> "Password reset failed (HTTP ${response.code})."
+                })
+            }
+            val success = runCatching {
+                json.parseToJsonElement(payload).jsonObject["success"]?.toString()?.toBoolean()
+            }.getOrNull()
+            if (success == false) error("The reset PIN was not accepted or has already been used.")
+        }
     }
 
     suspend fun changePassword(currentPw: String, newPw: String) {
@@ -150,9 +190,59 @@ object Api {
         call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=Random&limit=12")
     ).items
 
+    /**
+     * Personal taste ranking built from this Jellyfin user's actual watch history and favorites.
+     * All ranking runs locally in the app; no viewing history is sent to a third-party AI service.
+     */
+    suspend fun personalizedPicks(excludeIds: Set<String> = emptySet()): List<Item> {
+        val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData"
+        return coroutineScope {
+            val historyTask = async {
+                runCatching {
+                    json.decodeFromString<ItemsResult>(call(
+                        "GET", "/Users/$userId/Items?recursive=true&isPlayed=true&includeItemTypes=Movie,Series&sortBy=DatePlayed&sortOrder=Descending&limit=80&fields=$fields"
+                    )).items
+                }.getOrDefault(emptyList())
+            }
+            val favoritesTask = async {
+                runCatching {
+                    json.decodeFromString<ItemsResult>(call(
+                        "GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series&limit=100&fields=$fields"
+                    )).items
+                }.getOrDefault(emptyList())
+            }
+            val candidatesTask = async {
+                json.decodeFromString<ItemsResult>(call(
+                    "GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=Random&limit=300&fields=$fields"
+                )).items
+            }
+            RecommendationEngine.rank(candidatesTask.await(), historyTask.await(), favoritesTask.await(), excludeIds)
+        }
+    }
+
     suspend fun byType(type: String): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500&fields=Genres,Tags,Overview,ProductionLocations")
     ).items
+
+    /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */
+    suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
+        val root = json.parseToJsonElement(call("GET", "/MediaSegments/$id"))
+        val array = when {
+            root is kotlinx.serialization.json.JsonArray -> root
+            root is kotlinx.serialization.json.JsonObject ->
+                (root["MediaSegments"] ?: root["Items"]) as? kotlinx.serialization.json.JsonArray
+                    ?: kotlinx.serialization.json.JsonArray(emptyList())
+            else -> kotlinx.serialization.json.JsonArray(emptyList())
+        }
+        array.mapNotNull { element ->
+            val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+            val type = obj["Type"]?.toString()?.trim('"').orEmpty()
+            if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
+            val start = obj["StartTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
+            val end = obj["EndTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
+            if (end <= start) null else (start / 10_000L) to (end / 10_000L)
+        }
+    }.getOrDefault(emptyList())
 
     suspend fun favorites(): List<Item> = json.decodeFromString<ItemsResult>(
         call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName")
@@ -216,8 +306,10 @@ object Api {
     }
 
     // ---- playback ----
-    fun streamUrl(id: String, sourceId: String) =
-        "$base/Videos/$id/stream?static=true&MediaSourceId=$sourceId&api_key=$token"
+    fun streamUrl(id: String, sourceId: String? = null): String {
+        val sourceParam = sourceId?.takeIf { it.isNotBlank() }?.let { "&MediaSourceId=$it" }.orEmpty()
+        return "$base/Videos/$id/stream?static=true$sourceParam&api_key=$token"
+    }
 
     /** HLS transcode URL honoring the chosen quality (max height/bitrate) and audio channel layout. */
     fun hlsUrl(id: String, sourceId: String, q: Quality, a: AudioMode, sessionId: String): String {

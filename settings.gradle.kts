@@ -3,7 +3,12 @@ pluginManagement {
 }
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-    repositories { google(); mavenCentral() }
+    repositories {
+        google()
+        // Explicit Maven Central endpoint fallback for the large VideoLAN LibVLC AAR.
+        maven { url = uri("https://repo1.maven.org/maven2/") }
+        mavenCentral()
+    }
 }
-rootProject.name = "Allerix"
+rootProject.name = "Allervue"
 include(":app")

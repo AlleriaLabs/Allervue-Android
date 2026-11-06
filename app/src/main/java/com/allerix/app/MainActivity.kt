@@ -2,7 +2,7 @@ package com.allerix.app
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.core.*
@@ -46,12 +46,15 @@ sealed class Nav {
     object RequestShow : Nav()
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
+    object Diagnostics : Nav()
     data class Web(val url: String, val title: String) : Nav()
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DiagnosticLog.install(this)
+        DiagnosticLog.record(this, "MainActivity onCreate")
         Api.load(this)
         setContent {
             MaterialTheme(
@@ -70,22 +73,22 @@ fun App() {
     var splash by remember { mutableStateOf(true) }
     var loggedIn by remember { mutableStateOf(Api.token.isNotEmpty()) }
     var loginSettings by remember { mutableStateOf(false) }
-    var loginWeb by remember { mutableStateOf<String?>(null) }
+    var forgotPassword by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { delay(2400); splash = false }
 
     if (splash) {
         SplashScreen()
     } else if (loggedIn) {
         MainShell(onLogout = { Api.logout(ctx); loggedIn = false })
-    } else if (loginWeb != null) {
-        WebScreen(loginWeb.orEmpty(), "Reset password", back = { loginWeb = null })
+    } else if (forgotPassword) {
+        ForgotPasswordScreen(onBack = { forgotPassword = false })
     } else if (loginSettings) {
         BackHandler { loginSettings = false }
         ClientSettingsScreen(back = { loginSettings = false }, onServerChanged = { loginSettings = false }, loggedIn = false)
     } else {
         LoginScreen(
             onDone = { loggedIn = true }, onSettings = { loginSettings = true },
-            onForgot = { loginWeb = Api.RESET_PASSWORD_URL }
+            onForgot = { forgotPassword = true }
         )
     }
 }
@@ -107,17 +110,17 @@ fun SplashScreen() {
         0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "slide"
     )
     Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Red.copy(alpha = glow), BgDark), radius = 1100f)),
+        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFD8B77E).copy(alpha = glow), BgDark), radius = 1100f)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Image(
-                painterResource(R.drawable.logo_square), null,
-                Modifier.size(230.dp).scale(logoScale).alpha(logoAlpha)
+                painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem",
+                Modifier.size(190.dp).scale(logoScale).alpha(logoAlpha)
             )
             Spacer(Modifier.height(22.dp))
             Text(
-                "Great stories.\nAnytime. Anywhere.", color = Grey, fontSize = 14.sp,
+                "ALLERVUE\nGREAT STORIES. ANYTIME. ANYWHERE.", color = Grey, fontSize = 14.sp,
                 textAlign = TextAlign.Center, modifier = Modifier.alpha(tagAlpha)
             )
         }
@@ -125,7 +128,7 @@ fun SplashScreen() {
             Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).width(120.dp).height(3.dp)
                 .clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))
         ) {
-            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Red))
+            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Color(0xFFD8B77E)))
         }
     }
 }
@@ -168,7 +171,7 @@ fun MainShell(onLogout: () -> Unit) {
                         onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, onLogout = signOut
                     )
                     NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
-                    NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
+                    NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true)
                     NavTab.LIST -> MyListTab(onOpen, onSettings = openSettings)
                     NavTab.DOWNLOADS -> DownloadsTab(openSettings)
                 }
@@ -177,7 +180,7 @@ fun MainShell(onLogout: () -> Unit) {
                 Nav.Search -> SearchScreen(onOpen, back)
                 Nav.Settings -> SettingsMenuScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) }, onClient = { stack.add(Nav.ClientSettings) },
-                    onPlayback = { stack.add(Nav.PlaybackSettings) }, onSignOut = signOut,
+                    onPlayback = { stack.add(Nav.PlaybackSettings) }, onDiagnostics = { stack.add(Nav.Diagnostics) }, onSignOut = signOut,
                     onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
                 )
                 Nav.RequestShow -> RequestShowScreen(back)
@@ -187,6 +190,7 @@ fun MainShell(onLogout: () -> Unit) {
                 )
                 is Nav.Web -> key(top) { WebScreen(top.url, top.title, back) }
                 Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
+                Nav.Diagnostics -> DiagnosticScreen(back)
             }
         }
         if (showBar) BottomBar(tab) { selected -> stack.clear(); tab = selected }

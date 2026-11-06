@@ -68,6 +68,7 @@ fun HomeScreen(
     var featured by remember { mutableStateOf<List<Item>>(emptyList()) }
     var resume by remember { mutableStateOf<List<Item>>(emptyList()) }
     var trending by remember { mutableStateOf<List<Item>>(emptyList()) }
+    var recommended by remember { mutableStateOf<List<Item>>(emptyList()) }
     var rows by remember { mutableStateOf<List<Pair<Item, List<Item>>>>(emptyList()) }
     var error by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(true) }
@@ -78,6 +79,13 @@ fun HomeScreen(
             resume = Api.resume()
             trending = runCatching { Api.trending() }.getOrDefault(emptyList())
             rows = Api.views().map { it to Api.latest(it.id) }.filter { it.second.isNotEmpty() }
+            loading = false
+            // Recommendation analysis runs after the core shelves render, so it never delays first paint.
+            launch {
+                recommended = runCatching {
+                    Api.personalizedPicks((resume + trending).map { it.id }.toSet())
+                }.getOrDefault(emptyList())
+            }
         } catch (e: Exception) {
             if (e.message?.contains("401") == true) onLogout() else error = "Can't reach the server. Check your connection."
         }
@@ -109,8 +117,13 @@ fun HomeScreen(
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item { HeroCarousel(heroes, pager, onPlay, onOpen) }
-            if (trending.isNotEmpty()) item { MediaRow("Trending Now  ›", trending, onClick = onOpen) }
-            if (resume.isNotEmpty()) item { MediaRow("Continue Watching  ›", resume, onClick = onPlay) }
+            if (resume.isNotEmpty()) item { MediaRow("Continue Watching", resume, onClick = onPlay) }
+            val popularMovies = trending.filter { it.type == "Movie" }
+            val popularShows = trending.filter { it.type == "Series" }
+            if (popularMovies.isNotEmpty()) item { MediaRow("Recently Added Movies", popularMovies, onClick = onOpen) }
+            if (popularShows.isNotEmpty()) item { MediaRow("Recently Added Series", popularShows, onClick = onOpen) }
+            val picks = recommended.take(12)
+            if (picks.isNotEmpty()) item { MediaRow("Picked for You", picks, onClick = onOpen) }
             items(rows, key = { it.first.id }) { (lib, list) ->
                 MediaRow("Latest in ${lib.name}", list, onClick = onOpen, onSeeAll = { onSeeAll(lib) })
             }
@@ -124,7 +137,8 @@ fun HomeScreen(
                 .padding(start = 16.dp, end = 4.dp, top = 6.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(painterResource(R.drawable.logo_banner), "Allerix", Modifier.height(30.dp).aspectRatio(4.472f))
+            Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(34.dp))
+            Text("ALLERVUE", color = Color(0xFFD9B77D), fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp, modifier = Modifier.padding(start = 8.dp))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { SmallIcon(R.drawable.ic_search) }
             IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
@@ -239,24 +253,143 @@ fun MediaCard(item: Item, modifier: Modifier, landscape: Boolean = false, onClic
 }
 
 // ------------------------------------------------------------------ movies / tv shows tabs
+private fun Item.isAnimeSeries(): Boolean =
+    (tags.orEmpty() + genres.orEmpty()).any { it.equals("Anime", ignoreCase = true) }
+
+/** Derive movie origin from Jellyfin ProductionLocations metadata; never infer from a title. */
+private fun Item.movieOriginCategory(): String {
+    val countries = productionLocations.orEmpty().map { it.trim().lowercase() }
+    if (countries.isEmpty()) return "Unclassified"
+    return when {
+        countries.any { it in setOf("philippines", "the philippines", "ph") } -> "Filipino"
+        countries.any { it in setOf("united states", "united states of america", "usa", "us") } -> "Hollywood"
+        countries.any { it.contains("south korea") || it == "korea" || it == "republic of korea" } -> "Korean"
+        countries.any { it == "japan" } -> "Japanese"
+        countries.any { it == "china" || it == "mainland china" } -> "Chinese"
+        countries.any { it == "india" } -> "Indian"
+        countries.any { it in setOf("united kingdom", "uk", "great britain") } -> "British"
+        else -> "Other International"
+    }
+}
+
+private val movieOriginOrder = listOf(
+    "Filipino", "Hollywood", "Korean", "Japanese", "Chinese", "Indian",
+    "British", "Other International", "Unclassified"
+)
+
 @Composable
-fun LibraryTab(title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
-    var list by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+fun LibraryTab(
+    title: String, type: String, onOpen: (Item) -> Unit,
+    onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false
+) {
+    var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
+    var loading by remember(type) { mutableStateOf(true) }
+    var selectedGenre by remember(type) { mutableStateOf("All") }
+    var showFilter by remember(type) { mutableStateOf("All") }
+
     LaunchedEffect(type) {
+        loading = true
         list = runCatching { Api.byType(type) }.getOrDefault(emptyList())
         loading = false
     }
+
+    val genres = remember(list) {
+        list.flatMap { it.genres.orEmpty() }
+            .filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val visible = remember(list, selectedGenre, showFilter, isShows) {
+        list.filter { item ->
+            val categoryMatch = !isShows || when (showFilter) {
+                "Anime" -> item.isAnimeSeries()
+                "TV Series" -> !item.isAnimeSeries()
+                else -> true
+            }
+            val genreMatch = selectedGenre == "All" || item.genres.orEmpty().any {
+                it.equals(selectedGenre, ignoreCase = true)
+            }
+            categoryMatch && genreMatch
+        }
+    }
+    val originRows = remember(visible, isShows) {
+        if (isShows) emptyList() else movieOriginOrder.mapNotNull { origin ->
+            val titles = visible.filter { it.movieOriginCategory() == origin }
+            if (titles.isEmpty()) null else origin to titles
+        }
+    }
+    val showRows = remember(visible, isShows) {
+        if (!isShows) emptyList() else listOf(
+            "Anime" to visible.filter { it.isAnimeSeries() },
+            "TV Series" to visible.filterNot { it.isAnimeSeries() }
+        ).filter { it.second.isNotEmpty() }
+    }
+
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TabHeader(title, onSearch, onSettings)
+            if (isShows) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf("All", "Anime", "TV Series")) { filter ->
+                        FilterChip(selected = showFilter == filter, onClick = {
+                            showFilter = filter
+                            selectedGenre = "All"
+                        }, label = { Text(filter) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Red.copy(alpha = 0.22f),
+                                selectedLabelColor = Color.White, labelColor = Grey))
+                    }
+                }
+            }
+            if (genres.isNotEmpty()) {
+                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(listOf("All") + genres) { genre ->
+                        FilterChip(selected = selectedGenre == genre, onClick = { selectedGenre = genre },
+                            label = { Text(genre) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Red.copy(alpha = 0.22f),
+                                selectedLabelColor = Color.White, labelColor = Grey))
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(when {
+                    isShows && showFilter != "All" -> showFilter
+                    !isShows && selectedGenre != "All" -> "$selectedGenre Movies"
+                    else -> title
+                }, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f))
+                Text("${visible.size} titles", color = Dim, fontSize = 12.sp)
+            }
             Box(Modifier.fillMaxSize()) {
                 if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
-                LazyVerticalGrid(
-                    GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(list, key = { it.id }) { MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) } }
+                else if (visible.isEmpty()) {
+                    Text(if (isShows && showFilter == "Anime")
+                        "No Anime titles found. Add an Anime genre or tag in Jellyfin to classify shows here."
+                    else if (isShows && showFilter == "TV Series")
+                        "No TV Series found in this category."
+                    else "No titles in this category yet.",
+                        color = Grey, modifier = Modifier.align(Alignment.Center).padding(28.dp))
+                } else if (isShows) {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                        items(showRows, key = { it.first }) { (category, shows) ->
+                            MediaRow(category, shows, onClick = onOpen)
+                        }
+                    }
+                } else {
+                    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+                        items(originRows, key = { it.first }) { (origin, movies) ->
+                            val shelfTitle = when (origin) {
+                                "Filipino" -> "Filipino Movies"
+                                "Hollywood" -> "Hollywood Movies"
+                                "Other International" -> "Other International Movies"
+                                "Unclassified" -> "Other Movies"
+                                else -> "$origin Movies"
+                            }
+                            MediaRow(shelfTitle, movies, onClick = onOpen)
+                        }
+                    }
                 }
             }
         }

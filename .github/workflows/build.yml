@@ -22,11 +22,11 @@ jobs:
         with: { gradle-version: 8.9 }
       - run: gradle assembleDebug --no-daemon
       - name: Name the APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk Allerix.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Allervue.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Allerix-apk
-          path: Allerix.apk
+          name: Allervue-apk
+          path: Allervue.apk
       - name: Publish GitHub Release
         if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' }}
         env:
@@ -34,15 +34,15 @@ jobs:
           TAG: ${{ github.event.inputs.release_tag }}
         run: |
           cat > notes.md <<'NOTES'
-          First release of the Allerix Android app.
+          First release of the Allervue Android app.
 
-          - Netflix-style home with auto-rotating banner carousel and blurred scene background
-          - Built-in MX Player-style player: gesture controls, pinch zoom, 2x long-press, PiP, resume sync
-          - Quality (480p to 4K) and audio (stereo, mono, 5.1, 7.1) settings in the player
+          - Organized home discovery with a retained auto-rotating hero carousel
+          - Custom ExoPlayer: gesture controls, episode navigation, intro skipping when markers are available, PiP and resume sync
+          - Movie genre filters, Anime / TV Series categories, and player quality/audio settings
           - Editable server URL in Settings
 
-          Install: download Allerix.apk on your Android phone and allow "Install unknown apps".
+          Install: download Allervue.apk on your Android phone and allow "Install unknown apps".
           NOTES
-          gh release create "$TAG" Allerix.apk \
+          gh release create "$TAG" Allervue.apk \
             --repo "${{ github.repository }}" --target "${{ github.sha }}" \
-            --title "Allerix $TAG" --notes-file notes.md
+            --title "Allervue $TAG" --notes-file notes.md

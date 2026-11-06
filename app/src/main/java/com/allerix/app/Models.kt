@@ -26,6 +26,8 @@ import kotlinx.serialization.Serializable
     @SerialName("SeriesId") val seriesId: String? = null,
     @SerialName("ParentId") val parentId: String? = null,
     @SerialName("Genres") val genres: List<String>? = null,
+    @SerialName("ProductionLocations") val productionLocations: List<String>? = null,
+    @SerialName("Tags") val tags: List<String>? = null,
     @SerialName("People") val people: List<Person>? = null,
     @SerialName("Studios") val studios: List<NameOnly>? = null,
     @SerialName("ImageTags") val imageTags: Map<String, String>? = null,
@@ -53,7 +55,11 @@ import kotlinx.serialization.Serializable
 )
 @Serializable data class UserData(
     @SerialName("PlaybackPositionTicks") val positionTicks: Long = 0,
-    @SerialName("IsFavorite") val isFavorite: Boolean = false
+    @SerialName("IsFavorite") val isFavorite: Boolean = false,
+    @SerialName("Played") val isPlayed: Boolean = false,
+    @SerialName("PlayCount") val playCount: Int = 0,
+    @SerialName("LastPlayedDate") val lastPlayedDate: String? = null,
+    @SerialName("PlayedPercentage") val playedPercentage: Double? = null
 )
 
 @Serializable data class PublicInfo(

@@ -1,11 +1,16 @@
 package com.allerix.app
 
 import android.content.Context
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -34,22 +39,96 @@ import kotlinx.coroutines.launch
 fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
+    val activity = ctx as? FragmentActivity
     var user by remember { mutableStateOf("") }
     var pw by remember { mutableStateOf("") }
     var err by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var setupBiometric by remember { mutableStateOf(false) }
+    var pendingCredentials by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val biometricAvailable = remember(ctx) {
+        BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+            BiometricManager.BIOMETRIC_SUCCESS
+    }
+    val hasBiometricLogin = remember(ctx) { BiometricLogin.hasSavedCredentials(ctx) }
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = Red, unfocusedBorderColor = Color(0xFF555555),
         cursorColor = Red, focusedLabelColor = Red, unfocusedLabelColor = Grey,
         focusedTextColor = Color.White, unfocusedTextColor = Color.White
     )
 
+    fun showBiometricPrompt(encrypt: Boolean) {
+        val host = activity
+        if (host == null) { err = "Biometric sign-in isn't available in this screen."; return }
+        try {
+            val cipher = if (encrypt) BiometricLogin.newEncryptCipher() else BiometricLogin.newDecryptCipher(ctx)
+            val prompt = BiometricPrompt(
+                host, host.mainExecutor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        val unlockedCipher = result.cryptoObject?.cipher
+                        if (unlockedCipher == null) {
+                            err = "Secure biometric authentication failed. Use your password."
+                            if (encrypt) onDone()
+                            return
+                        }
+                        if (encrypt) {
+                            val credentials = pendingCredentials
+                            if (credentials != null) {
+                                runCatching {
+                                    BiometricLogin.save(ctx, unlockedCipher, credentials.first, credentials.second)
+                                }.onSuccess { onDone() }
+                                    .onFailure { err = "Couldn't enable biometric sign-in."; onDone() }
+                            } else onDone()
+                        } else {
+                            try {
+                                val credentials = BiometricLogin.decrypt(ctx, unlockedCipher)
+                                scope.launch {
+                                    try { Api.login(ctx, credentials.username, credentials.password); onDone() }
+                                    catch (e: Exception) { BiometricLogin.clear(ctx); err = "Saved biometric login is no longer valid. Sign in with your password and enable it again." }
+                                }
+                            } catch (e: Exception) {
+                                BiometricLogin.clear(ctx)
+                                err = "Biometric login needs to be set up again. Sign in with your password."
+                            }
+                        }
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        err = if (encrypt) "Biometric setup cancelled. You can enable it later." else
+                            "Biometric sign-in cancelled. Use your password instead."
+                        if (encrypt) onDone()
+                    }
+
+                    override fun onAuthenticationFailed() {
+                        err = "Biometric not recognized. Try again."
+                    }
+                }
+            )
+            val info = BiometricPrompt.PromptInfo.Builder()
+                .setTitle(if (encrypt) "Enable Allervue biometric sign-in" else "Sign in to Allervue")
+                .setSubtitle("Use your enrolled fingerprint or supported face authentication")
+                .setNegativeButtonText("Use password")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build()
+            prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
+        } catch (e: Exception) {
+            err = "Biometric sign-in isn't available. Use your password."
+            if (encrypt) onDone()
+        }
+    }
+
     AppBackground {
         Column(
             Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 90.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
         ) {
-            Image(painterResource(R.drawable.logo_banner), "Allerix", Modifier.width(280.dp).aspectRatio(4.472f))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(72.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 25.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            }
             Spacer(Modifier.height(24.dp))
             Text("Sign In", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White,
                 modifier = Modifier.align(Alignment.Start))
@@ -60,7 +139,18 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             OutlinedTextField(pw, { pw = it }, label = { Text("Password") }, singleLine = true,
                 visualTransformation = PasswordVisualTransformation(), colors = fieldColors,
                 modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(20.dp))
+            if (biometricAvailable && hasBiometricLogin) {
+                Spacer(Modifier.height(12.dp))
+                OutlinedButton(
+                    enabled = !busy, onClick = { err = ""; showBiometricPrompt(false) },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(4.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Red)
+                ) {
+                    Text("◎  Sign in with fingerprint / face", color = Red, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Spacer(Modifier.height(18.dp))
             Button(
                 enabled = !busy, modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(4.dp),
@@ -68,8 +158,16 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                 onClick = {
                     busy = true; err = ""
                     scope.launch {
-                        try { Api.login(ctx, user.trim(), pw); onDone() }
-                        catch (e: Exception) { err = "Couldn't sign in. Check your username and password." }
+                        try {
+                            val name = user.trim()
+                            Api.login(ctx, name, pw)
+                            if (biometricAvailable && activity != null) {
+                                pendingCredentials = name to pw
+                                setupBiometric = true
+                            } else onDone()
+                        } catch (e: Exception) {
+                            err = "Couldn't sign in. Check your username and password."
+                        }
                         busy = false
                     }
                 }
@@ -84,7 +182,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             Text("⚙", fontSize = 24.sp, color = Grey)
         }
         Text(
-            "DISCLAIMER: Allerix is a private service for authorized members only. " +
+            "DISCLAIMER: Allervue is a private service for authorized members only. " +
                 "Content is provided for personal, non-commercial viewing. Copying, recording, " +
                 "sharing your account or redistributing any content is prohibited. " +
                 "By signing in you accept these terms.",
@@ -92,6 +190,140 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 20.dp)
         )
     }
+
+    if (setupBiometric) {
+        AlertDialog(
+            onDismissRequest = { setupBiometric = false; onDone() },
+            containerColor = Color(0xFF181818),
+            title = { Text("Enable biometric sign-in?", color = Color.White) },
+            text = {
+                Text(
+                    "Save this account securely on this device so you can sign in next time with an enrolled fingerprint or supported face unlock. Your password is encrypted with Android Keystore and requires biometric authentication to decrypt.",
+                    color = Grey
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { setupBiometric = false; showBiometricPrompt(true) }) {
+                    Text("Enable", color = Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { setupBiometric = false; onDone() }) {
+                    Text("Not now", color = Grey)
+                }
+            }
+        )
+    }
+}
+
+
+@Composable
+fun ForgotPasswordScreen(onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    var username by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var stage by remember { mutableIntStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+    var success by remember { mutableStateOf(false) }
+    val colors = appFieldColors()
+
+    AppBackground {
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 26.dp, vertical = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(76.dp))
+            Spacer(Modifier.height(12.dp))
+            Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 22.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            Spacer(Modifier.height(30.dp))
+            Text(if (success) "Password updated" else "Reset password", color = Color.White,
+                fontSize = 27.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
+            Spacer(Modifier.height(8.dp))
+            Text(
+                when {
+                    success -> "Your password has been changed. You can now return to sign in."
+                    stage == 0 -> "Enter your Allervue username to request a password reset."
+                    else -> "Enter the reset PIN sent through your account recovery process, then choose a new password."
+                },
+                color = Grey, fontSize = 14.sp, modifier = Modifier.align(Alignment.Start)
+            )
+            Spacer(Modifier.height(22.dp))
+            if (success) {
+                Text("✓", color = Color(0xFFD8B77E), fontSize = 48.sp)
+                Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Back to sign in") }
+            } else if (stage == 0) {
+                OutlinedTextField(username, { username = it; message = "" }, label = { Text("Username or email") },
+                    singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    enabled = !busy && username.isNotBlank(), onClick = {
+                        busy = true; message = ""
+                        scope.launch {
+                            try {
+                                Api.forgotPassword(username.trim())
+                                stage = 1
+                                message = "If the account is eligible, follow the reset instructions sent to your registered contact method."
+                            } catch (e: Exception) {
+                                message = "Couldn't start password recovery. Check the username and try again."
+                            }
+                            busy = false
+                        }
+                    }, modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) { Text(if (busy) "Requesting…" else "Send reset instructions", fontWeight = FontWeight.Bold) }
+            } else {
+                OutlinedTextField(pin, { pin = it; message = "" }, label = { Text("Reset PIN") },
+                    singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(password, { password = it; message = "" }, label = { Text("New password") },
+                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(confirm, { confirm = it; message = "" }, label = { Text("Confirm new password") },
+                    singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                    colors = colors, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                Button(
+                    enabled = !busy && pin.isNotBlank() && password.isNotBlank() && confirm.isNotBlank(),
+                    onClick = {
+                        when {
+                            password.length < 8 -> message = "Choose a longer password (at least 8 characters)."
+                            password != confirm -> message = "The passwords don't match."
+                            else -> {
+                                busy = true; message = ""
+                                scope.launch {
+                                    try {
+                                        Api.setPasswordWithResetPin(pin, password)
+                                        success = true
+                                    } catch (e: Exception) {
+                                        message = e.message ?: "Password reset failed. Please try again."
+                                    }
+                                    busy = false
+                                }
+                            }
+                        }
+                    }, modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) { Text(if (busy) "Updating…" else "Update password", fontWeight = FontWeight.Bold) }
+                TextButton(onClick = {
+                    stage = 0; pin = ""; password = ""; confirm = ""; message = ""
+                }) { Text("Request a new PIN", color = Grey) }
+            }
+            if (message.isNotEmpty()) {
+                Spacer(Modifier.height(14.dp))
+                Text(message, color = if (success) Color(0xFFD8B77E) else Grey, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(18.dp))
+            TextButton(onClick = onBack) { Text("Back to sign in", color = Grey) }
+        }
+    }
+    BackHandler { onBack() }
 }
 
 // ------------------------------------------------------------------ settings
@@ -129,7 +361,7 @@ private fun SettingsRow(icon: String, title: String, subtitle: String, onClick: 
 @Composable
 fun SettingsMenuScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit, onPlayback: () -> Unit,
-    onSignOut: () -> Unit, onWeb: (String, String) -> Unit
+    onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit
 ) {
     var help by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(BgDark)) {
@@ -137,10 +369,11 @@ fun SettingsMenuScreen(
         SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
         SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
         SettingsRow("⚙", "Client settings", "Server address and password", onClient)
+        SettingsRow("⌁", "Diagnostics", "Capture player crashes and share a log", onDiagnostics)
         SettingsRow("?", "Help & Support", "Account portal and password reset") { help = true }
         SettingsRow("⎋", "Sign out", "", onSignOut)
         Spacer(Modifier.weight(1f))
-        Text("Allerix 1.0", color = Color(0xFF666666), fontSize = 12.sp,
+        Text("Allervue 1.0", color = Color(0xFF666666), fontSize = 12.sp,
             modifier = Modifier.padding(20.dp))
     }
     if (help) AlertDialog(
@@ -520,5 +753,38 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
                 }
             }
         )
+    }
+}
+
+
+@Composable
+fun DiagnosticScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
+    var log by remember { mutableStateOf(DiagnosticLog.read(ctx)) }
+    Column(Modifier.fillMaxSize().background(BgDark)) {
+        ScreenHeader("Diagnostics", back)
+        Text("If Allervue closes when you tap a video, reproduce the issue and return here. The log records player startup and crash details without your Jellyfin password or access token.",
+            color = Grey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = { log = DiagnosticLog.read(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF29272A))) {
+                Text("Refresh log", color = Color.White)
+            }
+            Button(onClick = {
+                val clipboard = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("Allervue diagnostics", log.ifBlank { "No diagnostic log yet." }))
+                android.widget.Toast.makeText(ctx, "Diagnostic log copied", android.widget.Toast.LENGTH_SHORT).show()
+            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF29272A))) { Text("Copy", color = Color.White) }
+            Button(onClick = {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "Allervue diagnostic log")
+                    putExtra(Intent.EXTRA_TEXT, log.ifBlank { "No diagnostic log yet." })
+                }
+                ctx.startActivity(Intent.createChooser(send, "Share diagnostic log"))
+            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD8B77E))) { Text("Share", color = Color(0xFF171515)) }
+        }
+        Text(if (log.isBlank()) "No diagnostic entries yet. Play a video, then return and tap Refresh log." else log,
+            color = Color(0xFFD5D1CA), fontSize = 11.sp, lineHeight = 15.sp,
+            modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()))
     }
 }
