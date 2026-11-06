@@ -4,6 +4,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+val releaseStoreFile = System.getenv("ALLERVUE_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("ALLERVUE_STORE_PASSWORD")
+val releaseKeyAlias = System.getenv("ALLERVUE_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("ALLERVUE_KEY_PASSWORD")
+val hasReleaseSigning = listOf(
+    releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.allerix.app"
     compileSdk = 34
@@ -13,6 +21,25 @@ android {
         targetSdk = 34
         versionCode = 2
         versionName = "1.0.1"
+    }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                storeType = "PKCS12"
+            }
+        }
+    }
+    buildTypes {
+        getByName("release") {
+            isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
     buildFeatures { compose = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
