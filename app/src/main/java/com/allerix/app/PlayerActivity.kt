@@ -211,16 +211,13 @@ class PlayerActivity : ComponentActivity() {
             .getOrDefault(AudioMode.ORIGINAL)
         decoder = runCatching { DecoderMode.valueOf(prefs.getString("decoder", "HW") ?: "HW") }
             .getOrDefault(DecoderMode.HW)
-        playbackEngine = runCatching { PlaybackEngine.valueOf(prefs.getString("playback_engine", "AUTO") ?: "AUTO") }
-            .getOrDefault(PlaybackEngine.AUTO)
+        // Engine selection is automatic; ignore any legacy saved manual engine preference.
+        playbackEngine = PlaybackEngine.AUTO
+        prefs.edit().putString("playback_engine", PlaybackEngine.AUTO.name).apply()
         vlcFallbackAttempted = intent.getBooleanExtra("skip_vlc_fallback", false)
         speed = prefs.getFloat("speed", 1f)
         autoPlayNext = prefs.getBoolean("autoplay", true)
         subPos = prefs.getFloat("sub_pos", 0.12f)
-        if (playbackEngine == PlaybackEngine.VLC) {
-            launchVlc(intent.getLongExtra("start_position_ms", 0L), null)
-            return
-        }
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (Build.VERSION.SDK_INT >= 28) {
@@ -233,7 +230,7 @@ class PlayerActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
 
-        DiagnosticLog.record(this, "PlayerActivity: creating ExoPlayer; decoder=$decoder engine=$playbackEngine")
+        DiagnosticLog.record(this, "PlayerActivity: creating ExoPlayer; decoder=$decoder engine=Auto")
         player = createPlayer()
         DiagnosticLog.record(this, "PlayerActivity: ExoPlayer created")
         playerView = PlayerView(this).apply {
@@ -460,16 +457,13 @@ class PlayerActivity : ComponentActivity() {
             }
 
         val lockAction = featureAction(R.drawable.ic_lock, "Lock")
-        val engineAction = featureAction(R.drawable.ic_settings, "Engine")
         val qualityAction = featureAction(R.drawable.ic_tune, "Quality")
         val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subs")
         val audioAction = featureAction(R.drawable.ic_music, "Audio")
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
         val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
         speedLabel = speedAction.getChildAt(1) as TextView
-        val engineLabel = engineAction.getChildAt(1) as TextView
         val qualityLabel = qualityAction.getChildAt(1) as TextView
-        engineLabel.text = "Engine"
         qualityLabel.text = "Quality"
 
         prevEpisodeBtn = episodeNavButton("‹|").apply {
@@ -562,7 +556,7 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER
             setPadding(dp(18), dp(3), dp(18), dp(10))
             background = null
-            listOf(lockAction, engineAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
+            listOf(lockAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
         }
@@ -653,7 +647,6 @@ class PlayerActivity : ComponentActivity() {
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
         act(lockAction) { toggleLock() }
-        act(engineAction) { showPlaybackEngineSheet() }
         act(qualityAction) { showQualitySheet() }
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
@@ -804,21 +797,6 @@ class PlayerActivity : ComponentActivity() {
         val speeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
         box.addView(radioGroup(100, speeds.map { speedText(it) }, speeds.indexOfFirst { it == speed }.coerceAtLeast(0)) { i ->
             speed = speeds[i]; player.setPlaybackSpeed(speed); speedLabel.text = speedText(speed); dlg.dismiss()
-        })
-    }
-
-    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
-        val all = PlaybackEngine.values()
-        box.addView(radioGroup(100, all.map { "${it.label}  ·  ${it.description}" }, playbackEngine.ordinal) { i ->
-            val selected = all[i]
-            dlg.dismiss()
-            playbackEngine = selected
-            prefs.edit().putString("playback_engine", selected.name).apply()
-            if (selected == PlaybackEngine.VLC) {
-                launchVlc(player.currentPosition, plan?.url)
-            } else {
-                showHud("Playback engine: ${selected.label}")
-            }
         })
     }
 
