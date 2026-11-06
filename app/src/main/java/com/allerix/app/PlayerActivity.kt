@@ -74,6 +74,7 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -459,7 +460,7 @@ class PlayerActivity : ComponentActivity() {
             progressTintList = ColorStateList.valueOf(accent)
             thumbTintList = ColorStateList.valueOf(0xFFF4EFE5.toInt())
             progressBackgroundTintList = ColorStateList.valueOf(0x55FFFFFF)
-            secondaryProgressTintList = ColorStateList.valueOf(0x88FFFFFF)
+            secondaryProgressTintList = ColorStateList.valueOf(0x88FFFFFF.toInt())
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
@@ -1187,10 +1188,18 @@ class PlayerActivity : ComponentActivity() {
             return@launch
         }
         try {
+            // Start independent work while Jellyfin metadata is loading; neither should serialize startup.
+            lifecycleScope.launch {
+                introSegments = runCatching { Api.introSegments(itemId) }.getOrDefault(emptyList())
+                updateIntroSkip()
+            }
+            val capsWarmup = if (quality == Quality.AUTO && audioMode == AudioMode.ORIGINAL) {
+                async(Dispatchers.Default) { runCatching { Device.caps(applicationContext) }.getOrNull() }
+            } else null
+
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received; mediaSources=" + (item.mediaSources?.size ?: 0))
-            introSegments = runCatching { Api.introSegments(itemId) }.getOrDefault(emptyList())
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
             if (item.type == "Episode" && item.seriesName != null) {
@@ -1205,8 +1214,8 @@ class PlayerActivity : ComponentActivity() {
             val h = video?.height ?: 0
             val range = video?.videoRange.orEmpty()
             val hdrContent = range.contains("HDR", true) || range.contains("HLG", true) || range.contains("DOVI", true)
-            if (hdrContent && Build.VERSION.SDK_INT >= 26 && Device.caps(this@PlayerActivity).hdrTypes.isNotEmpty()) {
-                window.colorMode = ActivityInfo.COLOR_MODE_HDR   // use the phone's HDR display path
+            if (hdrContent && Build.VERSION.SDK_INT >= 26 && Device.supportsHdr(this@PlayerActivity)) {
+                window.colorMode = ActivityInfo.COLOR_MODE_HDR   // lightweight display check; avoid scanning codecs here
             }
             val res = when { h >= 4000 -> "8K"; h >= 2000 -> "4K"; h >= 1000 -> "1080p"; h >= 700 -> "720p"; else -> "" }
             badgeRow.removeAllViews()
@@ -1217,6 +1226,9 @@ class PlayerActivity : ComponentActivity() {
             badgeRow.visibility = if (badgeRow.childCount > 0) View.VISIBLE else View.GONE
             subStreams = src.streams.filter { it.type == "Subtitle" }
 
+            // Auto mode needs decoder capabilities for Jellyfin's PlaybackInfo profile. The scan has
+            // been running alongside metadata retrieval, so awaiting it here avoids adding it to startup.
+            capsWarmup?.await()
             player.setMediaItem(buildMediaItem())
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
             player.prepare()
