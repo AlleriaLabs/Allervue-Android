@@ -1143,7 +1143,7 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachEnhancer(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
-            DiagnosticLog.record(this, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
+            DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
                 // Auto engine: retry decoder/codec failures in LibVLC before giving up.
                 if (playbackEngine == PlaybackEngine.AUTO && !vlcFallbackAttempted &&
                     error.errorCode in 4001..4005) {
