@@ -134,6 +134,7 @@ class PlayerActivity : ComponentActivity() {
 
     // subtitles (own engine)
     private var subStreams: List<MediaStream> = emptyList()
+    private var audioStreams: List<MediaStream> = emptyList()
     private var cues: List<SubCue> = emptyList()
     private var subOn = false
     private var activeSub = -1          // index in subStreams, -2 = loaded from file, -1 = none
@@ -720,27 +721,34 @@ class PlayerActivity : ComponentActivity() {
 
     private fun trackLabel(g: Tracks.Group, i: Int): String {
         val f = g.getTrackFormat(0)
-        // Media3/Jellyfin often reports an unknown language as the literal "und".
-        // Never expose that placeholder to users; prefer the container's label,
-        // then a readable BCP-47 language, then useful technical track metadata.
         fun clean(value: String?): String? = value?.trim()?.takeIf {
             it.isNotEmpty() && !it.equals("und", ignoreCase = true) &&
                 !it.equals("unknown", ignoreCase = true)
         }
-        val label = clean(f.label)
-        val rawLanguage = clean(f.language)
+
+        // Prefer Jellyfin's MediaStream metadata where available. ExoPlayer's
+        // Format.language can legitimately be "und" even when Jellyfin knows it.
+        val serverStream = if (g.type == C.TRACK_TYPE_AUDIO) {
+            val byIndex = f.id?.toIntOrNull()?.let { id -> audioStreams.firstOrNull { it.index == id } }
+            byIndex ?: audioStreams.getOrNull(i)
+        } else null
+        val serverTitle = clean(serverStream?.title)
+        val serverLanguage = clean(serverStream?.language)
+        val formatLabel = clean(f.label)
+        val rawLanguage = serverLanguage ?: clean(f.language)
         val language = rawLanguage?.let { tag ->
             val locale = Locale.forLanguageTag(tag)
-            locale.getDisplayName(Locale.getDefault()).takeIf {
+            locale.displayLanguage.takeIf {
                 it.isNotBlank() && !it.equals("und", ignoreCase = true)
             }
         }
         val details = listOfNotNull(
+            serverStream?.codec?.uppercase(Locale.ROOT),
             f.channelCount.takeIf { it > 0 }?.let { if (it == 1) "Mono" else "${it}ch" },
             f.sampleMimeType?.substringAfter("/")?.uppercase(Locale.ROOT)
         ).distinct().joinToString(" · ")
-        return listOfNotNull(label, language, details).distinct().joinToString(" · ")
-            .ifEmpty { "Audio track ${i + 1}" }
+        return listOfNotNull(serverTitle, formatLabel, language, details).distinct()
+            .joinToString(" · ").ifEmpty { if (g.type == C.TRACK_TYPE_AUDIO) "Audio track ${i + 1}" else "Track ${i + 1}" }
     }
 
     private fun showAudioSheet() = sheet("Audio") { box, _ ->
@@ -1277,6 +1285,7 @@ class PlayerActivity : ComponentActivity() {
             }
             badgeRow.visibility = if (badgeRow.childCount > 0) View.VISIBLE else View.GONE
             subStreams = src.streams.filter { it.type == "Subtitle" }
+            audioStreams = src.streams.filter { it.type == "Audio" }
 
             // AUTO starts with Jellyfin's static stream immediately. If this device cannot decode it,
             // the existing decoder-error handler falls back to a Jellyfin transcode.
