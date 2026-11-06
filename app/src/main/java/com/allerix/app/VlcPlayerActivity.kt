@@ -31,7 +31,7 @@ import java.util.UUID
 
 /** Standalone LibVLC backend. It is used by explicit VLC selection and Auto-mode decoder fallback. */
 class VlcPlayerActivity : ComponentActivity() {
-    private val accent = 0xFFE50914.toInt()
+    private val accent = 0xFFD8B77E.toInt()
     private lateinit var libVLC: LibVLC
     private lateinit var vlc: MediaPlayer
     private lateinit var video: VLCVideoLayout
@@ -188,7 +188,7 @@ class VlcPlayerActivity : ComponentActivity() {
         fun button(label: String, action: () -> Unit): TextView = TextView(this).apply {
             text = label; setTextColor(Color.WHITE); textSize = 15f; gravity = Gravity.CENTER
             setPadding(dp(14), dp(10), dp(14), dp(10))
-            background = GradientDrawable().apply { setColor(0xAA222228.toInt()); cornerRadius = dp(18).toFloat() }
+            background = GradientDrawable().apply { setColor(0xCC1B1B20.toInt()); cornerRadius = dp(18).toFloat() }
             setOnClickListener { action() }
         }
         actions.addView(button("−10s") { vlc.time = (vlc.time - 10_000).coerceAtLeast(0) })
