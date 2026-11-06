@@ -294,7 +294,6 @@ class PlayerActivity : ComponentActivity() {
         if (mode == decoder) return
         decoder = mode
         prefs.edit().putString("decoder", mode.name).apply()
-        decoderLabel.text = mode.label
         val pos = player.currentPosition
         val wasPlaying = player.playWhenReady
         player.release()
@@ -761,7 +760,7 @@ class PlayerActivity : ComponentActivity() {
         }
         row("Lock controls", if (locked) "On" else "Off") { toggleLock() }
         row("Playback engine", decoder.label) { showDecoderSheet() }
-        row("Volume", volLabel.text.toString()) { showVolumeSheet() }
+        row("Volume", "${volumePercent()}%") { showVolumeSheet() }
         row("This phone & playback info") { showDeviceSheet() }
         row("Video quality", qualityText()) { showQualitySheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
