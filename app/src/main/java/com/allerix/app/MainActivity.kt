@@ -46,12 +46,15 @@ sealed class Nav {
     object RequestShow : Nav()
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
+    object Diagnostics : Nav()
     data class Web(val url: String, val title: String) : Nav()
 }
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        DiagnosticLog.install(this)
+        DiagnosticLog.record(this, "MainActivity onCreate")
         Api.load(this)
         setContent {
             MaterialTheme(
@@ -177,7 +180,7 @@ fun MainShell(onLogout: () -> Unit) {
                 Nav.Search -> SearchScreen(onOpen, back)
                 Nav.Settings -> SettingsMenuScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) }, onClient = { stack.add(Nav.ClientSettings) },
-                    onPlayback = { stack.add(Nav.PlaybackSettings) }, onSignOut = signOut,
+                    onPlayback = { stack.add(Nav.PlaybackSettings) }, onDiagnostics = { stack.add(Nav.Diagnostics) }, onSignOut = signOut,
                     onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
                 )
                 Nav.RequestShow -> RequestShowScreen(back)
@@ -187,6 +190,7 @@ fun MainShell(onLogout: () -> Unit) {
                 )
                 is Nav.Web -> key(top) { WebScreen(top.url, top.title, back) }
                 Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
+                Nav.Diagnostics -> DiagnosticScreen(back)
             }
         }
         if (showBar) BottomBar(tab) { selected -> stack.clear(); tab = selected }
