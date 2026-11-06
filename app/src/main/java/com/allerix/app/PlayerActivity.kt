@@ -21,6 +21,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.provider.Settings
@@ -161,6 +162,7 @@ class PlayerActivity : ComponentActivity() {
     private var autoPlayNext = true
     private var speed = 1f
     private var nowTag = ""
+    private var startupStartedAt = 0L
 
     private enum class Mode { NONE, SEEK, BRIGHT, VOLUME }
     private var mode = Mode.NONE
@@ -439,11 +441,17 @@ class PlayerActivity : ComponentActivity() {
             background = circleBg(accent); elevation = dp(5).toFloat()
         }
         val fwdBtn = skipButton(true)
-        val center = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
+        val transport = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
             addView(rewBtn, LinearLayout.LayoutParams(dp(54), dp(54)).apply { rightMargin = dp(42) })
             addView(playBtn, LinearLayout.LayoutParams(dp(70), dp(70)))
             addView(fwdBtn, LinearLayout.LayoutParams(dp(54), dp(54)).apply { leftMargin = dp(42) })
+        }
+        // Use a full-screen centering layer so the transport cluster is centered against
+        // the actual video viewport, not positioned by the cluster's own measured bounds.
+        val center = FrameLayout(this).apply {
+            addView(transport, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         }
 
         curTime = TextView(this).apply {
@@ -507,7 +515,7 @@ class PlayerActivity : ComponentActivity() {
 
         controls = FrameLayout(this).apply {
             addView(topBar, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-            addView(center, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
+            addView(center, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM).apply {
                 leftMargin = dp(24); rightMargin = dp(24); bottomMargin = dp(18)
             })
@@ -1117,7 +1125,8 @@ class PlayerActivity : ComponentActivity() {
         val q = quality
         val chosen: PlaybackPlan = when {
             q == Quality.AUTO && audioMode == AudioMode.ORIGINAL ->
-                Api.autoPlan(this@PlayerActivity, itemId, sourceId, sessionId)
+                PlaybackPlan(Api.streamUrl(itemId, sourceId), false, false, sessionId,
+                    "Direct play · automatic fallback enabled")
             q == Quality.ORIGINAL && audioMode == AudioMode.ORIGINAL ->
                 PlaybackPlan(Api.streamUrl(itemId, sourceId), false, false, sessionId, "Direct play (original file)")
             else -> {
@@ -1143,7 +1152,14 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onPlaybackStateChanged(state: Int) {
                 spinner.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
-                if (state == Player.STATE_READY) updateProgress()
+                if (state == Player.STATE_READY) {
+                    updateProgress()
+                    if (startupStartedAt > 0L) {
+                        DiagnosticLog.record(this@PlayerActivity,
+                            "PLAYBACK_READY after ${SystemClock.elapsedRealtime() - startupStartedAt}ms")
+                        startupStartedAt = 0L
+                    }
+                }
                 if (state == Player.STATE_ENDED) {
                     if (offlinePath != null) saveOfflinePosition()
                     if (autoPlayNext && hasNext) switchTo(siblings[siblingIndex + 1].id) else finish()
@@ -1176,6 +1192,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun loadAndPlay() = lifecycleScope.launch {
+        startupStartedAt = SystemClock.elapsedRealtime()
         DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: begin; offline=" + (offlinePath != null))
         val file = offlinePath
         if (file != null) {
@@ -1188,14 +1205,11 @@ class PlayerActivity : ComponentActivity() {
             return@launch
         }
         try {
-            // Start independent work while Jellyfin metadata is loading; neither should serialize startup.
+            // Intro detection is optional UI metadata; it must never block first-frame startup.
             lifecycleScope.launch {
                 introSegments = runCatching { Api.introSegments(itemId) }.getOrDefault(emptyList())
                 updateIntroSkip()
             }
-            val capsWarmup = if (quality == Quality.AUTO && audioMode == AudioMode.ORIGINAL) {
-                async(Dispatchers.Default) { runCatching { Device.caps(applicationContext) }.getOrNull() }
-            } else null
 
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
@@ -1226,9 +1240,8 @@ class PlayerActivity : ComponentActivity() {
             badgeRow.visibility = if (badgeRow.childCount > 0) View.VISIBLE else View.GONE
             subStreams = src.streams.filter { it.type == "Subtitle" }
 
-            // Auto mode needs decoder capabilities for Jellyfin's PlaybackInfo profile. The scan has
-            // been running alongside metadata retrieval, so awaiting it here avoids adding it to startup.
-            capsWarmup?.await()
+            // AUTO starts with Jellyfin's static stream immediately. If this device cannot decode it,
+            // the existing decoder-error handler falls back to a Jellyfin transcode.
             player.setMediaItem(buildMediaItem())
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
             player.prepare()
