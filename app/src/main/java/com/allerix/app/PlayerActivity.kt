@@ -482,7 +482,7 @@ class PlayerActivity : ComponentActivity() {
         }
         val toolsScroll = android.widget.HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false; clipToPadding = false
-            addView(tools, android.widget.HorizontalScrollView.LayoutParams(-1, -2))
+            addView(tools, android.view.ViewGroup.LayoutParams(-1, -2))
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
