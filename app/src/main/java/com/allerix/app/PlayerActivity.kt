@@ -1168,6 +1168,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun loadAndPlay() = lifecycleScope.launch {
+        DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: begin; offline=" + (offlinePath != null))
         val file = offlinePath
         if (file != null) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(file))))
@@ -1179,7 +1180,9 @@ class PlayerActivity : ComponentActivity() {
             return@launch
         }
         try {
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received; mediaSources=" + (item.mediaSources?.size ?: 0))
             introSegments = runCatching { Api.introSegments(itemId) }.getOrDefault(emptyList())
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
@@ -1208,6 +1211,7 @@ class PlayerActivity : ComponentActivity() {
             subStreams = src.streams.filter { it.type == "Subtitle" }
 
             player.setMediaItem(buildMediaItem())
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
             player.prepare()
             val resumeMs = (item.userData?.positionTicks ?: 0L) / 10_000
             val requestedStart = intent.getLongExtra("start_position_ms", 0L)
@@ -1225,7 +1229,10 @@ class PlayerActivity : ComponentActivity() {
             }
             updateEpisodeButtons()
             updateIntroSkip()
-        } catch (e: Exception) { showHud("Error: ${e.message}", 4000) }
+        } catch (e: Exception) {
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay exception: ${e.message}", e)
+            showHud("Error: ${e.message}", 4000)
+        }
     }
 
     private fun switchTo(newId: String) {
