@@ -7,9 +7,8 @@ plugins {
 val releaseStoreFile = System.getenv("ALLERVUE_KEYSTORE_PATH")
 val releaseStorePassword = System.getenv("ALLERVUE_STORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ALLERVUE_KEY_ALIAS")
-val releaseKeyPassword = System.getenv("ALLERVUE_KEY_PASSWORD")
 val hasReleaseSigning = listOf(
-    releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword
+    releaseStoreFile, releaseStorePassword, releaseKeyAlias
 ).all { !it.isNullOrBlank() }
 
 android {
@@ -28,7 +27,8 @@ android {
                 storeFile = file(releaseStoreFile!!)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
+                // PKCS12 uses the store password for the private key password.
+                keyPassword = releaseStorePassword
                 storeType = "PKCS12"
             }
         }
