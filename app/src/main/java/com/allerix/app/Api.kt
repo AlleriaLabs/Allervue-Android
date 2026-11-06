@@ -188,6 +188,28 @@ object Api {
         call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=Random&limit=12")
     ).items
 
+    /**
+     * Personal taste ranking built from this Jellyfin user's actual watch history and favorites.
+     * All ranking runs locally in the app; no viewing history is sent to a third-party AI service.
+     */
+    suspend fun personalizedPicks(excludeIds: Set<String> = emptySet()): List<Item> {
+        val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData"
+        val history = runCatching {
+            json.decodeFromString<ItemsResult>(call(
+                "GET", "/Users/$userId/Items?recursive=true&isPlayed=true&includeItemTypes=Movie,Series&sortBy=DatePlayed&sortOrder=Descending&limit=80&fields=$fields"
+            )).items
+        }.getOrDefault(emptyList())
+        val favorites = runCatching {
+            json.decodeFromString<ItemsResult>(call(
+                "GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series&limit=100&fields=$fields"
+            )).items
+        }.getOrDefault(emptyList())
+        val candidates = json.decodeFromString<ItemsResult>(call(
+            "GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=Random&limit=300&fields=$fields"
+        )).items
+        return RecommendationEngine.rank(candidates, history, favorites, excludeIds)
+    }
+
     suspend fun byType(type: String): List<Item> = json.decodeFromString<ItemsResult>(
         call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500&fields=Genres,Tags,Overview,ProductionLocations")
     ).items
