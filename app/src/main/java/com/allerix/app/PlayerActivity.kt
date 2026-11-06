@@ -765,7 +765,6 @@ class PlayerActivity : ComponentActivity() {
         row("This phone & playback info") { showDeviceSheet() }
         row("Video quality", qualityText()) { showQualitySheet() }
         row("Audio output", audioMode.label) { showAudioOutputSheet() }
-        row("Subtitle style") { showSubtitleStyleSheet() }
         row("Subtitle sync", delayText()) { showSubtitleSyncSheet() }
         row("Aspect ratio", aspectName()) { cycleAspect() }
         row("Audio only", if (audioOnly) "On" else "Off") { toggleAudioOnly() }
@@ -787,30 +786,14 @@ class PlayerActivity : ComponentActivity() {
     private fun speedText(f: Float) = (if (f % 1f == 0f) f.toInt().toString() else f.toString()) + "x"
 
     // ================================================================= subtitles
-    private val subColors = intArrayOf(Color.WHITE, 0xFFFFEB3B.toInt(), 0xFF00E5FF.toInt(), 0xFF69F0AE.toInt(), 0xFFFFA726.toInt())
-    private val subColorNames = listOf("White", "Yellow", "Cyan", "Green", "Orange")
-    private val subSizes = intArrayOf(16, 20, 26, 32)
-    private val subSizeNames = listOf("Small", "Medium", "Large", "Extra large")
-    private val subBgs = intArrayOf(0x00000000, 0x99000000.toInt(), 0xFF000000.toInt())
-    private val subBgNames = listOf("None", "Semi-transparent", "Solid black")
-    private val subEdgeNames = listOf("None", "Shadow", "Outline")
-
     private fun applySubStyle() {
-        val size = subSizes[prefs.getInt("sub_size", 1).coerceIn(0, subSizes.size - 1)]
-        val color = subColors[prefs.getInt("sub_color", 0).coerceIn(0, subColors.size - 1)]
-        val bg = subBgs[prefs.getInt("sub_bg", 1).coerceIn(0, subBgs.size - 1)]
-        val edge = prefs.getInt("sub_edge", 1)
-        val bold = prefs.getInt("sub_bold", 0) == 1
-        subText.textSize = size.toFloat()
-        subText.setTextColor(color)
-        subText.setTypeface(Typeface.DEFAULT, if (bold) Typeface.BOLD else Typeface.NORMAL)
-        subText.setPadding(dp(8), dp(3), dp(8), dp(3))
-        subText.background = GradientDrawable().apply { setColor(bg); cornerRadius = dp(6).toFloat() }
-        when (edge) {
-            1 -> subText.setShadowLayer(4f, 2f, 2f, Color.BLACK)
-            2 -> subText.setShadowLayer(6f, 0f, 0f, Color.BLACK)
-            else -> subText.setShadowLayer(0f, 0f, 0f, 0)
-        }
+        // Allervue subtitle standard: clean white text with a restrained black shadow.
+        subText.textSize = 20f
+        subText.setTextColor(Color.WHITE)
+        subText.setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
+        subText.setPadding(0, 0, 0, 0)
+        subText.background = null
+        subText.setShadowLayer(2.5f, 0f, 1.5f, Color.BLACK)
     }
 
     private fun layoutSubtitle() {
@@ -973,21 +956,6 @@ class PlayerActivity : ComponentActivity() {
         box.addView(noteText(
             "Choose an embedded subtitle track. Tip: swipe left or right on the subtitle text to jump " +
                 "between lines, and drag it up or down to move it."))
-    }
-
-    private fun showSubtitleStyleSheet() = sheet("Subtitle style") { box, _ ->
-        fun group(title: String, base: Int, names: List<String>, key: String, def: Int) {
-            box.addView(sectionLabel(title))
-            box.addView(radioGroup(base, names, prefs.getInt(key, def)) { i ->
-                prefs.edit().putInt(key, i).apply()
-                applySubStyle(); layoutSubtitle(); previewSubtitle()
-            })
-        }
-        group("Text size", 100, subSizeNames, "sub_size", 1)
-        group("Text color", 200, subColorNames, "sub_color", 0)
-        group("Background", 300, subBgNames, "sub_bg", 1)
-        group("Edge", 400, subEdgeNames, "sub_edge", 1)
-        group("Weight", 500, listOf("Normal", "Bold"), "sub_bold", 0)
     }
 
     private fun showSubtitleSyncSheet() = sheet("Subtitle sync") { box, _ ->
