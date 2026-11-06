@@ -2,6 +2,8 @@ package com.allerix.app
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
@@ -194,20 +196,28 @@ object Api {
      */
     suspend fun personalizedPicks(excludeIds: Set<String> = emptySet()): List<Item> {
         val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData"
-        val history = runCatching {
-            json.decodeFromString<ItemsResult>(call(
-                "GET", "/Users/$userId/Items?recursive=true&isPlayed=true&includeItemTypes=Movie,Series&sortBy=DatePlayed&sortOrder=Descending&limit=80&fields=$fields"
-            )).items
-        }.getOrDefault(emptyList())
-        val favorites = runCatching {
-            json.decodeFromString<ItemsResult>(call(
-                "GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series&limit=100&fields=$fields"
-            )).items
-        }.getOrDefault(emptyList())
-        val candidates = json.decodeFromString<ItemsResult>(call(
-            "GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=Random&limit=300&fields=$fields"
-        )).items
-        return RecommendationEngine.rank(candidates, history, favorites, excludeIds)
+        return coroutineScope {
+            val historyTask = async {
+                runCatching {
+                    json.decodeFromString<ItemsResult>(call(
+                        "GET", "/Users/$userId/Items?recursive=true&isPlayed=true&includeItemTypes=Movie,Series&sortBy=DatePlayed&sortOrder=Descending&limit=80&fields=$fields"
+                    )).items
+                }.getOrDefault(emptyList())
+            }
+            val favoritesTask = async {
+                runCatching {
+                    json.decodeFromString<ItemsResult>(call(
+                        "GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series&limit=100&fields=$fields"
+                    )).items
+                }.getOrDefault(emptyList())
+            }
+            val candidatesTask = async {
+                json.decodeFromString<ItemsResult>(call(
+                    "GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=Random&limit=300&fields=$fields"
+                )).items
+            }
+            RecommendationEngine.rank(candidatesTask.await(), historyTask.await(), favoritesTask.await(), excludeIds)
+        }
     }
 
     suspend fun byType(type: String): List<Item> = json.decodeFromString<ItemsResult>(
