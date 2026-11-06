@@ -566,9 +566,12 @@ class PlayerActivity : ComponentActivity() {
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
+            weightSum = 7f
             setPadding(0, dp(3), 0, dp(10))
             background = null
+            clipToPadding = false
             listOf(lockAction, qualityAction, subtitlesAction, audioAction, audioOutputAction, aspectAction, speedAction).forEach { v ->
+                v.minimumWidth = 0
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
         }
@@ -641,8 +644,9 @@ class PlayerActivity : ComponentActivity() {
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
             topBar.setPadding(dp(16) + i.left, dp(10) + i.top, dp(16) + i.right, dp(8))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply {
-                leftMargin = i.left
-                rightMargin = i.right
+                // Keep the utility control row full-bleed; only respect the bottom cutout.
+                leftMargin = 0
+                rightMargin = 0
                 bottomMargin = i.bottom
             }
             bottomPanel.requestLayout()
