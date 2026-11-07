@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
@@ -46,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.border
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -256,7 +258,17 @@ fun MediaCard(
     onMore: ((Item, String) -> Unit)? = null, onClick: () -> Unit
 ) {
     var menuExpanded by remember(item.id) { mutableStateOf(false) }
-    Column(modifier.clickable(onClick = onClick)) {
+    var hasRemoteFocus by remember(item.id) { mutableStateOf(false) }
+    Column(
+        modifier.onFocusChanged { hasRemoteFocus = it.isFocused }
+            .border(
+                width = if (hasRemoteFocus) 3.dp else 0.dp,
+                color = if (hasRemoteFocus) BrandGoldBright else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(if (hasRemoteFocus) 3.dp else 0.dp)
+    ) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
                 .clip(RoundedCornerShape(10.dp)).background(Color(0xFF1F1F23))
