@@ -70,6 +70,8 @@ jobs:
           
           Install: download Allervue.apk and allow "Install unknown apps" when Android asks.
           NOTES
+          # Replace a pre-existing placeholder release/tag with this verified build.
+          gh release delete "$TAG" --cleanup-tag --yes --repo "${{ github.repository }}" 2>/dev/null || true
           gh release create "$TAG" Allervue.apk \
             --repo "${{ github.repository }}" --target "${{ github.sha }}" \
             --title "Allervue $TAG" --notes-file notes.md
