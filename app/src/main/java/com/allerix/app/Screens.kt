@@ -65,6 +65,8 @@ fun HomeScreen(
     onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, onSeeAll: (Item) -> Unit,
     onSearch: () -> Unit, onSettings: () -> Unit, onLogout: () -> Unit
 ) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
     var featured by remember { mutableStateOf<List<Item>>(emptyList()) }
     var resume by remember { mutableStateOf<List<Item>>(emptyList()) }
     var trending by remember { mutableStateOf<List<Item>>(emptyList()) }
@@ -76,7 +78,7 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         try {
             featured = runCatching { Api.featured() }.getOrDefault(emptyList())
-            resume = Api.resume()
+            resume = Api.resume().filterNot { it.id in ContinueWatching.hiddenIds(ctx) }
             trending = runCatching { Api.trending() }.getOrDefault(emptyList())
             rows = Api.views().map { it to Api.latest(it.id) }.filter { it.second.isNotEmpty() }
             loading = false
@@ -117,7 +119,30 @@ fun HomeScreen(
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item { HeroCarousel(heroes, pager, onPlay, onOpen) }
-            if (resume.isNotEmpty()) item { MediaRow("Continue Watching", resume, onClick = onPlay) }
+            if (resume.isNotEmpty()) item {
+                MediaRow(
+                    "Continue Watching", resume, onClick = onPlay,
+                    onMore = { item, action ->
+                        scope.launch {
+                            when (action) {
+                                "hide" -> {
+                                    ContinueWatching.hide(ctx, item.id)
+                                    resume = resume.filterNot { it.id == item.id }
+                                    Toast.makeText(ctx, "Removed from Continue Watching", Toast.LENGTH_SHORT).show()
+                                }
+                                "watched" -> runCatching { Api.markPlayed(item.id) }
+                                    .onSuccess {
+                                        resume = resume.filterNot { it.id == item.id }
+                                        Toast.makeText(ctx, "Marked as watched", Toast.LENGTH_SHORT).show()
+                                    }
+                                    .onFailure {
+                                        Toast.makeText(ctx, "Couldn't update watched status: ${it.message}", Toast.LENGTH_LONG).show()
+                                    }
+                            }
+                        }
+                    }
+                )
+            }
             val popularMovies = trending.filter { it.type == "Movie" }
             val popularShows = trending.filter { it.type == "Series" }
             if (popularMovies.isNotEmpty()) item { MediaRow("Recently Added Movies", popularMovies, onClick = onOpen) }
@@ -208,7 +233,8 @@ fun HeroPage(hero: Item, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
 @Composable
 fun MediaRow(
     title: String, list: List<Item>, landscape: Boolean = false,
-    onClick: (Item) -> Unit, onSeeAll: (() -> Unit)? = null
+    onClick: (Item) -> Unit, onSeeAll: (() -> Unit)? = null,
+    onMore: ((Item, String) -> Unit)? = null
 ) {
     Column(Modifier.padding(top = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -218,14 +244,18 @@ fun MediaRow(
         Spacer(Modifier.height(10.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             items(list, key = { it.id }) {
-                MediaCard(it, Modifier.width(if (landscape) 220.dp else 118.dp), landscape) { onClick(it) }
+                MediaCard(it, Modifier.width(if (landscape) 220.dp else 118.dp), landscape, onMore = onMore) { onClick(it) }
             }
         }
     }
 }
 
 @Composable
-fun MediaCard(item: Item, modifier: Modifier, landscape: Boolean = false, onClick: () -> Unit) {
+fun MediaCard(
+    item: Item, modifier: Modifier, landscape: Boolean = false,
+    onMore: ((Item, String) -> Unit)? = null, onClick: () -> Unit
+) {
+    var menuExpanded by remember(item.id) { mutableStateOf(false) }
     Column(modifier.clickable(onClick = onClick)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
@@ -235,6 +265,23 @@ fun MediaCard(item: Item, modifier: Modifier, landscape: Boolean = false, onClic
                 if (landscape) Api.landscape(item) else Api.poster(item), item.name,
                 Modifier.fillMaxSize(), contentScale = ContentScale.Crop
             )
+            if (onMore != null) {
+                Box(Modifier.align(Alignment.TopEnd)) {
+                    IconButton(onClick = { menuExpanded = true }, modifier = Modifier.size(34.dp)) {
+                        SmallIcon(R.drawable.ic_more, Color.White, 19)
+                    }
+                    DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Remove from Continue Watching") },
+                            onClick = { menuExpanded = false; onMore(item, "hide") }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Mark as watched") },
+                            onClick = { menuExpanded = false; onMore(item, "watched") }
+                        )
+                    }
+                }
+            }
             val rt = item.runTimeTicks ?: 0L
             val pos = item.userData?.positionTicks ?: 0L
             if (rt > 0 && pos > 0) LinearProgressIndicator(
@@ -278,25 +325,74 @@ private val movieOriginOrder = listOf(
 )
 
 @Composable
+private fun LibraryFilterDropdown(
+    title: String, selected: String, options: List<String>, onSelected: (String) -> Unit
+) {
+    var expanded by remember(title) { mutableStateOf(false) }
+    Box {
+        FilterChip(
+            selected = selected != options.firstOrNull(),
+            onClick = { expanded = true },
+            label = { Text(if (selected == options.firstOrNull()) title else "$title: $selected") },
+            colors = FilterChipDefaults.filterChipColors(
+                selectedContainerColor = Red.copy(alpha = 0.22f),
+                selectedLabelColor = Color.White, labelColor = Grey
+            )
+        )
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(if (option == options.firstOrNull()) "Any $title" else option) },
+                    onClick = { onSelected(option); expanded = false }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun LibraryTab(
     title: String, type: String, onOpen: (Item) -> Unit,
     onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false
 ) {
     var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
     var loading by remember(type) { mutableStateOf(true) }
+    var allItems by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
     var selectedGenre by remember(type) { mutableStateOf("All") }
+    var selectedYear by remember(type) { mutableStateOf("Any") }
+    var selectedRating by remember(type) { mutableStateOf("Any") }
+    var selectedResolution by remember(type) { mutableStateOf("Any") }
+    var watchedFilter by remember(type) { mutableStateOf("Any") }
     var showFilter by remember(type) { mutableStateOf("All") }
 
     LaunchedEffect(type) {
         loading = true
-        list = runCatching { Api.byType(type) }.getOrDefault(emptyList())
+        allItems = runCatching { Api.byType(type) }.getOrDefault(emptyList())
+        list = allItems
         loading = false
     }
+    LaunchedEffect(type, allItems, selectedGenre, selectedYear, selectedRating, selectedResolution, watchedFilter) {
+        if (allItems.isNotEmpty()) {
+            loading = true
+            list = runCatching {
+                Api.byType(
+                    type,
+                    genre = selectedGenre.takeUnless { it == "All" },
+                    year = selectedYear.toIntOrNull(),
+                    minRating = selectedRating.removeSuffix("+").toDoubleOrNull(),
+                    resolution = selectedResolution.takeUnless { it == "Any" },
+                    watched = watchedFilter.takeUnless { it == "Any" }
+                )
+            }.getOrDefault(emptyList())
+            loading = false
+        }
+    }
 
-    val genres = remember(list) {
-        list.flatMap { it.genres.orEmpty() }
+    val genres = remember(allItems) {
+        allItems.flatMap { it.genres.orEmpty() }
             .filter { it.isNotBlank() }.distinct().sorted()
     }
+    val years = remember(allItems) { allItems.mapNotNull { it.year }.distinct().sortedDescending() }
     val visible = remember(list, selectedGenre, showFilter, isShows) {
         list.filter { item ->
             val categoryMatch = !isShows || when (showFilter) {
@@ -350,6 +446,35 @@ fun LibraryTab(
                                 selectedContainerColor = Red.copy(alpha = 0.22f),
                                 selectedLabelColor = Color.White, labelColor = Grey))
                     }
+                }
+            }
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item {
+                    LibraryFilterDropdown(
+                        "Year", selectedYear, listOf("Any") + years.map { it.toString() },
+                        onSelected = { selectedYear = it }
+                    )
+                }
+                item {
+                    LibraryFilterDropdown(
+                        "Rating", selectedRating, listOf("Any", "6+", "7+", "8+"),
+                        onSelected = { selectedRating = it }
+                    )
+                }
+                item {
+                    LibraryFilterDropdown(
+                        "Resolution", selectedResolution, listOf("Any", "HD", "4K"),
+                        onSelected = { selectedResolution = it }
+                    )
+                }
+                item {
+                    LibraryFilterDropdown(
+                        "Watched", watchedFilter, listOf("Any", "Watched", "Unwatched"),
+                        onSelected = { watchedFilter = it }
+                    )
                 }
             }
             Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
