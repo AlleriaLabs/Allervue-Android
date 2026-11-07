@@ -1,7 +1,6 @@
 package com.allerix.app
 
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.BackHandler
@@ -14,8 +13,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -24,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -156,7 +152,6 @@ fun SplashScreen() {
 @Composable
 fun MainShell(onLogout: () -> Unit) {
     val ctx = LocalContext.current
-    val isTv = (LocalConfiguration.current.uiMode and Configuration.UI_MODE_TYPE_MASK) == Configuration.UI_MODE_TYPE_TELEVISION
     val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf(NavTab.HOME) }
     val stack = remember { mutableStateListOf<Nav>() }
@@ -184,7 +179,6 @@ fun MainShell(onLogout: () -> Unit) {
     val showBar = top == null || top is Nav.Detail || top is Nav.Grid
 
     Column(Modifier.fillMaxSize().background(BgDark)) {
-        if (isTv && showBar) TvNavigationBar(tab) { selected -> stack.clear(); tab = selected }
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
@@ -215,37 +209,7 @@ fun MainShell(onLogout: () -> Unit) {
                 Nav.Diagnostics -> DiagnosticScreen(back)
             }
         }
-        if (showBar && !isTv) BottomBar(tab) { selected -> stack.clear(); tab = selected }
-    }
-}
-
-@Composable
-fun TvNavigationBar(selected: NavTab, onTab: (NavTab) -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().background(Color(0xFF101013))
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 28.dp, vertical = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text("ALLERVUE", color = BrandGold, fontSize = 20.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-            modifier = Modifier.padding(end = 18.dp))
-        NavTab.values().forEach { tab ->
-            val active = tab == selected
-            Button(
-                onClick = { onTab(tab) },
-                modifier = Modifier.heightIn(min = 52.dp),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (active) BrandGold.copy(alpha = 0.22f) else Color(0xFF242429),
-                    contentColor = if (active) BrandGoldBright else Color.White
-                )
-            ) {
-                SmallIcon(tab.icon, if (active) BrandGoldBright else Color.White, 22)
-                Spacer(Modifier.width(9.dp))
-                Text(tab.label, fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
-            }
-        }
+        if (showBar) BottomBar(tab) { selected -> stack.clear(); tab = selected }
     }
 }
 

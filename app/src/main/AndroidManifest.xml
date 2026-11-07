@@ -17,7 +17,7 @@
         android:label="Allervue"
         android:theme="@style/Theme.Allervue"
         android:usesCleartextTraffic="true"
-        android:banner="@drawable-nodpi/logo_banner">
+        android:banner="@drawable/logo_banner">
 
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

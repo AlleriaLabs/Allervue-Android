@@ -54,10 +54,10 @@ jobs:
           name: Allervue-apk
           path: Allervue.apk
       - name: Publish GitHub Release
-        if: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '' && env.HAS_RELEASE_SIGNING == 'true' }}
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' && ((github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag != '') || (github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/v'))) }}
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.event.inputs.release_tag }}
+          TAG: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.release_tag || github.ref_name }}
         run: |
           cat > notes.md <<'NOTES'
           Allervue Android release.
