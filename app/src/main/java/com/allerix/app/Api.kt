@@ -220,9 +220,30 @@ object Api {
         }
     }
 
-    suspend fun byType(type: String): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=$type&sortBy=SortName&limit=500&fields=Genres,Tags,Overview,ProductionLocations")
-    ).items
+    suspend fun byType(
+        type: String, genre: String? = null, year: Int? = null,
+        minRating: Double? = null, resolution: String? = null, watched: String? = null
+    ): List<Item> {
+        val params = mutableListOf(
+            "userId=$userId", "recursive=true", "includeItemTypes=$type",
+            "sortBy=SortName", "limit=500",
+            "fields=Genres,Tags,Overview,ProductionLocations,CommunityRating,UserData"
+        )
+        genre?.takeIf { it.isNotBlank() }?.let { params += "genres=${URLEncoder.encode(it, "UTF-8")}" }
+        year?.let { params += "years=$it" }
+        minRating?.let { params += "minCommunityRating=$it" }
+        when (resolution) {
+            "HD" -> params += "isHd=true"
+            "4K" -> params += "is4K=true"
+        }
+        when (watched) {
+            "Watched" -> params += "isPlayed=true"
+            "Unwatched" -> params += "isPlayed=false"
+        }
+        return json.decodeFromString<ItemsResult>(
+            call("GET", "/Items?${params.joinToString("&")}")
+        ).items
+    }
 
     /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */
     suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
@@ -250,6 +271,11 @@ object Api {
 
     suspend fun setFavorite(id: String, favorite: Boolean) {
         call(if (favorite) "POST" else "DELETE", "/Users/$userId/FavoriteItems/$id")
+    }
+
+    /** Marks a title as watched in the signed-in Jellyfin user's account. */
+    suspend fun markPlayed(id: String) {
+        call("POST", "/Users/$userId/PlayedItems/$id")
     }
 
     suspend fun similar(id: String): List<Item> = json.decodeFromString<ItemsResult>(
