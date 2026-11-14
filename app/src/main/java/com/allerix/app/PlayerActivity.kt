@@ -1217,8 +1217,7 @@ class PlayerActivity : ComponentActivity() {
         val q = quality
         val chosen: PlaybackPlan = when {
             q == Quality.AUTO && audioMode == AudioMode.ORIGINAL ->
-                PlaybackPlan(Api.streamUrl(itemId, sourceId), false, false, sessionId,
-                    "Direct play · automatic fallback enabled")
+                Api.autoPlan(this, itemId, sourceId, sessionId)
             q == Quality.ORIGINAL && audioMode == AudioMode.ORIGINAL ->
                 PlaybackPlan(Api.streamUrl(itemId, sourceId), false, false, sessionId, "Direct play (original file)")
             else -> {
@@ -1374,8 +1373,9 @@ class PlayerActivity : ComponentActivity() {
             // Start the common direct-play path immediately. Jellyfin can choose its
             // default media source when MediaSourceId is omitted, so metadata loading
             // no longer sits in front of the first video request.
-            val canStartDirectly = quality in listOf(Quality.AUTO, Quality.ORIGINAL) &&
-                audioMode == AudioMode.ORIGINAL
+            // AUTO must use Api.autoPlan so Jellyfin receives the actual hardware/profile limits.
+            // Explicit ORIGINAL remains a direct stream request.
+            val canStartDirectly = quality == Quality.ORIGINAL && audioMode == AudioMode.ORIGINAL
             if (canStartDirectly) {
                 val url = Api.streamUrl(itemId)
                 plan = PlaybackPlan(url, false, false, sessionId, "Direct play · metadata loading in parallel")
