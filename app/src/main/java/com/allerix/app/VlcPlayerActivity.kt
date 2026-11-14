@@ -43,7 +43,10 @@ class VlcPlayerActivity : ComponentActivity() {
     private lateinit var current: TextView
     private lateinit var duration: TextView
     private lateinit var spinner: ProgressBar
+    private lateinit var controls: FrameLayout
+    private var locked = false
     private val handler = Handler(Looper.getMainLooper())
+    private val autoHideControls = Runnable { if (!locked && ::controls.isInitialized) controls.visibility = View.GONE }
     private val prefs by lazy { getSharedPreferences("player", MODE_PRIVATE) }
     private var itemId = ""
     private var sourceId = ""
@@ -160,116 +163,209 @@ class VlcPlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
+        // Keep VLC visually identical to the primary ExoPlayer surface.
         val root = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         video = VLCVideoLayout(this)
         root.addView(video, FrameLayout.LayoutParams(-1, -1))
 
-        val back = TextView(this).apply {
-            text = "‹"; textSize = 34f; gravity = Gravity.CENTER
-            setTextColor(Color.WHITE); setPadding(dp(10), 0, dp(10), dp(4))
-            setOnClickListener { finish() }
+        fun icon(res: Int, size: Int, pad: Int = 7) = ImageView(this).apply {
+            setImageResource(res); setColorFilter(0xFFF4EFE5.toInt())
+            setPadding(dp(pad), dp(pad), dp(pad), dp(pad))
+            scaleType = ImageView.ScaleType.CENTER_INSIDE
+            layoutParams = LinearLayout.LayoutParams(dp(size), dp(size))
         }
+        fun featureAction(res: Int, label: String, action: () -> Unit) =
+            LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+                setPadding(dp(1), dp(5), dp(1), dp(5))
+                addView(ImageView(this@VlcPlayerActivity).apply {
+                    setImageResource(res); setColorFilter(accent)
+                    scaleType = ImageView.ScaleType.CENTER_INSIDE
+                }, LinearLayout.LayoutParams(dp(19), dp(19)))
+                addView(TextView(this@VlcPlayerActivity).apply {
+                    text = label; textSize = 8f; gravity = Gravity.CENTER
+                    setTextColor(0xFFF4EFE5.toInt()); maxLines = 1
+                }, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(5) })
+                setOnClickListener { action() }
+            }
+
+        val back = icon(R.drawable.ic_back, 34).apply { setOnClickListener { finish() } }
         title = TextView(this).apply {
             text = intent.getStringExtra("title") ?: "Allervue"
-            setTextColor(0xFFF4EFE5.toInt()); textSize = 18f
-            setTypeface(null, android.graphics.Typeface.BOLD); maxLines = 1
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            setTextColor(0xFFF4EFE5.toInt()); textSize = 15f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
         }
         state = TextView(this).apply {
-            text = "VLC · Connecting"; setTextColor(accent); textSize = 11f
+            text = "Now Playing"; setTextColor(accent); textSize = 10f
         }
         val heading = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            addView(title); addView(state)
+            setPadding(dp(6), 0, dp(4), 0); addView(title); addView(state)
         }
-        val top = LinearLayout(this).apply {
+        val cast = icon(R.drawable.ic_cast, 34).apply {
+            setOnClickListener { android.widget.Toast.makeText(context, "Casting is not available in VLC playback", android.widget.Toast.LENGTH_SHORT).show() }
+        }
+        val pip = icon(R.drawable.ic_pip, 34).apply {
+            setOnClickListener {
+                if (android.os.Build.VERSION.SDK_INT >= 26) {
+                    try { enterPictureInPictureMode(PictureInPictureParams.Builder().build()) } catch (_: Exception) {}
+                }
+            }
+        }
+        val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(10), dp(20), dp(30))
-            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xD9101013.toInt(), 0x00101013))
-            addView(back, LinearLayout.LayoutParams(dp(44), dp(48)))
+            setPadding(dp(16), dp(10), dp(16), dp(8))
+            addView(back, LinearLayout.LayoutParams(dp(34), dp(38)))
             addView(heading, LinearLayout.LayoutParams(0, -2, 1f))
+            addView(cast, LinearLayout.LayoutParams(dp(34), dp(38)))
+            addView(pip, LinearLayout.LayoutParams(dp(34), dp(38)))
         }
-        root.addView(top, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+        val topPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xE6101013.toInt(), 0x99101013.toInt(), 0x00101013))
+            addView(topBar, LinearLayout.LayoutParams(-1, -2))
+        }
 
         current = TextView(this).apply {
-            text = "00:00"; setTextColor(0xFFEDE9E2.toInt()); textSize = 11f
-            minWidth = dp(48); gravity = Gravity.CENTER_VERTICAL
+            text = "00:00"; setTextColor(0xFFF4EFE5.toInt()); textSize = 10f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+            gravity = Gravity.CENTER_VERTICAL
         }
         duration = TextView(this).apply {
-            text = "--:--"; setTextColor(0xFFB7B3AC.toInt()); textSize = 11f
-            minWidth = dp(48); gravity = Gravity.CENTER
+            text = "--:--"; setTextColor(0xFFAAA69E.toInt()); textSize = 10f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", 0)
+            gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
             progressTintList = android.content.res.ColorStateList.valueOf(accent)
             thumbTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE5.toInt())
-            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x44FFFFFF)
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x667A7772)
+            minimumHeight = dp(18); setPadding(dp(2), 0, dp(2), 0)
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(bar: SeekBar, progress: Int, fromUser: Boolean) {
                 if (fromUser) current.text = clock(progress.toLong())
             }
-            override fun onStartTrackingTouch(bar: SeekBar) {}
-            override fun onStopTrackingTouch(bar: SeekBar) { if (::vlc.isInitialized) vlc.time = bar.progress.toLong() }
+            override fun onStartTrackingTouch(bar: SeekBar) { handler.removeCallbacks(autoHideControls) }
+            override fun onStopTrackingTouch(bar: SeekBar) { if (::vlc.isInitialized) vlc.time = bar.progress.toLong(); scheduleHideControls() }
         })
-        val times = LinearLayout(this).apply {
+        val timeline = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            addView(current)
-            addView(seek, LinearLayout.LayoutParams(0, dp(30), 1f))
-            addView(duration)
+            setPadding(dp(20), dp(8), dp(20), dp(2))
+            addView(current, LinearLayout.LayoutParams(-2, dp(28)))
+            addView(seek, LinearLayout.LayoutParams(0, dp(28), 1f).apply {
+                leftMargin = dp(12); rightMargin = dp(12)
+            })
+            addView(duration, LinearLayout.LayoutParams(-2, dp(28)))
         }
 
-        fun control(label: String, primary: Boolean = false, action: () -> Unit): TextView =
-            TextView(this).apply {
-                text = label; gravity = Gravity.CENTER
-                setTextColor(if (primary) 0xFF17130D.toInt() else Color.WHITE)
-                textSize = if (primary) 22f else 13f
-                setTypeface(null, android.graphics.Typeface.BOLD)
-                background = GradientDrawable().apply {
-                    setColor(if (primary) accent else 0x3319191E)
-                    cornerRadius = dp(if (primary) 30 else 16).toFloat()
-                    if (!primary) setStroke(dp(1), 0x33FFFFFF)
-                }
-                setOnClickListener { action() }
-            }
-        val actions = LinearLayout(this).apply {
+        val previous = TextView(this).apply {
+            text = "‹|"; textSize = 17f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+            visibility = View.INVISIBLE
+        }
+        val next = TextView(this).apply {
+            text = "|›"; textSize = 17f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+            visibility = View.INVISIBLE
+        }
+        fun skipButton(forward: Boolean) = FrameLayout(this).apply {
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF202024.toInt()) }
+            addView(ImageView(this@VlcPlayerActivity).apply {
+                setImageResource(R.drawable.ic_replay); setColorFilter(Color.WHITE)
+                scaleX = if (forward) -1f else 1f
+            }, FrameLayout.LayoutParams(-1, -1))
+            addView(TextView(this@VlcPlayerActivity).apply {
+                text = "10"; textSize = 12f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }, FrameLayout.LayoutParams(-1, -1))
+        }
+        val rewind = skipButton(false)
+        val forward = skipButton(true)
+        play = TextView(this).apply {
+            text = "Ⅱ"; textSize = 24f; gravity = Gravity.CENTER
+            setTextColor(0xFF101013.toInt())
+            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(accent) }
+            elevation = dp(5).toFloat()
+        }
+        val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER
-            addView(control("↶ 10") { vlc.time = (vlc.time - 10_000).coerceAtLeast(0) },
-                LinearLayout.LayoutParams(dp(64), dp(48)).apply { rightMargin = dp(18) })
-            play = control("Ⅱ", true) { if (vlc.isPlaying) vlc.pause() else vlc.play() }
-            addView(play, LinearLayout.LayoutParams(dp(58), dp(58)))
-            addView(control("10 ↷") { vlc.time = (vlc.time + 10_000).coerceAtMost(vlc.length) },
-                LinearLayout.LayoutParams(dp(64), dp(48)).apply { leftMargin = dp(18) })
-            addView(control("1×") { chooseSpeed() },
-                LinearLayout.LayoutParams(dp(54), dp(44)).apply { leftMargin = dp(12) })
+            setPadding(0, dp(8), 0, dp(8))
+            addView(previous, LinearLayout.LayoutParams(dp(30), dp(48)).apply { rightMargin = dp(12) })
+            addView(rewind, LinearLayout.LayoutParams(dp(48), dp(48)).apply { rightMargin = dp(16) })
+            addView(play, LinearLayout.LayoutParams(dp(68), dp(68)).apply { rightMargin = dp(16) })
+            addView(forward, LinearLayout.LayoutParams(dp(48), dp(48)).apply { rightMargin = dp(12) })
+            addView(next, LinearLayout.LayoutParams(dp(30), dp(48)))
         }
-        val bottom = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(22), dp(20), dp(14))
-            background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(0xF5101013.toInt(), 0xE6101013.toInt(), 0x00101013))
-            addView(times)
-            addView(actions, LinearLayout.LayoutParams(-1, dp(64)).apply { topMargin = dp(8) })
+        val centerControls = FrameLayout(this).apply {
+            addView(transport, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
         }
 
-        skipIntro = control("SKIP INTRO  ›", true) {
-            val active = introSegments.firstOrNull { vlc.time >= it.first && vlc.time < it.second }
-            if (active != null) vlc.time = active.second
-            skipIntro.visibility = View.GONE
-        }.apply {
-            textSize = 12f; visibility = View.GONE
-            setPadding(dp(18), dp(10), dp(18), dp(10))
+        val dock = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; weightSum = 7f
+            setPadding(0, dp(3), 0, dp(10)); clipToPadding = false
+            val entries = listOf(
+                featureAction(R.drawable.ic_lock, "Lock") { toggleVlcLock() },
+                featureAction(R.drawable.ic_tune, "Quality") { showQualityInfo() },
+                featureAction(R.drawable.ic_subtitles, "Subs") { showTrackInfo("Subtitle") },
+                featureAction(R.drawable.ic_music, "Audio") { showTrackInfo("Audio") },
+                featureAction(R.drawable.ic_volume, "Output") { android.widget.Toast.makeText(context, "Audio output follows the selected device", android.widget.Toast.LENGTH_SHORT).show() },
+                featureAction(R.drawable.ic_aspect, "Aspect") { android.widget.Toast.makeText(context, "Aspect ratio: fit", android.widget.Toast.LENGTH_SHORT).show() },
+                featureAction(R.drawable.ic_schedule, "${speed}×") { chooseSpeed() }
+            )
+            entries.forEach { addView(it, LinearLayout.LayoutParams(0, dp(62), 1f)) }
+        }
+        val bottomPanel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x00101013, 0xB8101013.toInt(), 0xF5101013.toInt()))
+            addView(timeline, LinearLayout.LayoutParams(-1, -2))
+            addView(dock, LinearLayout.LayoutParams(-1, -2))
+        }
+
+        controls = FrameLayout(this).apply {
+            addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
+            addView(centerControls, FrameLayout.LayoutParams(-1, dp(112), Gravity.CENTER))
+            addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         spinner = ProgressBar(this).apply {
             isIndeterminate = true
             indeterminateTintList = android.content.res.ColorStateList.valueOf(accent)
+            visibility = View.GONE
+        }
+        skipIntro = TextView(this).apply {
+            text = "SKIP INTRO  ›"; setTextColor(0xFF101013.toInt())
+            textSize = 11f; typeface = android.graphics.Typeface.DEFAULT_BOLD; letterSpacing = 0.06f
+            setPadding(dp(18), dp(10), dp(18), dp(10))
+            background = GradientDrawable().apply { setColor(accent); cornerRadius = dp(22).toFloat() }
+            visibility = View.GONE; elevation = dp(5).toFloat()
+            setOnClickListener {
+                val active = introSegments.firstOrNull { vlc.time >= it.first && vlc.time < it.second }
+                if (active != null) vlc.time = active.second
+                visibility = View.GONE
+            }
         }
         root.addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
+        root.addView(controls, FrameLayout.LayoutParams(-1, -1))
         root.addView(skipIntro, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-            .apply { bottomMargin = dp(128) })
-        root.addView(bottom, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
+            .apply { bottomMargin = dp(132) })
+        root.setOnClickListener { if (locked) toggleVlcLock() else toggleControls() }
+        controls.setOnClickListener { }
         setContentView(root)
+        root.keepScreenOn = true
+        showControls()
+        handler.postDelayed(autoHideControls, 5000)
+        play.setOnClickListener { if (vlc.isPlaying) vlc.pause() else vlc.play() }
+        rewind.setOnClickListener { vlc.time = (vlc.time - 10_000).coerceAtLeast(0L) }
+        forward.setOnClickListener { vlc.time = (vlc.time + 10_000).coerceAtMost(vlc.length) }
     }
+
+    private fun showControls() { if (::controls.isInitialized) controls.visibility = View.VISIBLE; handler.removeCallbacks(autoHideControls); scheduleHideControls() }
+    private fun toggleControls() { if (!::controls.isInitialized) return; if (controls.visibility == View.VISIBLE) controls.visibility = View.GONE else showControls() }
+    private fun scheduleHideControls() { handler.removeCallbacks(autoHideControls); if (!locked) handler.postDelayed(autoHideControls, 5000) }
+    private fun toggleVlcLock() { locked = !locked; if (locked) controls.visibility = View.GONE else showControls(); android.widget.Toast.makeText(this, if (locked) "Controls locked" else "Controls unlocked", android.widget.Toast.LENGTH_SHORT).show() }
+    private fun showQualityInfo() { android.app.AlertDialog.Builder(this).setTitle("Playback quality").setMessage("VLC is using the stream selected by Allervue. If playback cannot decode it, Auto mode will request a compatible Jellyfin transcode.").setPositiveButton("OK", null).show() }
+    private fun showTrackInfo(kind: String) { android.app.AlertDialog.Builder(this).setTitle("$kind tracks").setMessage("Track selection is managed by the active VLC stream.").setPositiveButton("OK", null).show() }
 
     private fun loadAndPlay() {
         lifecycleScope.launch {
