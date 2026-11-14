@@ -938,9 +938,35 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
                         }
                         MyListButton(cur, Modifier.weight(1f))
                         if (canDownload) IconButton(
-                            onClick = { if (currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL) startDownload(cur) },
-                            enabled = currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL
-                        ) { SmallIcon(if (currentDownloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL) R.drawable.ic_check else R.drawable.ic_download) }
+                            onClick = {
+                                if (currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL &&
+                                    currentDownloadState?.status != android.app.DownloadManager.STATUS_RUNNING &&
+                                    currentDownloadState?.status != android.app.DownloadManager.STATUS_PENDING
+                                ) startDownload(cur)
+                            },
+                            enabled = currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL &&
+                                currentDownloadState?.status != android.app.DownloadManager.STATUS_RUNNING &&
+                                currentDownloadState?.status != android.app.DownloadManager.STATUS_PENDING
+                        ) {
+                            when (currentDownloadState?.status) {
+                                android.app.DownloadManager.STATUS_SUCCESSFUL ->
+                                    SmallIcon(R.drawable.ic_check, Color(0xFF8FC7A0), 24)
+                                android.app.DownloadManager.STATUS_RUNNING,
+                                android.app.DownloadManager.STATUS_PENDING -> {
+                                    val progress = currentDownloadState.let {
+                                        if (it.total > 0L) (it.done.toFloat() / it.total).coerceIn(0f, 1f) else 0f
+                                    }
+                                    CircularProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier.size(24.dp),
+                                        color = Red,
+                                        trackColor = Color(0x44FFFFFF),
+                                        strokeWidth = 2.5.dp
+                                    )
+                                }
+                                else -> SmallIcon(R.drawable.ic_download, Color.White, 24)
+                            }
+                        }
                     }
                     if (canDownload && currentDownloadState != null) {
                         val state = currentDownloadState
