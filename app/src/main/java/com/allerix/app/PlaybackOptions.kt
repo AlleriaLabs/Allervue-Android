@@ -25,9 +25,3 @@ enum class DecoderMode(val label: String, val desc: String) {
 }
 
 
-/** Default engine policy. Auto starts with Media3 and falls back to LibVLC on decoder failures. */
-enum class PlaybackEngine(val label: String, val description: String) {
-    AUTO("Auto", "ExoPlayer first, VLC fallback when decoding fails"),
-    EXOPLAYER("ExoPlayer", "Use Android Media3 / ExoPlayer only"),
-    VLC("VLC", "Use the VideoLAN LibVLC engine")
-}

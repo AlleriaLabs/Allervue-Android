@@ -59,6 +59,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.AudioAttributes
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -125,8 +127,7 @@ class PlayerActivity : ComponentActivity() {
     private var quality = Quality.ORIGINAL
     private var audioMode = AudioMode.ORIGINAL
     private var decoder = DecoderMode.HW
-    private var playbackEngine = PlaybackEngine.AUTO
-    private var vlcFallbackAttempted = false
+    private var hasPlayedOnce = false
     private var siblings: List<Item> = emptyList()
     private var siblingIndex = -1
     private var introSegments: List<Pair<Long, Long>> = emptyList()
@@ -167,6 +168,14 @@ class PlayerActivity : ComponentActivity() {
     private var speed = 1f
     private var nowTag = ""
     private var startupStartedAt = 0L
+    private val stalledPlaybackFallback = Runnable {
+        if (hasPlayedOnce && ::player.isInitialized && player.playWhenReady &&
+            player.playbackState == Player.STATE_BUFFERING && quality == Quality.AUTO &&
+            plan?.transcoding != true && offlinePath == null && !autoRetried) {
+            DiagnosticLog.record(this, "Sustained playback rebuffering for 20s; requesting H.264 1080p")
+            fallbackTranscode()
+        }
+    }
 
     private enum class Mode { NONE, SEEK, BRIGHT, VOLUME }
     private var mode = Mode.NONE
@@ -212,10 +221,8 @@ class PlayerActivity : ComponentActivity() {
             .getOrDefault(AudioMode.ORIGINAL)
         decoder = runCatching { DecoderMode.valueOf(prefs.getString("decoder", "HW") ?: "HW") }
             .getOrDefault(DecoderMode.HW)
-        // Engine selection is automatic; ignore any legacy saved manual engine preference.
-        playbackEngine = PlaybackEngine.AUTO
-        prefs.edit().putString("playback_engine", PlaybackEngine.AUTO.name).apply()
-        vlcFallbackAttempted = intent.getBooleanExtra("skip_vlc_fallback", false)
+        // ExoPlayer / Media3 is the only built-in playback engine.
+        prefs.edit().remove("playback_engine").apply()
         speed = prefs.getFloat("speed", 1f)
         autoPlayNext = prefs.getBoolean("autoplay", true)
         subPos = prefs.getFloat("sub_pos", 0.12f)
@@ -250,42 +257,38 @@ class PlayerActivity : ComponentActivity() {
         loadAndPlay()
     }
 
-    private fun launchVlc(positionMs: Long, url: String?) {
-        if (::player.isInitialized && sourceId.isNotEmpty()) {
-            report("stop")
-            sourceId = "" // The VLC activity takes over this Jellyfin playback session.
-        }
-        val i = Intent(this, VlcPlayerActivity::class.java)
-            .putExtra("id", itemId)
-            .putExtra("file", offlinePath)
-            .putExtra("stream_url", url ?: plan?.url)
-            .putExtra("source_id", sourceId)
-            .putExtra("session_id", sessionId)
-            .putExtra("position_ms", positionMs)
-            .putExtra("title", if (::titleView.isInitialized) titleView.text.toString() else intent.getStringExtra("title"))
-            .putExtra("autoplay_next", autoPlayNext)
-            .putExtra("transcoding", isTranscoding)
-        startActivity(i)
-        finish()
-    }
-
-    /** Builds an ExoPlayer using the chosen decoder mode. 4K/8K play whenever the device decoder supports them. */
+    /** Media3 player with hardware-first codec selection, decoder diagnostics and a larger adaptive buffer. */
     private fun createPlayer(): ExoPlayer {
         val selector = MediaCodecSelector { mime, secure, tunneling ->
             val all = MediaCodecSelector.DEFAULT.getDecoderInfos(mime, secure, tunneling)
-            when (decoder) {
+            val selected = when (decoder) {
                 DecoderMode.SW -> all.filter { it.softwareOnly }.ifEmpty { all }
                 DecoderMode.HW -> all.filter { it.hardwareAccelerated }.ifEmpty { all }
-                DecoderMode.HW_PLUS -> all
+                DecoderMode.HW_PLUS -> all.sortedBy { if (it.hardwareAccelerated) 0 else 1 }
             }
+            DiagnosticLog.record(
+                applicationContext,
+                "MediaCodec candidates mime=$mime mode=$decoder selected=" +
+                    selected.joinToString { "${it.name}(hw=${it.hardwareAccelerated},sw=${it.softwareOnly})" }
+            )
+            selected
         }
         val factory = DefaultRenderersFactory(this)
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setMediaCodecSelector(selector)
             .setEnableDecoderFallback(true)
         if (decoder == DecoderMode.HW_PLUS) factory.forceEnableMediaCodecAsynchronousQueueing()
+
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(25_000, 90_000, 3_000, 7_000)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
         val p = ExoPlayer.Builder(this, factory)
-            .setSeekBackIncrementMs(10_000).setSeekForwardIncrementMs(10_000).build()
+            .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10_000)
+            .setSeekForwardIncrementMs(10_000)
+            .build()
         p.setPlaybackSpeed(speed)
         p.setAudioAttributes(
             AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(), true
@@ -293,9 +296,29 @@ class PlayerActivity : ComponentActivity() {
         p.setHandleAudioBecomingNoisy(true)
         p.setWakeMode(C.WAKE_MODE_NETWORK)
         p.setVideoChangeFrameRateStrategy(C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS)
-        // subtitles are drawn by our own engine; ExoPlayer's text renderer is only used for image subtitles
         p.trackSelectionParameters = p.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true).build()
+        p.addAnalyticsListener(object : AnalyticsListener {
+            override fun onVideoDecoderInitialized(
+                eventTime: AnalyticsListener.EventTime,
+                decoderName: String,
+                initializedTimestampMs: Long,
+                initializationDurationMs: Long
+            ) {
+                DiagnosticLog.record(
+                    applicationContext,
+                    "VIDEO_DECODER name=$decoderName init=${initializationDurationMs}ms device=${Build.MANUFACTURER} ${Build.MODEL}"
+                )
+            }
+
+            override fun onDroppedVideoFrames(
+                eventTime: AnalyticsListener.EventTime,
+                droppedFrames: Int,
+                elapsedMs: Long
+            ) {
+                DiagnosticLog.record(applicationContext, "VIDEO_DROPPED frames=$droppedFrames window=${elapsedMs}ms")
+            }
+        })
         return p
     }
 
@@ -1274,7 +1297,17 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onPlaybackStateChanged(state: Int) {
                 spinner.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
+                if (state == Player.STATE_BUFFERING) {
+                    if (hasPlayedOnce && player.playWhenReady && quality == Quality.AUTO &&
+                        plan?.transcoding != true && offlinePath == null) {
+                        handler.removeCallbacks(stalledPlaybackFallback)
+                        handler.postDelayed(stalledPlaybackFallback, 20_000)
+                    }
+                } else {
+                    handler.removeCallbacks(stalledPlaybackFallback)
+                }
                 if (state == Player.STATE_READY) {
+                    if (player.playWhenReady) hasPlayedOnce = true
                     updateProgress()
                     if (startupStartedAt > 0L) {
                         DiagnosticLog.record(this@PlayerActivity,
@@ -1290,16 +1323,8 @@ class PlayerActivity : ComponentActivity() {
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachEnhancer(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
             DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
-                // Auto engine: retry decoder/codec failures in LibVLC before giving up.
-                if (playbackEngine == PlaybackEngine.AUTO && !vlcFallbackAttempted &&
-                    error.errorCode in 4001..4005) {
-                    vlcFallbackAttempted = true
-                    showHud("Android decoder failed. Switching to VLC…", 2200)
-                    launchVlc(player.currentPosition, plan?.url)
-                    return
-                }
-                // Auto quality mode: if this phone's decoder chokes on a direct-played file, switch to a transcode once
-                if (quality == Quality.AUTO && plan?.transcoding == false && !autoRetried && offlinePath == null &&
+                // ExoPlayer is the sole built-in engine. If direct-play decoding fails, request a compatible Jellyfin transcode.
+                if (quality == Quality.AUTO && plan?.transcoding != true && !autoRetried && offlinePath == null &&
                     error.errorCode in 4001..4005) {
                     fallbackTranscode(); return
                 }
@@ -1439,7 +1464,7 @@ class PlayerActivity : ComponentActivity() {
         defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
-        autoRetried = false; plan = null
+        autoRetried = false; hasPlayedOnce = false; plan = null
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
@@ -1777,6 +1802,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        handler.removeCallbacks(stalledPlaybackFallback)
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {

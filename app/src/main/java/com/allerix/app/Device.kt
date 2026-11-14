@@ -20,7 +20,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioCapabilities
 
-data class VideoCodecCap(val mime: String, val label: String, val hwMaxHeight: Int, val anyMaxHeight: Int)
+data class VideoCodecCap(val mime: String, val label: String, val hwMaxHeight: Int, val anyMaxHeight: Int, val hwMain10MaxHeight: Int = 0)
 
 data class DeviceCaps(
     val displayWidth: Int, val displayHeight: Int, val maxRefresh: Float,
@@ -75,6 +75,7 @@ object Device {
         for (v in c.video) {
             val n = jfName[v.mime] ?: continue
             val h = when {
+                n == "hevc" -> v.hwMain10MaxHeight
                 v.hwMaxHeight > 0 -> v.hwMaxHeight
                 (n == "h264" || n == "vp9") -> minOf(v.anyMaxHeight, 1080)
                 else -> 0
@@ -104,16 +105,21 @@ object Device {
         return types.map { (mime, label) ->
             var hw = 0
             var any = 0
+            var hwMain10 = 0
             for (info in infos) {
                 if (!info.supportedTypes.any { it.equals(mime, ignoreCase = true) }) continue
-                val vc = try { info.getCapabilitiesForType(mime).videoCapabilities } catch (e: Exception) { null }
-                if (vc == null) continue
+                val codecCaps = try { info.getCapabilitiesForType(mime) } catch (e: Exception) { null } ?: continue
+                val vc = codecCaps.videoCapabilities ?: continue
                 var best = 0
                 for ((h, w) in sizes) { if (vc.isSizeSupported(w, h)) { best = h; break } }
                 if (best > any) any = best
                 if (isHardware(info) && best > hw) hw = best
+                if (mime == "video/hevc" && isHardware(info) &&
+                    codecCaps.profileLevels.any { it.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10 }) {
+                    if (best > hwMain10) hwMain10 = best
+                }
             }
-            VideoCodecCap(mime, label, hw, any)
+            VideoCodecCap(mime, label, hw, any, hwMain10)
         }
     }
 
@@ -246,6 +252,8 @@ object Device {
         rows.add("HDR" to (if (c.hdrTypes.isEmpty()) "Not supported by the display" else c.hdrTypes.joinToString(", ")))
         rows.add("Video decoders" to c.video.joinToString("\n") { v ->
             v.label + ": " + when {
+                v.mime == "video/hevc" && v.hwMain10MaxHeight > 0 -> heightLabel(v.hwMain10MaxHeight) + " Main 10 (hardware)"
+                v.mime == "video/hevc" -> "Main 10 not verified for hardware direct play"
                 v.hwMaxHeight > 0 -> heightLabel(v.hwMaxHeight) + " (hardware)"
                 v.anyMaxHeight > 0 -> heightLabel(v.anyMaxHeight) + " (software)"
                 else -> "not supported"

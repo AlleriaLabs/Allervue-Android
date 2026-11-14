@@ -27,7 +27,6 @@
             </intent-filter>
         </activity>
 
-        <activity android:name=".VlcPlayerActivity" android:exported="false" android:screenOrientation="sensorLandscape" />
 
         <activity
             android:name=".PlayerActivity"
