@@ -130,14 +130,14 @@ class VlcPlayerActivity : ComponentActivity() {
                         handler.removeCallbacks(bufferingFallback)
                         spinner.visibility = View.GONE
                         play.text = "Ⅱ"
-                        state.text = "VLC · Playing"
+                        state.text = "Now Playing"
                         if (!reporting && sourceId.isNotEmpty()) {
                             reporting = true
                             val id = itemId; val src = sourceId; val pos = vlc.time; val transcode = transcoding; val sid = sessionId
                             lifecycleScope.launch(Dispatchers.IO) { Api.report("start", id, src, pos, false, transcode, sid) }
                         }
                     }
-                    MediaPlayer.Event.Paused -> { play.text = "▶"; state.text = "VLC · Paused"; reportProgress() }
+                    MediaPlayer.Event.Paused -> { play.text = "▶"; state.text = "Paused"; reportProgress() }
                     MediaPlayer.Event.Stopped -> { spinner.visibility = View.GONE; play.text = "▶" }
                     MediaPlayer.Event.EndReached -> {
                         reportStopped()
