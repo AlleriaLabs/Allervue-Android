@@ -13,7 +13,7 @@ val hasReleaseSigning = listOf(
 
 android {
     namespace = "com.allerix.app"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.allerix.app"
         minSdk = 24
