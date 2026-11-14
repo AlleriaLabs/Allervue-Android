@@ -18,8 +18,8 @@ android {
         applicationId = "com.allerix.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 5
+        versionName = "1.3.0"
     }
     signingConfigs {
         if (hasReleaseSigning) {
