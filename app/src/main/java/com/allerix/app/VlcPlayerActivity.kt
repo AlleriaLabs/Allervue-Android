@@ -56,6 +56,15 @@ class VlcPlayerActivity : ComponentActivity() {
     private var started = false
     private var reporting = false
     private var transcoding = false
+    private var bufferingSince = 0L
+    private var bufferingFallbackTriggered = false
+    private val bufferingFallback = Runnable {
+        if (bufferingSince > 0L && !bufferingFallbackTriggered && filePath == null && !transcoding) {
+            bufferingFallbackTriggered = true
+            DiagnosticLog.record(this, "VLC sustained buffering for 25s; requesting H.264 1080p transcode")
+            fallbackToExoTranscode()
+        }
+    }
     private var siblings: List<Item> = emptyList()
     private var siblingIndex = -1
     private var introSegments: List<Pair<Long, Long>> = emptyList()
@@ -98,14 +107,23 @@ class VlcPlayerActivity : ComponentActivity() {
             View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 
         buildUi()
-        val options = arrayListOf("--network-caching=1200", "--file-caching=1000", "--no-drop-late-frames")
+        val options = arrayListOf("--network-caching=6000", "--file-caching=3000", "--avcodec-hw=any")
         libVLC = LibVLC(this, options)
         vlc = MediaPlayer(libVLC)
         vlc.setEventListener { event ->
             runOnUiThread {
                 when (event.type) {
-                    MediaPlayer.Event.Opening, MediaPlayer.Event.Buffering -> spinner.visibility = View.VISIBLE
+                    MediaPlayer.Event.Opening -> spinner.visibility = View.VISIBLE
+                    MediaPlayer.Event.Buffering -> {
+                        spinner.visibility = View.VISIBLE
+                        if (bufferingSince == 0L) {
+                            bufferingSince = SystemClock.elapsedRealtime()
+                            handler.postDelayed(bufferingFallback, 25_000)
+                        }
+                    }
                     MediaPlayer.Event.Playing -> {
+                        bufferingSince = 0L
+                        handler.removeCallbacks(bufferingFallback)
                         spinner.visibility = View.GONE
                         play.text = "Ⅱ"
                         state.text = "VLC · Playing"
@@ -124,6 +142,7 @@ class VlcPlayerActivity : ComponentActivity() {
                         } else finish()
                     }
                     MediaPlayer.Event.EncounteredError -> {
+                        handler.removeCallbacks(bufferingFallback)
                         spinner.visibility = View.GONE
                         if (prefs.getString("playback_engine", "AUTO") == PlaybackEngine.AUTO.name &&
                             !transcoding && filePath == null) {
@@ -292,7 +311,9 @@ class VlcPlayerActivity : ComponentActivity() {
                 vlc.attachViews(video, null, false, false)
                 Media(libVLC, uri).apply {
                     setHWDecoderEnabled(true, false)
-                    addOption(":network-caching=1200")
+                    addOption(":network-caching=6000")
+                    addOption(":file-caching=3000")
+                    addOption(":avcodec-hw=any")
                     vlc.media = this
                     release()
                 }
@@ -318,7 +339,8 @@ class VlcPlayerActivity : ComponentActivity() {
         state.text = "VLC couldn't decode this file. Trying Jellyfin transcoding…"
         reportStopped()
         // Return to ExoPlayer in Auto mode; its decoder-error handler will request a Jellyfin HLS transcode.
-        prefs.edit().putString("quality", Quality.AUTO.name).apply()
+        // Explicitly request a broadly compatible H.264 1080p stream; Auto could select the same failing HEVC source again.
+        prefs.edit().putString("quality", Quality.P1080.name).apply()
         val intent = Intent(this, PlayerActivity::class.java)
             .putExtra("id", itemId)
             .putExtra("start_position_ms", vlc.time)
@@ -373,6 +395,7 @@ class VlcPlayerActivity : ComponentActivity() {
             vlc.release()
             libVLC.release()
         }
+        handler.removeCallbacks(bufferingFallback)
         super.onDestroy()
     }
 }

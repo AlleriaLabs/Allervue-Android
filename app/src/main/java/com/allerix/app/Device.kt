@@ -20,7 +20,7 @@ import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.audio.AudioCapabilities
 
-data class VideoCodecCap(val mime: String, val label: String, val hwMaxHeight: Int, val anyMaxHeight: Int)
+data class VideoCodecCap(val mime: String, val label: String, val hwMaxHeight: Int, val anyMaxHeight: Int, val hwMain10: Boolean = false)
 
 data class DeviceCaps(
     val displayWidth: Int, val displayHeight: Int, val maxRefresh: Float,
@@ -104,6 +104,7 @@ object Device {
         return types.map { (mime, label) ->
             var hw = 0
             var any = 0
+            var hwMain10 = false
             for (info in infos) {
                 if (!info.supportedTypes.any { it.equals(mime, ignoreCase = true) }) continue
                 val vc = try { info.getCapabilitiesForType(mime).videoCapabilities } catch (e: Exception) { null }
@@ -112,8 +113,14 @@ object Device {
                 for ((h, w) in sizes) { if (vc.isSizeSupported(w, h)) { best = h; break } }
                 if (best > any) any = best
                 if (isHardware(info) && best > hw) hw = best
+                if (mime == "video/hevc" && isHardware(info)) {
+                    val main10 = try { info.getCapabilitiesForType(mime).profileLevels.any {
+                        it.profile == MediaCodecInfo.CodecProfileLevel.HEVCProfileMain10
+                    } } catch (_: Exception) { false }
+                    if (main10) hwMain10 = true
+                }
             }
-            VideoCodecCap(mime, label, hw, any)
+            VideoCodecCap(mime, label, hw, any, hwMain10)
         }
     }
 

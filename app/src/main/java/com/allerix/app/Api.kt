@@ -435,7 +435,19 @@ object Api {
             val caps = withContext(Dispatchers.IO) { Device.caps(ctx) }   // first scan of decoders can take a moment
             val saveData = ctx.getSharedPreferences("player", Context.MODE_PRIVATE).getBoolean("save_data", true)
             val pol = Device.policy(ctx, caps, saveData)
-            val vcaps = Device.directPlayVideo(caps)
+            // Jellyfin's codec list alone does not distinguish HEVC Main 10 from 8-bit HEVC.
+            // Inspect the selected media source and only advertise Main 10 when a hardware decoder reports it.
+            val sourceStreams = runCatching { item(id).mediaSources?.firstOrNull { it.id == sourceId }?.streams }
+                .getOrNull().orEmpty()
+            val hasHevcMain10 = sourceStreams.any { stream ->
+                stream.type.equals("Video", true) && stream.codec.equals("hevc", true) &&
+                    ((stream.bitDepth ?: 0) >= 10 || stream.profile?.contains("main 10", true) == true ||
+                        stream.profile?.contains("main10", true) == true)
+            }
+            val hevcMain10Supported = caps.video.firstOrNull { it.mime == "video/hevc" }?.hwMain10 == true
+            val vcaps = Device.directPlayVideo(caps).filterNot {
+                it.first == "hevc" && hasHevcMain10 && !hevcMain10Supported
+            }
             val vNames = vcaps.map { it.first }
             val aNames = caps.audioCodecs
             val profile = buildJsonObject {

@@ -48,6 +48,8 @@ import kotlinx.serialization.Serializable
     @SerialName("DisplayTitle") val title: String? = null,
     @SerialName("IsExternal") val isExternal: Boolean = false,
     @SerialName("Codec") val codec: String? = null,
+    @SerialName("Profile") val profile: String? = null,
+    @SerialName("BitDepth") val bitDepth: Int? = null,
     @SerialName("IsTextSubtitleStream") val isText: Boolean = false,
     @SerialName("IsDefault") val isDefault: Boolean = false,
     @SerialName("Height") val height: Int? = null,
