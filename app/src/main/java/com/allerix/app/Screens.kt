@@ -62,7 +62,7 @@ import kotlinx.coroutines.launch
 // ------------------------------------------------------------------ home
 @Composable
 fun HomeScreen(
-    onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, onSeeAll: (Item) -> Unit,
+    onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, onSeeAll: (Item, List<Item>) -> Unit,
     onSearch: () -> Unit, onSettings: () -> Unit, onLogout: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -150,7 +150,14 @@ fun HomeScreen(
             val picks = recommended.take(12)
             if (picks.isNotEmpty()) item { MediaRow("Picked for You", picks, onClick = onOpen) }
             items(rows, key = { it.first.id }) { (lib, list) ->
-                MediaRow("Latest in ${lib.name}", list, onClick = onOpen, onSeeAll = { onSeeAll(lib) })
+                MediaRow(
+                    when {
+                        list.firstOrNull()?.type == "Movie" -> "Latest Movies"
+                        list.firstOrNull()?.type == "Series" && list.all { it.isAnimeSeries() } -> "Latest Anime"
+                        list.firstOrNull()?.type == "Series" -> "Latest Series"
+                        else -> "Latest in ${lib.name}"
+                    }, list, onClick = onOpen, onSeeAll = { onSeeAll(lib, list) }
+                )
             }
         }
         if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
@@ -847,6 +854,15 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
     var seasonIdx by remember { mutableStateOf(0) }
     var similar by remember { mutableStateOf<List<Item>>(emptyList()) }
     var tab by remember { mutableStateOf(0) }
+    var downloadRecords by remember { mutableStateOf(Downloads.list(ctx)) }
+    var downloadStates by remember { mutableStateOf<Map<String, DlState>>(emptyMap()) }
+    LaunchedEffect(base.id, episodes) {
+        while (true) {
+            downloadRecords = Downloads.list(ctx)
+            downloadStates = downloadRecords.associate { it.id to Downloads.state(ctx, it) }
+            delay(1000)
+        }
+    }
     val isSeries = base.type == "Series"
     val isSeason = base.type == "Season"
     val tabs = if (isSeries || isSeason) listOf("Episodes", "Details", "More Like This") else listOf("Details", "More Like This")
@@ -871,6 +887,16 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
     val meta = listOfNotNull(cur.year?.toString(), fmtRuntime(cur.runTimeTicks).ifEmpty { null }, cur.officialRating)
         .joinToString("   •   ")
     val canDownload = !isSeries && !isSeason
+    val currentDownload = downloadRecords.firstOrNull { it.id == cur.id }
+    val currentDownloadState = currentDownload?.let { downloadStates[it.id] }
+    val downloadedEpisodes = episodes.count { ep ->
+        downloadRecords.firstOrNull { it.id == ep.id }?.let { downloadStates[it.id]?.status == android.app.DownloadManager.STATUS_SUCCESSFUL } == true
+    }
+    val activeEpisode = episodes.firstNotNullOfOrNull { ep ->
+        val rec = downloadRecords.firstOrNull { it.id == ep.id } ?: return@firstNotNullOfOrNull null
+        val state = downloadStates[ep.id] ?: return@firstNotNullOfOrNull null
+        if (state.status == android.app.DownloadManager.STATUS_RUNNING || state.status == android.app.DownloadManager.STATUS_PENDING) rec to state else null
+    }
 
     AppBackground {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -911,7 +937,34 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
                             Text("Play", fontWeight = FontWeight.Bold)
                         }
                         MyListButton(cur, Modifier.weight(1f))
-                        if (canDownload) IconButton(onClick = { startDownload(cur) }) { SmallIcon(R.drawable.ic_download) }
+                        if (canDownload) IconButton(
+                            onClick = { if (currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL) startDownload(cur) },
+                            enabled = currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL
+                        ) { SmallIcon(if (currentDownloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL) R.drawable.ic_check else R.drawable.ic_download) }
+                    }
+                    if (canDownload && currentDownloadState != null) {
+                        val state = currentDownloadState
+                        val label = when (state.status) {
+                            android.app.DownloadManager.STATUS_SUCCESSFUL -> "Downloaded"
+                            android.app.DownloadManager.STATUS_RUNNING, android.app.DownloadManager.STATUS_PENDING -> {
+                                val pct = if (state.total > 0) (state.done * 100 / state.total).toInt() else 0
+                                "Downloading · $pct%"
+                            }
+                            android.app.DownloadManager.STATUS_PAUSED -> "Download paused"
+                            android.app.DownloadManager.STATUS_FAILED -> "Download failed · tap to retry"
+                            else -> ""
+                        }
+                        if (label.isNotEmpty()) Text(label, color = if (state.status == android.app.DownloadManager.STATUS_SUCCESSFUL) Color(0xFF8FC7A0) else Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+                    }
+                    if ((isSeries || isSeason) && episodes.isNotEmpty()) {
+                        Text(
+                            "Downloads · $downloadedEpisodes/${episodes.size} episodes downloaded" +
+                                (activeEpisode?.let { pair ->
+                                    val pct = if (pair.second.total > 0) (pair.second.done * 100 / pair.second.total).toInt() else 0
+                                    " · ${pair.first.title}: $pct%"
+                                } ?: ""),
+                            color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
+                        )
                     }
                 }
             }
@@ -952,7 +1005,8 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
                     items(episodes, key = { it.id }) { ep ->
                         EpisodeRow(
                             ep, onPlay = { onPlay(ep) },
-                            onDownload = { startDownload(ep) }
+                            onDownload = { startDownload(ep) },
+                            downloadState = downloadStates[ep.id]
                         )
                     }
                 }
@@ -997,7 +1051,7 @@ private fun DetailLine(label: String, value: String) {
 }
 
 @Composable
-fun EpisodeRow(ep: Item, onPlay: () -> Unit, onDownload: () -> Unit) {
+fun EpisodeRow(ep: Item, onPlay: () -> Unit, onDownload: () -> Unit, downloadState: DlState? = null) {
     val rt = ep.runTimeTicks ?: 0L
     val pos = ep.userData?.positionTicks ?: 0L
     Row(
@@ -1019,7 +1073,20 @@ fun EpisodeRow(ep: Item, onPlay: () -> Unit, onDownload: () -> Unit) {
                 fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
             )
             Text(fmtRuntime(ep.runTimeTicks), color = Grey, fontSize = 12.sp)
+            val dlLabel = when (downloadState?.status) {
+                android.app.DownloadManager.STATUS_SUCCESSFUL -> "Downloaded"
+                android.app.DownloadManager.STATUS_RUNNING, android.app.DownloadManager.STATUS_PENDING -> {
+                    val pct = if (downloadState.total > 0) (downloadState.done * 100 / downloadState.total).toInt() else 0
+                    "Downloading · $pct%"
+                }
+                android.app.DownloadManager.STATUS_PAUSED -> "Paused"
+                android.app.DownloadManager.STATUS_FAILED -> "Failed · retry"
+                else -> ""
+            }
+            if (dlLabel.isNotEmpty()) Text(dlLabel, color = if (downloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL) Color(0xFF8FC7A0) else Grey, fontSize = 11.sp)
         }
-        IconButton(onClick = onDownload) { SmallIcon(R.drawable.ic_download) }
+        IconButton(onClick = onDownload, enabled = downloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL) {
+            SmallIcon(if (downloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL) R.drawable.ic_check else R.drawable.ic_download)
+        }
     }
 }

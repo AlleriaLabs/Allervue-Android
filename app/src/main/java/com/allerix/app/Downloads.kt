@@ -12,9 +12,14 @@ import kotlinx.serialization.json.Json
 import java.io.File
 
 @Serializable
+data class DownloadedSubtitle(
+    val file: String, val language: String = "", val title: String = "", val codec: String = "", val isDefault: Boolean = false
+)
+
+@Serializable
 data class DownloadRec(
     val id: String, val title: String, val file: String, val dmId: Long, val runtimeTicks: Long = 0L,
-    val cover: String = ""
+    val cover: String = "", val subtitles: List<DownloadedSubtitle> = emptyList()
 )
 
 data class DlState(val status: Int, val done: Long, val total: Long, val reason: Int = 0)
@@ -73,10 +78,24 @@ object Downloads {
         else DlState(-1, 0L, 0L)
     }
 
+    fun subtitles(ctx: Context, id: String): List<DownloadedSubtitle> =
+        list(ctx).firstOrNull { it.id == id }?.subtitles.orEmpty().filter { File(it.file).exists() }
+
+    private fun subtitleExtension(codec: String?): String = when (codec?.lowercase()) {
+        "ass", "ssa" -> "ass"
+        "webvtt", "vtt" -> "vtt"
+        else -> "srt"
+    }
+
+    private fun saveSubtitleList(ctx: Context, id: String, subtitles: List<DownloadedSubtitle>) {
+        save(ctx, list(ctx).map { if (it.id == id) it.copy(subtitles = subtitles) else it })
+    }
+
     fun remove(ctx: Context, rec: DownloadRec) {
         val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
         runCatching { dm.remove(rec.dmId) }
         runCatching { File(rec.file).delete() }
+        rec.subtitles.forEach { runCatching { File(it.file).delete() } }
         runCatching { coverFile(ctx, rec.id).delete() }
         ctx.getSharedPreferences("offline_pos", Context.MODE_PRIVATE).edit().remove("pos_${rec.id}").apply()
         save(ctx, list(ctx).filter { it.id != rec.id })
@@ -158,8 +177,31 @@ object Downloads {
             val dm = ctx.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
             val dmId = dm.enqueue(req)
             val cover = saveCover(ctx, full)
+            // Save the media record immediately so its live DownloadManager progress is visible.
             save(ctx, list(ctx) + DownloadRec(item.id, title, target.absolutePath, dmId, full.runTimeTicks ?: item.runTimeTicks ?: 0L, cover))
-            return "Download started"
+            // Jellyfin exposes text subtitle streams independently. Store every readable text track
+            // as a sidecar; image subtitles (PGS/VobSub) are intentionally skipped.
+            val source = full.mediaSources?.firstOrNull()
+            val subtitleDir = File(ctx.filesDir, "download_subtitles").apply { mkdirs() }
+            val savedSubs = ArrayList<DownloadedSubtitle>()
+            source?.streams?.filter { it.type == "Subtitle" && it.isText }?.forEach { stream ->
+                runCatching {
+                    val ext = subtitleExtension(stream.codec)
+                    val bytes = Api.fetchBytes(Api.subtitleUrl(full.id, source.id, stream.index, ext))
+                    val text = Api.decodeText(bytes)
+                    if (bytes.isNotEmpty() && SubParser.parse(text) != null) {
+                        val sidecar = File(subtitleDir, "${full.id}_${stream.index}.$ext")
+                        sidecar.writeBytes(bytes)
+                        savedSubs += DownloadedSubtitle(
+                            sidecar.absolutePath, stream.language.orEmpty(),
+                            stream.title ?: stream.language ?: "Subtitle", stream.codec.orEmpty(), stream.isDefault
+                        )
+                    }
+                }
+            }
+            saveSubtitleList(ctx, item.id, savedSubs)
+            return if (savedSubs.isEmpty()) "Download started · no supported text subtitles found"
+                else "Download started · ${savedSubs.size} subtitle track(s) saved"
         } catch (e: Exception) {
             return "Couldn't start download (${e.message})"
         }

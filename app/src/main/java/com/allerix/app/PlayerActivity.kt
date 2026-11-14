@@ -1321,6 +1321,17 @@ class PlayerActivity : ComponentActivity() {
         val file = offlinePath
         if (file != null) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(file))))
+            val savedSubs = Downloads.subtitles(this@PlayerActivity, itemId)
+            val preferredSub = savedSubs.firstOrNull { it.language.startsWith("en", true) }
+                ?: savedSubs.firstOrNull { it.isDefault }
+                ?: savedSubs.firstOrNull()
+            if (preferredSub != null) {
+                val parsed = runCatching { SubParser.parse(Api.decodeText(File(preferredSub.file).readBytes())) }.getOrNull()
+                if (parsed != null) {
+                    cues = parsed; subOn = true; activeSub = -2
+                    showHud("Offline subtitles · ${preferredSub.title}", 1800)
+                }
+            }
             val saved = Downloads.position(this@PlayerActivity, itemId)
             if (saved > 5_000) { player.seekTo(saved); showHud("Resuming at " + fmt(saved), 1500) }
             player.playWhenReady = true

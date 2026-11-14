@@ -183,7 +183,10 @@ fun MainShell(onLogout: () -> Unit) {
             when (top) {
                 null -> when (tab) {
                     NavTab.HOME -> HomeScreen(
-                        onOpen, onPlay, onSeeAll = { stack.add(Nav.Grid(it)) },
+                        onOpen, onPlay, onSeeAll = { _, items ->
+                            stack.clear()
+                            tab = if (items.firstOrNull()?.type == "Movie") NavTab.MOVIES else NavTab.SHOWS
+                        },
                         onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, onLogout = signOut
                     )
                     NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
