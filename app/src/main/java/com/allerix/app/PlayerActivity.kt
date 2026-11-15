@@ -902,6 +902,43 @@ class PlayerActivity : ComponentActivity() {
         ))
     }
 
+    /** Shows the real FFmpegKit startup failure, including nested native/linker causes. */
+    private fun showLocalOptimizerFailure(error: Throwable) {
+        val writer = java.io.StringWriter()
+        error.printStackTrace(java.io.PrintWriter(writer))
+        val details = buildString {
+            append("Exception: ").append(error.javaClass.name).append('\n')
+            var cause = error.cause
+            var depth = 0
+            while (cause != null && cause !== error && depth < 8) {
+                append("Caused by: ").append(cause.javaClass.name)
+                cause.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
+                append('\n')
+                cause = cause.cause
+                depth++
+            }
+            append('\n').append(writer.toString())
+        }
+        DiagnosticLog.record(this, "LOCAL_OPTIMIZER diagnostic details shown to user", error)
+        val body = TextView(this).apply {
+            text = details
+            textSize = 12f
+            setTextIsSelectable(true)
+            setPadding(dp(20), dp(12), dp(20), dp(12))
+        }
+        val scroll = ScrollView(this).apply { addView(body) }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Local conversion failed")
+            .setView(scroll)
+            .setPositiveButton("Copy details") { _, _ ->
+                val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Allervue FFmpeg diagnostics", details))
+                showHud("Error details copied", 2000)
+            }
+            .setNegativeButton("Close", null)
+            .show()
+    }
+
     private fun startLocalOptimization() {
         if (offlinePath != null) {
             showHud("Local optimization is for streamed titles", 2500)
@@ -972,7 +1009,7 @@ class PlayerActivity : ComponentActivity() {
                 override fun onError(error: Throwable) {
                     localOptimizedActive = false
                     DiagnosticLog.record(this@PlayerActivity, "LOCAL_OPTIMIZER failed: ${error.message}", error)
-                    showHud("Local conversion unavailable: ${error.message ?: "unsupported device codec"}", 6000)
+                    showLocalOptimizerFailure(error)
                     // Restore the original Jellyfin stream; the user can still choose Auto or server H.264.
                     player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
                     player.prepare()
@@ -982,7 +1019,7 @@ class PlayerActivity : ComponentActivity() {
         } catch (error: Throwable) {
             localOptimizedActive = false
             DiagnosticLog.record(this, "LOCAL_OPTIMIZER could not start: ${error.message}", error)
-            showHud("Couldn't start local conversion: ${error.message}", 5000)
+            showLocalOptimizerFailure(error)
             player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
             player.prepare()
             player.playWhenReady = true
