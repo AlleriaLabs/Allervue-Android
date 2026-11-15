@@ -20,8 +20,8 @@ android {
         minSdk = 24
         targetSdk = 34
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 8
-        versionName = "1.3.3"
+        versionCode = 9
+        versionName = "1.3.4"
     }
     signingConfigs {
         if (hasReleaseSigning) {
