@@ -1327,7 +1327,7 @@ class PlayerActivity : ComponentActivity() {
                 val http = generateSequence<Throwable>(error) { it.cause }
                     .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
                 val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
-                val serverFailure = http?.responseCode in 500..599
+                val serverFailure = http != null && http.responseCode in 500..599
                 val decoderFailure = error.errorCode in 4001..4005
                 // Explicit Original is still attempted first. If Jellyfin returns a server error,
                 // or this device cannot decode the stream, retry once as H.264 1080p.
