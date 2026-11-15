@@ -398,7 +398,8 @@ class PlayerActivity : ComponentActivity() {
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         addView(FrameLayout(context).apply {
             background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL                setColor(0x22222228)
+                shape = GradientDrawable.OVAL
+                setColor(0x22222228)
                 setStroke(dp(1), 0x22FFFFFF)
             }
             elevation = dp(2).toFloat()
@@ -1196,7 +1197,9 @@ class PlayerActivity : ComponentActivity() {
     // ================================================================= controls visibility
     private fun showControls() {
         if (locked) return
-        controlsVisible = true; controls.visibility = View.VISIBLE        layoutSubtitle(); updateProgress(); scheduleHide()
+        controlsVisible = true
+        controls.visibility = View.VISIBLE
+        layoutSubtitle(); updateProgress(); scheduleHide()
     }
 
     private fun hideControls() {
