@@ -7,6 +7,10 @@ on:
         description: "Publish a GitHub Release with this tag (e.g. v1.0.1). Leave empty to only build."
         required: false
         default: ""
+concurrency:
+  group: allervue-android-build-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 jobs:
