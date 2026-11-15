@@ -1479,8 +1479,8 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun switchTo(newId: String) {
-        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         report("stop")
+        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
         defaultAudioApplied = false; defaultSubtitleApplied = false
