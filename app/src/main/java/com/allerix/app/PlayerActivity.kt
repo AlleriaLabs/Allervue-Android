@@ -97,6 +97,9 @@ class PlayerActivity : ComponentActivity() {
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
+    private lateinit var mpvView: AllervueMpvView
+    private var mpvActive = false
+    private var mpvAttempted = false
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var spinner: ProgressBar
@@ -172,7 +175,7 @@ class PlayerActivity : ComponentActivity() {
         if (::player.isInitialized && player.playWhenReady &&
             player.playbackState == Player.STATE_BUFFERING &&
             (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
-            plan?.transcoding != true && offlinePath == null && !autoRetried) {
+            plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
             DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; requesting Jellyfin H.264 1080p fallback")
             fallbackTranscode()
         }
@@ -247,6 +250,7 @@ class PlayerActivity : ComponentActivity() {
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
+        mpvView = AllervueMpvView(this).apply { visibility = View.GONE }
         buildUi()
         DiagnosticLog.record(this, "PlayerActivity: UI built")
         setupGestures()
@@ -571,7 +575,7 @@ class PlayerActivity : ComponentActivity() {
                 scrubbing = true; handler.removeCallbacks(autoHide)
             }
             override fun onStopTrackingTouch(s: SeekBar) {
-                scrubbing = false; player.seekTo(s.progress.toLong()); scheduleHide()
+                scrubbing = false; seekPlaybackTo(s.progress.toLong()); scheduleHide()
             }
         })
         val timeline = LinearLayout(this).apply {
@@ -635,6 +639,7 @@ class PlayerActivity : ComponentActivity() {
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(playerView, FrameLayout.LayoutParams(-1, -1))
+            addView(mpvView, FrameLayout.LayoutParams(-1, -1))
             addView(subText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
             addView(controls, FrameLayout.LayoutParams(-1, -1))
@@ -683,7 +688,7 @@ class PlayerActivity : ComponentActivity() {
         act(pipBtn) { enterPip() }
         act(rewBtn) { seekBy(-10_000); showHud("-10s") }
         act(fwdBtn) { seekBy(10_000); showHud("+10s") }
-        act(playBtn) { if (player.isPlaying) player.pause() else player.play() }
+        act(playBtn) { togglePlayback(); showControls() }
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
         act(lockAction) { toggleLock() }
@@ -837,7 +842,7 @@ class PlayerActivity : ComponentActivity() {
     private fun showSpeedSheet() = sheet("Playback Speed") { box, dlg ->
         val speeds = floatArrayOf(0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f)
         box.addView(radioGroup(100, speeds.map { speedText(it) }, speeds.indexOfFirst { it == speed }.coerceAtLeast(0)) { i ->
-            speed = speeds[i]; player.setPlaybackSpeed(speed); speedLabel.text = speedText(speed); dlg.dismiss()
+            speed = speeds[i]; setPlaybackSpeed(speed); speedLabel.text = speedText(speed); dlg.dismiss()
         })
     }
 
@@ -1137,7 +1142,7 @@ class PlayerActivity : ComponentActivity() {
             cues.getOrNull(if (active) idx - 1 else idx)
         }
         if (target != null) {
-            player.seekTo((target.startMs + subDelayMs).coerceAtLeast(0L))
+            seekPlaybackTo((target.startMs + subDelayMs).coerceAtLeast(0L))
             showHud(if (dir > 0) "Next subtitle" else "Previous subtitle")
         }
     }
@@ -1204,12 +1209,14 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun updateProgress() {
-        val dur = player.duration
-        if (dur > 0) seek.max = dur.toInt()
-        seek.progress = player.currentPosition.toInt().coerceAtLeast(0)
-        seek.secondaryProgress = player.bufferedPosition.toInt().coerceAtLeast(0)
-        curTime.text = fmt(player.currentPosition)
+        val dur = if (mpvActive) mpvView.durationMs() else player.duration
+        val pos = playbackPositionMs()
+        if (dur > 0) seek.max = dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        seek.secondaryProgress = if (mpvActive) seek.progress else player.bufferedPosition.toInt().coerceAtLeast(0)
+        curTime.text = fmt(pos)
         durTime.text = if (dur > 0) fmt(dur) else "--:--"
+        if (mpvActive) playBtn.setImageResource(if (mpvView.isPlaying()) R.drawable.ic_pause else R.drawable.ic_play)
 
     }
 
@@ -1618,14 +1625,14 @@ class PlayerActivity : ComponentActivity() {
                 when {
                     e.x < w / 3f -> { seekBy(-10_000); showHud("-10s") }
                     e.x > w * 2 / 3f -> { seekBy(10_000); showHud("+10s") }
-                    else -> if (player.isPlaying) player.pause() else player.play()
+                    else -> togglePlayback()
                 }
                 return true
             }
 
             override fun onLongPress(e: MotionEvent) {
                 if (locked) return
-                longPressing = true; player.setPlaybackSpeed(2f); showHud("2x", 100_000)
+                longPressing = true; setPlaybackSpeed(2f); showHud("2x", 100_000)
                 root.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             }
 
@@ -1668,16 +1675,17 @@ class PlayerActivity : ComponentActivity() {
             scale.onTouchEvent(ev)
             gd.onTouchEvent(ev)
             if (ev.actionMasked == MotionEvent.ACTION_UP || ev.actionMasked == MotionEvent.ACTION_CANCEL) {
-                if (mode == Mode.SEEK) player.seekTo(seekTarget)
+                if (mode == Mode.SEEK) seekPlaybackTo(seekTarget)
                 mode = Mode.NONE
-                if (longPressing) { longPressing = false; player.setPlaybackSpeed(speed); hud.visibility = View.GONE }
+                if (longPressing) { longPressing = false; setPlaybackSpeed(speed); hud.visibility = View.GONE }
             }
             true
         }
     }
 
     private fun seekBy(ms: Long) =
-        player.seekTo((player.currentPosition + ms).coerceIn(0L, player.duration.coerceAtLeast(0L)))
+        val duration = if (mpvActive) mpvView.durationMs() else player.duration
+        seekPlaybackTo((playbackPositionMs() + ms).coerceIn(0L, duration.coerceAtLeast(0L)))
 
     private fun showHud(text: String, hideAfter: Long = 800) {
         hud.text = text; hud.visibility = View.VISIBLE
@@ -1753,7 +1761,7 @@ class PlayerActivity : ComponentActivity() {
         if (offlinePath != null) { if (kind != "start") saveOfflinePosition(); return }
         if (sourceId.isEmpty()) return
         val id = itemId; val src = sourceId; val sid = sessionId
-        val pos = player.currentPosition; val paused = !player.isPlaying; val tc = isTranscoding
+        val pos = playbackPositionMs(); val paused = !isPlaybackPlaying(); val tc = isTranscoding
         lifecycleScope.launch { Api.report(kind, id, src, pos, paused, tc, sid) }
     }
 
@@ -1761,17 +1769,17 @@ class PlayerActivity : ComponentActivity() {
         if (::player.isInitialized) {
             when (keyCode) {
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_SPACE -> {
-                    if (player.isPlaying) player.pause() else player.play()
+                    togglePlayback()
                     return true
                 }
-                KeyEvent.KEYCODE_MEDIA_PLAY -> { player.play(); return true }
-                KeyEvent.KEYCODE_MEDIA_PAUSE -> { player.pause(); return true }
+                KeyEvent.KEYCODE_MEDIA_PLAY -> { resumePlayback(); return true }
+                KeyEvent.KEYCODE_MEDIA_PAUSE -> { pausePlayback(); return true }
                 KeyEvent.KEYCODE_MEDIA_NEXT -> {
                     if (hasNext) switchTo(siblings[siblingIndex + 1].id) else seekBy(30_000)
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PREVIOUS -> {
-                    if (hasPrev) switchTo(siblings[siblingIndex - 1].id) else player.seekTo(0)
+                    if (hasPrev) switchTo(siblings[siblingIndex - 1].id) else seekPlaybackTo(0)
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_FAST_FORWARD, KeyEvent.KEYCODE_DPAD_RIGHT -> {
@@ -1838,6 +1846,7 @@ class PlayerActivity : ComponentActivity() {
         }
         try { enhancer?.release() } catch (e: Exception) { }
         player.release()
+        if (::mpvView.isInitialized) mpvView.release()
         super.onDestroy()
     }
 }
