@@ -916,12 +916,17 @@ class PlayerActivity : ComponentActivity() {
             return
         }
         val outputDir = File(cacheDir, "local-optimized")
-        if (outputDir.usableSpace < 1_500L * 1024L * 1024L) {
-            showHud("Not enough free storage for local conversion", 3500)
+        if (!outputDir.exists() && !outputDir.mkdirs()) {
+            showHud("Couldn't prepare local video cache", 3000)
             return
         }
         val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_1080p.mp4")
         val resumeAt = playbackPositionMs().coerceAtLeast(0L)
+        if ((!output.exists() || output.length() <= 0L) &&
+            outputDir.usableSpace < 1_500L * 1024L * 1024L) {
+            showHud("Not enough free storage for local conversion", 3500)
+            return
+        }
         handler.removeCallbacks(stalledPlaybackFallback)
         if (mpvActive) {
             mpvView.pausePlayback()
