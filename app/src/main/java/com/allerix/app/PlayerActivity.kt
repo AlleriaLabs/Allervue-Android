@@ -1486,7 +1486,7 @@ class PlayerActivity : ComponentActivity() {
         defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
-        autoRetried = false; hasPlayedOnce = false; plan = null
+        autoRetried = false; mpvAttempted = false; hasPlayedOnce = false; plan = null
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
@@ -1504,6 +1504,8 @@ class PlayerActivity : ComponentActivity() {
     private fun applyPlayback() {
         if (sourceId.isEmpty()) return
         val pos = playbackPositionMs()
+        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
+        mpvAttempted = false; autoRetried = false
         if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         showHud("Switching to ${quality.label} · Audio: ${audioMode.label}…", 2500)
         lifecycleScope.launch {
