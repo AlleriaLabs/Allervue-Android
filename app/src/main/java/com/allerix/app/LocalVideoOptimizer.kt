@@ -3,28 +3,21 @@ package com.allerix.app
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import androidx.media3.common.MediaItem
-import androidx.media3.common.MimeTypes
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.transformer.Effects
-import androidx.media3.effect.Presentation
-import androidx.media3.transformer.Composition
-import androidx.media3.transformer.EditedMediaItem
-import androidx.media3.transformer.ExportException
-import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.ProgressHolder
-import androidx.media3.transformer.Transformer
+import com.arthenica.ffmpegkit.FFmpegKit
+import com.arthenica.ffmpegkit.FFmpegSession
+import com.arthenica.ffmpegkit.ReturnCode
+import com.arthenica.ffmpegkit.Statistics
 import java.io.File
 
 /**
- * Creates a device-local 1080p H.264 copy for playback.
+ * Converts a streamed Jellyfin source into a local 1080p H.264/AAC MP4.
  *
- * This is an offline export, not a real-time decoder pipeline: conversion must finish
- * before the optimized file can be played. Media3 chooses the device's available
- * decoder/encoder implementations. Unsupported source codecs or insufficient device
- * performance are reported to the caller so normal playback can remain available.
+ * FFmpeg performs HEVC decoding in its own codec pipeline, so this path does not
+ * depend on Android Media3 finding a hardware HEVC decoder. H.264 encoding uses
+ * Android MediaCodec through FFmpeg to keep the encode workload off the CPU where
+ * the device exposes a compatible encoder. This is an offline conversion: it must
+ * finish before the local copy can be played.
  */
-@UnstableApi
 class LocalVideoOptimizer(context: Context) {
     interface Callback {
         fun onProgress(percent: Int)
@@ -34,69 +27,78 @@ class LocalVideoOptimizer(context: Context) {
 
     private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
-    private val progressHolder = ProgressHolder()
-    private var transformer: Transformer? = null
-    private var callback: Callback? = null
+    @Volatile private var session: FFmpegSession? = null
+    @Volatile private var callback: Callback? = null
+    @Volatile private var cancelled = false
 
-    private val progressTask = object : Runnable {
-        override fun run() {
-            val active = transformer ?: return
-            val cb = callback ?: return
-            if (active.getProgress(progressHolder) == Transformer.PROGRESS_STATE_AVAILABLE) {
-                cb.onProgress(progressHolder.progress.coerceIn(0, 100))
-            }
-            handler.postDelayed(this, 500)
+    fun isRunning(): Boolean = session != null
+
+    fun start(sourceUrl: String, output: File, durationMs: Long, callback: Callback) {
+        check(session == null) { "A local optimization is already running" }
+        require(sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
+            "Unsupported Jellyfin source URL"
         }
-    }
-
-    fun isRunning(): Boolean = transformer != null
-
-    fun start(sourceUrl: String, output: File, callback: Callback) {
-        check(transformer == null) { "A local optimization is already running" }
         output.parentFile?.mkdirs()
         if (output.exists()) output.delete()
         this.callback = callback
+        cancelled = false
 
-        val presentation = Presentation.createForHeight(1080)
-        val edited = EditedMediaItem.Builder(MediaItem.fromUri(sourceUrl))
-            .setEffects(Effects(emptyList(), listOf(presentation)))
-            .build()
+        // FFmpeg's native HEVC decoder handles the source. MediaCodec is used only
+        // for AVC encoding; AAC is encoded by FFmpeg. No Media3 Transformer decoder.
+        val args = arrayOf(
+            "-y",
+            "-hide_banner",
+            "-loglevel", "warning",
+            "-threads", "0",
+            "-i", sourceUrl,
+            "-map", "0:v:0",
+            "-map", "0:a:0?",
+            "-sn",
+            "-vf", "scale=-2:1080:flags=fast_bilinear",
+            "-c:v", "h264_mediacodec",
+            "-b:v", "5M",
+            "-maxrate", "6M",
+            "-bufsize", "10M",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-movflags", "+faststart",
+            output.absolutePath
+        )
 
-        val engine = Transformer.Builder(appContext)
-            .setVideoMimeType(MimeTypes.VIDEO_H264)
-            .setAudioMimeType(MimeTypes.AUDIO_AAC)
-            .addListener(object : Transformer.Listener {
-                override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                    handler.removeCallbacks(progressTask)
-                    transformer = null
-                    val cb = this@LocalVideoOptimizer.callback
-                    this@LocalVideoOptimizer.callback = null
-                    if (output.exists() && output.length() > 0L) cb?.onCompleted(output)
-                    else cb?.onError(IllegalStateException("Optimizer produced an empty output file"))
-                }
-
-                override fun onError(
-                    composition: Composition,
-                    exportResult: ExportResult,
-                    exportException: ExportException
-                ) {
-                    handler.removeCallbacks(progressTask)
-                    transformer = null
-                    output.delete()
-                    val cb = this@LocalVideoOptimizer.callback
-                    this@LocalVideoOptimizer.callback = null
-                    cb?.onError(exportException)
-                }
-            })
-            .build()
-
-        transformer = engine
         try {
-            engine.start(edited, output.absolutePath)
-            handler.post(progressTask)
+            val created = FFmpegKit.executeWithArgumentsAsync(
+                args,
+                { finished ->
+                    session = null
+                    val cb = this.callback
+                    this.callback = null
+                    if (cancelled || ReturnCode.isCancel(finished.returnCode)) {
+                        output.delete()
+                        return@executeWithArgumentsAsync
+                    }
+                    if (ReturnCode.isSuccess(finished.returnCode) && output.exists() && output.length() > 0L) {
+                        handler.post { cb?.onCompleted(output) }
+                    } else {
+                        output.delete()
+                        val detail = (finished.output ?: finished.allLogsAsString ?: finished.failStackTrace)
+                            .orEmpty()
+                            .takeLast(1800)
+                            .ifBlank { "FFmpeg returned ${finished.returnCode ?: "no return code"}" }
+                        handler.post { cb?.onError(IllegalStateException(detail)) }
+                    }
+                },
+                null,
+                { statistics: Statistics ->
+                    if (durationMs > 0L) {
+                        val pct = ((statistics.time / durationMs.toDouble()) * 100.0)
+                            .toInt().coerceIn(0, 99)
+                        handler.post { if (!cancelled) this.callback?.onProgress(pct) }
+                    }
+                }
+            )
+            session = created
         } catch (error: Throwable) {
-            handler.removeCallbacks(progressTask)
-            transformer = null
+            session = null
             this.callback = null
             output.delete()
             throw error
@@ -104,10 +106,10 @@ class LocalVideoOptimizer(context: Context) {
     }
 
     fun cancel() {
-        handler.removeCallbacks(progressTask)
-        val active = transformer
-        transformer = null
+        cancelled = true
         callback = null
+        val active = session
+        session = null
         if (active != null) runCatching { active.cancel() }
     }
 }
