@@ -20,12 +20,11 @@ import java.io.File
  */
 class LocalVideoOptimizer(context: Context) {
     interface Callback {
-        fun onProgress(percent: Int)
+        fun onProgress(framesProcessed: Int, speed: Double)
         fun onCompleted(output: File)
         fun onError(error: Throwable)
     }
 
-    private val appContext = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
     @Volatile private var session: FFmpegSession? = null
     @Volatile private var callback: Callback? = null
@@ -48,7 +47,8 @@ class LocalVideoOptimizer(context: Context) {
         val args = arrayOf(
             "-y",
             "-hide_banner",
-            "-loglevel", "warning",
+            "-loglevel", "info",
+            "-stats_period", "0.5",
             "-threads", "0",
             "-i", sourceUrl,
             "-map", "0:v:0",
@@ -57,8 +57,6 @@ class LocalVideoOptimizer(context: Context) {
             "-vf", "scale=-2:1080:flags=fast_bilinear",
             "-c:v", "h264_mediacodec",
             "-b:v", "5M",
-            "-maxrate", "6M",
-            "-bufsize", "10M",
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "+faststart",
@@ -89,10 +87,11 @@ class LocalVideoOptimizer(context: Context) {
                 },
                 null,
                 { statistics: Statistics ->
-                    if (durationMs > 0L) {
-                        val pct = ((statistics.time / durationMs.toDouble()) * 100.0)
-                            .toInt().coerceIn(0, 99)
-                        handler.post { if (!cancelled) this.callback?.onProgress(pct) }
+                    handler.post {
+                        if (!cancelled) this.callback?.onProgress(
+                            statistics.videoFrameNumber,
+                            statistics.speed.toDouble()
+                        )
                     }
                 }
             )
