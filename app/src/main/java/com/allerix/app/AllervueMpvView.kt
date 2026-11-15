@@ -50,6 +50,7 @@ class AllervueMpvView @JvmOverloads constructor(
     fun play(url: String, positionMs: Long = 0L) {
         if (!initialized) initialize()
         pendingUrl = url
+        pendingPositionMs = positionMs
         if (attached) loadPending(positionMs)
     }
 
