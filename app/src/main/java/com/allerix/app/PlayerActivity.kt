@@ -729,7 +729,7 @@ class PlayerActivity : ComponentActivity() {
             return
         }
         val active = introSegments.firstOrNull {
-            player.currentPosition >= it.first && player.currentPosition < it.second
+            playbackPositionMs() >= it.first && playbackPositionMs() < it.second
         }
         skipIntroBtn.visibility = if (active != null) View.VISIBLE else View.GONE
     }
@@ -1760,6 +1760,8 @@ class PlayerActivity : ComponentActivity() {
             plan = PlaybackPlan(url, false, false, sessionId, "Direct play · libmpv")
             updateTopPlaybackInfo()
             mpvView.play(url, pos)
+            spinner.visibility = View.GONE
+            handler.postDelayed({ if (mpvActive) updateProgress() }, 1500)
             showHud("Trying libmpv · Original stream", 2500)
             DiagnosticLog.record(this, "libmpv fallback started: original Jellyfin stream at ${pos}ms")
             handler.postDelayed({
