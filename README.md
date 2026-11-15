@@ -6,11 +6,13 @@
 
 ## Highlights
 
+**Version 1.3.1** — ExoPlayer-only playback build with improved device-aware HEVC handling and buffering.
+
 - **Jellyfin library access** — browse and play movies and TV series from your server.
 - **Home discovery** — featured content, Continue Watching, popular movie and series rows, and personalized recommendations.
 - **Library navigation** — Movies, TV Shows, My List, Downloads, and search.
 - **Custom video player** — a focused landscape interface with transport controls, episode navigation, and playback gestures.
-- **Automatic playback engine** — ExoPlayer is used first. If the device cannot decode a stream, Allervue can fall back to the bundled LibVLC player.
+- **ExoPlayer-only playback** — Media3 ExoPlayer is the sole playback engine; VLC and LibVLC have been removed.
 - **Device-aware playback** — inspect phone capabilities, display details, supported codecs, network, battery, and the active playback path.
 - **Picture-in-picture** — continue watching in a floating player on supported Android devices.
 - **Subtitle and audio selection** — choose available subtitle and audio tracks.
