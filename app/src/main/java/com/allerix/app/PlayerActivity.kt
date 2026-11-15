@@ -100,6 +100,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var mpvView: AllervueMpvView
     private var mpvActive = false
     private var mpvAttempted = false
+    private var mpvResolveInProgress = false
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var spinner: ProgressBar
@@ -397,8 +398,7 @@ class PlayerActivity : ComponentActivity() {
         layoutParams = LinearLayout.LayoutParams(0, -2, 1f)
         addView(FrameLayout(context).apply {
             background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(0x22222228)
+                shape = GradientDrawable.OVAL                setColor(0x22222228)
                 setStroke(dp(1), 0x22FFFFFF)
             }
             elevation = dp(2).toFloat()
@@ -797,7 +797,6 @@ class PlayerActivity : ComponentActivity() {
         addView(TextView(context).apply { text = value; setTextColor(0xFF9A9AA0.toInt()); textSize = 14f })
         setOnClickListener { onClick() }
     }
-
     private fun pill(label: String, onClick: () -> Unit): TextView = TextView(this).apply {
         text = label; setTextColor(Color.WHITE); textSize = 14f; gravity = Gravity.CENTER
         setPadding(dp(16), dp(10), dp(16), dp(10))
@@ -1197,8 +1196,7 @@ class PlayerActivity : ComponentActivity() {
     // ================================================================= controls visibility
     private fun showControls() {
         if (locked) return
-        controlsVisible = true; controls.visibility = View.VISIBLE
-        layoutSubtitle(); updateProgress(); scheduleHide()
+        controlsVisible = true; controls.visibility = View.VISIBLE        layoutSubtitle(); updateProgress(); scheduleHide()
     }
 
     private fun hideControls() {
@@ -1340,13 +1338,15 @@ class PlayerActivity : ComponentActivity() {
                 val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
                 val serverFailure = http != null && http.responseCode in 500..599
                 val decoderFailure = error.errorCode in 4001..4005
-                if (directPlayFailure && serverFailure) {
-                    DiagnosticLog.record(this@PlayerActivity, "Jellyfin direct stream returned HTTP ${http?.responseCode}; requesting H.264 1080p transcode")
-                    fallbackTranscode()
-                    return
-                }
-                if (directPlayFailure && decoderFailure) {
-                    DiagnosticLog.record(this@PlayerActivity, "ExoPlayer decoder failed; switching to libmpv on the original stream")
+                if (directPlayFailure) {
+                    when {
+                        serverFailure -> DiagnosticLog.record(this@PlayerActivity,
+                            "Jellyfin direct stream returned HTTP ${http?.responseCode}; trying libmpv before H.264 fallback")
+                        decoderFailure -> DiagnosticLog.record(this@PlayerActivity,
+                            "ExoPlayer decoder failed; switching to libmpv on the original stream")
+                        else -> DiagnosticLog.record(this@PlayerActivity,
+                            "ExoPlayer direct-play failed; attempting libmpv original-stream fallback")
+                    }
                     fallbackMpv()
                     return
                 }
@@ -1597,8 +1597,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun toggleLock() {
-        locked = !locked
-        root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        locked = !locked        root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         if (locked) { hideControls(); showLockOverlay(); showHud("Locked") }
         else { lockOverlay.visibility = View.GONE; showControls(); showHud("Unlocked") }
     }
@@ -1743,8 +1742,25 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun fallbackMpv() {
-        if (mpvAttempted || offlinePath != null || sourceId.isBlank()) {
-            fallbackTranscode()
+        if (mpvAttempted || offlinePath != null) return
+        if (sourceId.isBlank()) {
+            if (mpvResolveInProgress) return
+            mpvResolveInProgress = true
+            showHud("Preparing libmpv fallback…", 2500)
+            lifecycleScope.launch {
+                try {
+                    val resolved = Api.item(itemId).mediaSources?.firstOrNull()?.id
+                        ?: error("Jellyfin returned no media source for libmpv")
+                    sourceId = resolved
+                    mpvResolveInProgress = false
+                    DiagnosticLog.record(this@PlayerActivity, "Resolved media source ID before libmpv fallback")
+                    fallbackMpv()
+                } catch (e: Exception) {
+                    mpvResolveInProgress = false
+                    DiagnosticLog.record(this@PlayerActivity, "Could not resolve media source for libmpv: ${e.message}", e)
+                    fallbackTranscode()
+                }
+            }
             return
         }
         mpvAttempted = true
