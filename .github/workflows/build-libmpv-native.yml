@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: mpv-android/mpv-android
-          ref: ad98fc9
+          ref: master
           path: mpv-android
       - name: Install native build prerequisites
         run: |
@@ -30,13 +30,13 @@ jobs:
       - name: Verify native outputs
         working-directory: mpv-android
         run: |
-          test -d app/src/main/jniLibs
-          find app/src/main/jniLibs -type f -name '*.so' -print
-          test -n "$(find app/src/main/jniLibs -type f -name '*.so' -print -quit)"
+          test -d app/src/main/libs
+          find app/src/main/libs -type f -name '*.so' -print
+          test -n "$(find app/src/main/libs -type f -name '*.so' -print -quit)"
       - name: Upload arm64 native library bundle
         uses: actions/upload-artifact@v4
         with:
           name: libmpv-native-arm64
-          path: mpv-android/app/src/main/jniLibs/
+          path: mpv-android/app/src/main/libs/
           if-no-files-found: error
           retention-days: 14
