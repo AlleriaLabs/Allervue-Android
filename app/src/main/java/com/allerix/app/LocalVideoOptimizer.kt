@@ -80,7 +80,7 @@ class LocalVideoOptimizer(context: Context) {
                         output.delete()
                         val detail = (finished.output ?: finished.allLogsAsString ?: finished.failStackTrace)
                             .orEmpty()
-                            .replace(Regex("(?i)(api_key=)[^&\\\\s]+"), "$1[redacted]")
+                            .replace(Regex("(?i)(api_key=)[^&\\s]+"), "$1[redacted]")
                             .takeLast(1800)
                             .ifBlank { "FFmpeg returned ${finished.returnCode ?: "no return code"}" }
                         handler.post { cb?.onError(IllegalStateException(detail)) }
