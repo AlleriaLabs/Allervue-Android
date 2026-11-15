@@ -101,6 +101,9 @@ class PlayerActivity : ComponentActivity() {
     private var mpvActive = false
     private var mpvAttempted = false
     private var mpvResolveInProgress = false
+    private var localOptimizedActive = false
+    private var sourceVideoHeight = 0
+    private val localOptimizer by lazy { LocalVideoOptimizer(this) }
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var spinner: ProgressBar
@@ -176,7 +179,7 @@ class PlayerActivity : ComponentActivity() {
         if (::player.isInitialized && player.playWhenReady &&
             player.playbackState == Player.STATE_BUFFERING &&
             (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
-            plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
+            plan?.transcoding != true && offlinePath == null && !localOptimizedActive && !mpvAttempted) {
             DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; trying libmpv original-stream playback")
             fallbackMpv()
         }
@@ -888,6 +891,96 @@ class PlayerActivity : ComponentActivity() {
         box.addView(radioGroup(100, all.map { it.label }, quality.ordinal) { i ->
             applyChoice(all[i], audioMode); dlg.dismiss()
         })
+        box.addView(sectionLabel("On-device processing"))
+        box.addView(pill("Optimize locally to 1080p") {
+            dlg.dismiss()
+            startLocalOptimization()
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        box.addView(noteText(
+            "Creates a cached 1080p H.264 copy on this phone before playback. Conversion time, heat, battery " +
+                "and storage use depend on the device. The original Jellyfin file is never changed."
+        ))
+    }
+
+    private fun startLocalOptimization() {
+        if (offlinePath != null) {
+            showHud("Local optimization is for streamed titles", 2500)
+            return
+        }
+        if (sourceId.isBlank()) {
+            showHud("Wait for Jellyfin video details to load", 2500)
+            return
+        }
+        if (sourceVideoHeight <= 1080) {
+            showHud("This video is already 1080p or lower", 2500)
+            return
+        }
+        val outputDir = File(cacheDir, "local-optimized")
+        if (outputDir.usableSpace < 1_500L * 1024L * 1024L) {
+            showHud("Not enough free storage for local conversion", 3500)
+            return
+        }
+        val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_1080p.mp4")
+        val resumeAt = playbackPositionMs().coerceAtLeast(0L)
+        handler.removeCallbacks(stalledPlaybackFallback)
+        if (mpvActive) {
+            mpvView.pausePlayback()
+            mpvActive = false
+            mpvView.visibility = View.GONE
+            playerView.visibility = View.VISIBLE
+        }
+        player.pause()
+        localOptimizedActive = false
+
+        fun playOptimized(file: File) {
+            localOptimizedActive = true
+            plan = PlaybackPlan(Uri.fromFile(file).toString(), false, true, sessionId, "Local optimized 1080p")
+            updateTopPlaybackInfo()
+            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)), resumeAt)
+            player.prepare()
+            player.playWhenReady = true
+            report("progress")
+            showHud("Playing local 1080p copy", 2500)
+            DiagnosticLog.record(this, "LOCAL_OPTIMIZER playback started file=${file.name} resume=${resumeAt}ms")
+        }
+
+        if (output.exists() && output.length() > 0L) {
+            playOptimized(output)
+            return
+        }
+
+        showHud("Preparing local 1080p conversion…", 5000)
+        DiagnosticLog.record(this, "LOCAL_OPTIMIZER started input=Jellyfin direct stream output=1080p H.264")
+        try {
+            localOptimizer.start(Api.streamUrl(itemId, sourceId), output, object : LocalVideoOptimizer.Callback {
+                override fun onProgress(percent: Int) {
+                    showHud("Local optimization · $percent%", 1100)
+                }
+
+                override fun onCompleted(outputFile: File) {
+                    DiagnosticLog.record(this@PlayerActivity,
+                        "LOCAL_OPTIMIZER completed bytes=${outputFile.length()} file=${outputFile.name}")
+                    playOptimized(outputFile)
+                }
+
+                override fun onError(error: Throwable) {
+                    localOptimizedActive = false
+                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_OPTIMIZER failed: ${error.message}", error)
+                    showHud("Local conversion unavailable: ${error.message ?: "unsupported device codec"}", 6000)
+                    // Restore the original Jellyfin stream; the user can still choose Auto or server H.264.
+                    player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+            })
+        } catch (error: Throwable) {
+            localOptimizedActive = false
+            DiagnosticLog.record(this, "LOCAL_OPTIMIZER could not start: ${error.message}", error)
+            showHud("Couldn't start local conversion: ${error.message}", 5000)
+            player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
+            player.prepare()
+            player.playWhenReady = true
+        }
     }
 
     private fun showAudioOutputSheet() = sheet("Audio output") { box, dlg ->
@@ -1338,7 +1431,7 @@ class PlayerActivity : ComponentActivity() {
                 DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
                 val http = generateSequence<Throwable>(error) { it.cause }
                     .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
-                val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
+                val directPlayFailure = plan?.transcoding != true && offlinePath == null && !localOptimizedActive && !autoRetried
                 val serverFailure = http != null && http.responseCode in 500..599
                 val decoderFailure = error.errorCode in 4001..4005
                 if (directPlayFailure) {
@@ -1428,6 +1521,7 @@ class PlayerActivity : ComponentActivity() {
             subTitle.text = nowPlayingText(true)
             val video = src.streams.firstOrNull { it.type == "Video" }
             val h = video?.height ?: 0
+            sourceVideoHeight = h
             val range = video?.videoRange.orEmpty()
             val hdrContent = range.contains("HDR", true) || range.contains("HLG", true) || range.contains("DOVI", true)
             if (hdrContent && Build.VERSION.SDK_INT >= 26 && Device.supportsHdr(this@PlayerActivity)) {
@@ -1490,6 +1584,7 @@ class PlayerActivity : ComponentActivity() {
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
         autoRetried = false; mpvAttempted = false; hasPlayedOnce = false; plan = null
+        localOptimizedActive = false
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
@@ -1500,6 +1595,7 @@ class PlayerActivity : ComponentActivity() {
     private fun applyChoice(nq: Quality, na: AudioMode) {
         if (nq == quality && na == audioMode) return
         quality = nq; audioMode = na
+        localOptimizedActive = false
         prefs.edit().putString("quality", quality.name).putString("audio", audioMode.name).apply()
         applyPlayback()
     }
@@ -1508,6 +1604,7 @@ class PlayerActivity : ComponentActivity() {
         if (sourceId.isEmpty()) return
         val pos = playbackPositionMs()
         if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
+        localOptimizedActive = false
         mpvAttempted = false; autoRetried = false
         if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         showHud("Switching to ${quality.label} · Audio: ${audioMode.label}…", 2500)
@@ -1726,6 +1823,7 @@ class PlayerActivity : ComponentActivity() {
         val phone = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
         val mode = when {
             offlinePath != null -> "Offline playback"
+            localOptimizedActive -> "Local optimized · 1080p"
             plan?.transcoding == true -> "Transcoding"
             plan != null -> "Direct play"
             else -> "Auto playback"
@@ -1746,7 +1844,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun fallbackMpv() {
-        if (mpvAttempted || offlinePath != null) return
+        if (mpvAttempted || offlinePath != null || localOptimizedActive) return
         if (sourceId.isBlank()) {
             if (mpvResolveInProgress) return
             mpvResolveInProgress = true
@@ -1913,6 +2011,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(stalledPlaybackFallback)
+        if (::localOptimizer.isInitialized) localOptimizer.cancel()
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {
