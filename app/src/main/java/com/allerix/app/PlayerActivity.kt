@@ -939,7 +939,7 @@ class PlayerActivity : ComponentActivity() {
 
         fun playOptimized(file: File) {
             localOptimizedActive = true
-            plan = PlaybackPlan(Uri.fromFile(file).toString(), false, true, sessionId, "Local optimized 1080p")
+            plan = PlaybackPlan(Uri.fromFile(file).toString(), false, false, sessionId, "Local optimized 1080p")
             updateTopPlaybackInfo()
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)), resumeAt)
             player.prepare()
