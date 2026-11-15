@@ -176,8 +176,8 @@ class PlayerActivity : ComponentActivity() {
             player.playbackState == Player.STATE_BUFFERING &&
             (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
             plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
-            DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; requesting Jellyfin H.264 1080p fallback")
-            fallbackTranscode()
+            DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; trying libmpv original-stream playback")
+            fallbackMpv()
         }
     }
 
@@ -200,13 +200,16 @@ class PlayerActivity : ComponentActivity() {
     }
     private val uiTick = object : Runnable {
         override fun run() {
-            if (controlsVisible && !scrubbing) updateProgress()
+            if (!scrubbing) updateProgress()
             updateIntroSkip()
             handler.postDelayed(this, 500)
         }
     }
     private val subTick = object : Runnable {
-        override fun run() { updateSubtitle(); handler.postDelayed(this, 100) }
+        override fun run() {
+            if (mpvActive) subText.visibility = View.GONE else updateSubtitle()
+            handler.postDelayed(this, 100)
+        }
     }
 
     // ================================================================= lifecycle
@@ -331,6 +334,7 @@ class PlayerActivity : ComponentActivity() {
         if (mode == decoder) return
         decoder = mode
         prefs.edit().putString("decoder", mode.name).apply()
+        if (mpvActive) { showHud("Decoder selection is managed by libmpv"); return }
         val pos = player.currentPosition
         val wasPlaying = player.playWhenReady
         player.release()
@@ -656,7 +660,7 @@ class PlayerActivity : ComponentActivity() {
                         player.currentPosition >= it.first && player.currentPosition < it.second
                     }
                     if (active != null) {
-                        player.seekTo(active.second); showHud("Intro skipped"); visibility = View.GONE
+                        seekPlaybackTo(active.second); showHud("Intro skipped"); visibility = View.GONE
                     }
                 }
             }
@@ -1205,7 +1209,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun scheduleHide() {
         handler.removeCallbacks(autoHide)
-        if (player.isPlaying) handler.postDelayed(autoHide, 4000)
+        if (isPlaybackPlaying()) handler.postDelayed(autoHide, 4000)
     }
 
     private fun updateProgress() {
@@ -1307,7 +1311,7 @@ class PlayerActivity : ComponentActivity() {
                 if (state == Player.STATE_BUFFERING) {
                     if (player.playWhenReady &&
                         (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
-                        plan?.transcoding != true && offlinePath == null && !autoRetried) {
+                        plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
                         handler.removeCallbacks(stalledPlaybackFallback)
                         handler.postDelayed(stalledPlaybackFallback, 20_000)
                     }
@@ -1336,12 +1340,14 @@ class PlayerActivity : ComponentActivity() {
                 val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
                 val serverFailure = http != null && http.responseCode in 500..599
                 val decoderFailure = error.errorCode in 4001..4005
-                // Explicit Original is still attempted first. If Jellyfin returns a server error,
-                // or this device cannot decode the stream, retry once as H.264 1080p.
-                if (directPlayFailure && (serverFailure || decoderFailure)) {
-                    DiagnosticLog.record(this@PlayerActivity,
-                        "Direct-play failed (http=${http?.responseCode}, decoderCode=${error.errorCode}); requesting H.264 1080p")
+                if (directPlayFailure && serverFailure) {
+                    DiagnosticLog.record(this@PlayerActivity, "Jellyfin direct stream returned HTTP ${http?.responseCode}; requesting H.264 1080p transcode")
                     fallbackTranscode()
+                    return
+                }
+                if (directPlayFailure && decoderFailure) {
+                    DiagnosticLog.record(this@PlayerActivity, "ExoPlayer decoder failed; switching to libmpv on the original stream")
+                    fallbackMpv()
                     return
                 }
                 val detail = http?.let { " [HTTP ${it.responseCode} ${it.dataSpec.uri.lastPathSegment}]" } ?: "";
@@ -1683,9 +1689,18 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun seekBy(ms: Long) =
+    private fun seekBy(ms: Long) {
         val duration = if (mpvActive) mpvView.durationMs() else player.duration
         seekPlaybackTo((playbackPositionMs() + ms).coerceIn(0L, duration.coerceAtLeast(0L)))
+    }
+
+    private fun playbackPositionMs(): Long = if (mpvActive) mpvView.positionMs() else player.currentPosition
+    private fun isPlaybackPlaying(): Boolean = if (mpvActive) mpvView.isPlaying() else player.isPlaying
+    private fun seekPlaybackTo(positionMs: Long) { if (mpvActive) mpvView.seekTo(positionMs) else player.seekTo(positionMs) }
+    private fun pausePlayback() { if (mpvActive) mpvView.pausePlayback() else player.pause() }
+    private fun resumePlayback() { if (mpvActive) mpvView.resumePlayback() else player.play() }
+    private fun togglePlayback() { if (mpvActive) mpvView.togglePlayback() else if (player.isPlaying) player.pause() else player.play() }
+    private fun setPlaybackSpeed(value: Float) { if (mpvActive) mpvView.setSpeed(value) else player.setPlaybackSpeed(value) }
 
     private fun showHud(text: String, hideAfter: Long = 800) {
         hud.text = text; hud.visibility = View.VISIBLE
@@ -1723,12 +1738,53 @@ class PlayerActivity : ComponentActivity() {
                 "what it can't, and it eases off on mobile data, low battery or heat."))
     }
 
+    private fun fallbackMpv() {
+        if (mpvAttempted || offlinePath != null || sourceId.isBlank()) {
+            fallbackTranscode()
+            return
+        }
+        mpvAttempted = true
+        handler.removeCallbacks(stalledPlaybackFallback)
+        val pos = playbackPositionMs()
+        try {
+            player.pause()
+            player.stop()
+            playerView.visibility = View.GONE
+            mpvView.visibility = View.VISIBLE
+            mpvActive = true
+            val url = Api.streamUrl(itemId, sourceId)
+            plan = PlaybackPlan(url, false, false, sessionId, "Direct play · libmpv")
+            updateTopPlaybackInfo()
+            mpvView.play(url, pos)
+            showHud("Trying libmpv · Original stream", 2500)
+            DiagnosticLog.record(this, "libmpv fallback started: original Jellyfin stream at ${pos}ms")
+            handler.postDelayed({
+                if (mpvActive && (mpvView.positionMs() < pos + 500L)) {
+                    DiagnosticLog.record(this, "libmpv did not advance after startup window; falling back to H.264 transcode")
+                    fallbackTranscode()
+                }
+            }, 18_000)
+        } catch (e: Exception) {
+            DiagnosticLog.record(this, "libmpv fallback failed: ${e.message}", e)
+            mpvActive = false
+            mpvView.visibility = View.GONE
+            playerView.visibility = View.VISIBLE
+            fallbackTranscode()
+        }
+    }
+
     private fun fallbackTranscode() {
         if (autoRetried || offlinePath != null) return
         autoRetried = true
         handler.removeCallbacks(stalledPlaybackFallback)
-        showHud("Original playback failed. Retrying as H.264 1080p…", 3500)
-        val pos = player.currentPosition
+        val pos = playbackPositionMs()
+        if (mpvActive) {
+            mpvView.pausePlayback()
+            mpvActive = false
+            mpvView.visibility = View.GONE
+            playerView.visibility = View.VISIBLE
+        }
+        showHud("Playback failed. Retrying as H.264 1080p…", 3500)
         lifecycleScope.launch {
             try {
                 // Direct stream can fail before the parallel metadata request finishes.
@@ -1836,11 +1892,11 @@ class PlayerActivity : ComponentActivity() {
         if (offlinePath != null) {
             saveOfflinePosition()
             // best effort: tell the server too, so Continue Watching stays in step when you're online
-            val pos = player.currentPosition; val id = itemId
+            val pos = playbackPositionMs(); val id = itemId
             CoroutineScope(Dispatchers.IO).launch { Api.report("stop", id, id, pos, true, false, "") }
         }
         if (sourceId.isNotEmpty()) {
-            val pos = player.currentPosition; val id = itemId; val src = sourceId
+            val pos = playbackPositionMs(); val id = itemId; val src = sourceId
             val tc = isTranscoding; val sid = sessionId
             CoroutineScope(Dispatchers.IO).launch { Api.report("stop", id, src, pos, true, tc, sid) }
         }
