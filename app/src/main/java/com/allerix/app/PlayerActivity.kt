@@ -2011,7 +2011,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(stalledPlaybackFallback)
-        if (::localOptimizer.isInitialized) localOptimizer.cancel()
+        localOptimizer.cancel()
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {
