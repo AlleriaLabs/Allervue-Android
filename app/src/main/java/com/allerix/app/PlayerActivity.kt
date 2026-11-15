@@ -332,9 +332,9 @@ class PlayerActivity : ComponentActivity() {
 
     private fun changeDecoder(mode: DecoderMode) {
         if (mode == decoder) return
+        if (mpvActive) { showHud("Decoder selection is managed by libmpv"); return }
         decoder = mode
         prefs.edit().putString("decoder", mode.name).apply()
-        if (mpvActive) { showHud("Decoder selection is managed by libmpv"); return }
         val pos = player.currentPosition
         val wasPlaying = player.playWhenReady
         player.release()
@@ -657,7 +657,7 @@ class PlayerActivity : ComponentActivity() {
                 visibility = View.GONE; elevation = dp(5).toFloat()
                 setOnClickListener {
                     val active = introSegments.firstOrNull {
-                        player.currentPosition >= it.first && player.currentPosition < it.second
+                        playbackPositionMs() >= it.first && playbackPositionMs() < it.second
                     }
                     if (active != null) {
                         seekPlaybackTo(active.second); showHud("Intro skipped"); visibility = View.GONE
@@ -1139,7 +1139,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun jumpSubtitle(dir: Int) {
         if (cues.isEmpty()) return
-        val t = player.currentPosition - subDelayMs
+        val t = playbackPositionMs() - subDelayMs
         val idx = SubParser.indexAt(cues, t)
         val target: SubCue? = if (dir > 0) cues.getOrNull(idx + 1) else {
             val active = idx >= 0 && t <= cues[idx].endMs
@@ -1479,6 +1479,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun switchTo(newId: String) {
+        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         report("stop")
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
@@ -1502,7 +1503,8 @@ class PlayerActivity : ComponentActivity() {
 
     private fun applyPlayback() {
         if (sourceId.isEmpty()) return
-        val pos = player.currentPosition
+        val pos = playbackPositionMs()
+        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         showHud("Switching to ${quality.label} · Audio: ${audioMode.label}…", 2500)
         lifecycleScope.launch {
             val mi = buildMediaItem()
@@ -1646,7 +1648,7 @@ class PlayerActivity : ComponentActivity() {
                 if (locked || e1 == null || scale.isInProgress || longPressing) return false
                 if (mode == Mode.NONE) {
                     mode = when {
-                        abs(dx) > abs(dy) -> { startPos = player.currentPosition; Mode.SEEK }
+                        abs(dx) > abs(dy) -> { startPos = playbackPositionMs(); Mode.SEEK }
                         e1.x < playerView.width / 2f -> {
                             val b = window.attributes.screenBrightness
                             brightness = if (b < 0) 0.5f else b; Mode.BRIGHT
@@ -1656,7 +1658,7 @@ class PlayerActivity : ComponentActivity() {
                 }
                 when (mode) {
                     Mode.SEEK -> {
-                        val dur = player.duration.coerceAtLeast(0L)
+                        val dur = (if (mpvActive) mpvView.durationMs() else player.duration).coerceAtLeast(0L)
                         seekTarget = (startPos + (e2.x - e1.x) * 120_000f / playerView.width).toLong().coerceIn(0L, dur)
                         val sign = if (seekTarget >= startPos) "+" else "-"
                         showHud("${fmt(seekTarget)}  ($sign${fmt(abs(seekTarget - startPos))})", 1500)
@@ -1864,7 +1866,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onUserLeaveHint() {
-        if (::player.isInitialized && player.isPlaying && pipSupported()) enterPip()
+        if (::player.isInitialized && isPlaybackPlaying() && pipSupported()) enterPip()
     }
 
     override fun onPictureInPictureModeChanged(isInPip: Boolean, newConfig: Configuration) {
