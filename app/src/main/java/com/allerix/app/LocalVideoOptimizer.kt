@@ -32,7 +32,7 @@ class LocalVideoOptimizer(context: Context) {
 
     fun isRunning(): Boolean = session != null
 
-    fun start(sourceUrl: String, output: File, durationMs: Long, callback: Callback) {
+    fun start(sourceUrl: String, output: File, callback: Callback) {
         check(session == null) { "A local optimization is already running" }
         require(sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
             "Unsupported Jellyfin source URL"
