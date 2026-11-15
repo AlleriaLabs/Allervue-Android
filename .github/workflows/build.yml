@@ -28,6 +28,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y autoconf automake autopoint build-essential cmake git libtool pkg-config python3 python3-pip yasm nasm meson ninja-build gperf unzip wget
+          python3 -m venv "$RUNNER_TEMP/meson-venv"
+          "$RUNNER_TEMP/meson-venv/bin/pip" install --upgrade 'meson>=1.11.0'
+          echo "$RUNNER_TEMP/meson-venv/bin" >> "$GITHUB_PATH"
       - name: Build upstream libmpv for Android ARM64
         working-directory: mpv-android/buildscripts
         env:
