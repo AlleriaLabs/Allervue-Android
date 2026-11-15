@@ -1600,7 +1600,8 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun toggleLock() {
-        locked = !locked        root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+        locked = !locked
+        root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
         if (locked) { hideControls(); showLockOverlay(); showHud("Locked") }
         else { lockOverlay.visibility = View.GONE; showControls(); showHud("Unlocked") }
     }
