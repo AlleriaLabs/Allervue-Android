@@ -20,8 +20,8 @@ android {
         minSdk = 24
         targetSdk = 34
         ndk { abiFilters += "arm64-v8a" }
-        versionCode = 9
-        versionName = "1.3.4"
+        versionCode = 10
+        versionName = "1.3.5"
     }
     signingConfigs {
         if (hasReleaseSigning) {
@@ -60,9 +60,8 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.3")
+    implementation("dev.ffmpegkit-maintained:ffmpeg-kit-full:8.1.9")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
-    implementation("androidx.media3:media3-transformer:1.11.1")
-    implementation("androidx.media3:media3-effect:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
