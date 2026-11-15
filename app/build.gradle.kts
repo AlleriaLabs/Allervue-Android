@@ -19,6 +19,7 @@ android {
         applicationId = "com.allerix.app"
         minSdk = 24
         targetSdk = 34
+        ndk { abiFilters += "arm64-v8a" }
         versionCode = 8
         versionName = "1.3.3"
     }
