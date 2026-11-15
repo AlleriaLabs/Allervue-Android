@@ -169,10 +169,11 @@ class PlayerActivity : ComponentActivity() {
     private var nowTag = ""
     private var startupStartedAt = 0L
     private val stalledPlaybackFallback = Runnable {
-        if (hasPlayedOnce && ::player.isInitialized && player.playWhenReady &&
-            player.playbackState == Player.STATE_BUFFERING && quality == Quality.AUTO &&
+        if (::player.isInitialized && player.playWhenReady &&
+            player.playbackState == Player.STATE_BUFFERING &&
+            (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
             plan?.transcoding != true && offlinePath == null && !autoRetried) {
-            DiagnosticLog.record(this, "Sustained playback rebuffering for 20s; requesting H.264 1080p")
+            DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; requesting Jellyfin H.264 1080p fallback")
             fallbackTranscode()
         }
     }
@@ -1297,8 +1298,9 @@ class PlayerActivity : ComponentActivity() {
             override fun onPlaybackStateChanged(state: Int) {
                 spinner.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                 if (state == Player.STATE_BUFFERING) {
-                    if (hasPlayedOnce && player.playWhenReady && quality == Quality.AUTO &&
-                        plan?.transcoding != true && offlinePath == null) {
+                    if (player.playWhenReady &&
+                        (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
+                        plan?.transcoding != true && offlinePath == null && !autoRetried) {
                         handler.removeCallbacks(stalledPlaybackFallback)
                         handler.postDelayed(stalledPlaybackFallback, 20_000)
                     }
@@ -1321,15 +1323,21 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachEnhancer(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
-            DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
-                // ExoPlayer is the sole built-in engine. If direct-play decoding fails, request a compatible Jellyfin transcode.
-                if (quality == Quality.AUTO && plan?.transcoding != true && !autoRetried && offlinePath == null &&
-                    error.errorCode in 4001..4005) {
-                    fallbackTranscode(); return
-                }
+                DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
                 val http = generateSequence<Throwable>(error) { it.cause }
                     .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
-                val detail = http?.let { " [HTTP ${it.responseCode} ${it.dataSpec.uri.lastPathSegment}]" } ?: ""
+                val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
+                val serverFailure = http?.responseCode in 500..599
+                val decoderFailure = error.errorCode in 4001..4005
+                // Explicit Original is still attempted first. If Jellyfin returns a server error,
+                // or this device cannot decode the stream, retry once as H.264 1080p.
+                if (directPlayFailure && (serverFailure || decoderFailure)) {
+                    DiagnosticLog.record(this@PlayerActivity,
+                        "Direct-play failed (http=${http?.responseCode}, decoderCode=${error.errorCode}); requesting H.264 1080p")
+                    fallbackTranscode()
+                    return
+                }
+                val detail = http?.let { " [HTTP ${it.responseCode} ${it.dataSpec.uri.lastPathSegment}]" } ?: "";
                 val hint = if (error.errorCodeName.contains("DECOD")) " Try another decoder (HW / HW+ / SW)." else ""
                 showHud(if (isTranscoding) "Transcode failed: ${error.errorCodeName}$detail"
                         else "Playback error: ${error.errorCodeName}$detail$hint", 8000)
@@ -1708,18 +1716,30 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun fallbackTranscode() {
+        if (autoRetried || offlinePath != null) return
         autoRetried = true
-        showHud("This phone can't decode the original directly. Switching to transcoding…", 3500)
+        handler.removeCallbacks(stalledPlaybackFallback)
+        showHud("Original playback failed. Retrying as H.264 1080p…", 3500)
         val pos = player.currentPosition
         lifecycleScope.launch {
             try {
-                val t = Api.transcodeUrl(itemId, sourceId, Quality.P1080, AudioMode.ORIGINAL, sessionId)
+                // Direct stream can fail before the parallel metadata request finishes.
+                val resolvedSourceId = sourceId.ifBlank {
+                    Api.item(itemId).mediaSources?.firstOrNull()?.id ?: error("Jellyfin returned no media source")
+                }
+                sourceId = resolvedSourceId
+                val t = Api.transcodeUrl(itemId, resolvedSourceId, Quality.P1080, AudioMode.ORIGINAL, sessionId)
                 sessionId = t.sessionId
-                plan = PlaybackPlan(t.url, true, true, t.sessionId, "Transcoding · 1080p (automatic fallback)")
+                plan = PlaybackPlan(t.url, true, true, t.sessionId, "Transcoding · H.264 1080p (fallback)")
                 updateTopPlaybackInfo()
                 player.setMediaItem(MediaItem.Builder().setUri(t.url).setMimeType(MimeTypes.APPLICATION_M3U8).build(), pos)
-                player.prepare(); player.play()
-            } catch (e: Exception) { showHud("Fallback failed: ${e.message}", 4000) }
+                player.prepare()
+                player.playWhenReady = true
+                DiagnosticLog.record(this@PlayerActivity, "Fallback HLS started at ${pos}ms")
+            } catch (e: Exception) {
+                DiagnosticLog.record(this@PlayerActivity, "H.264 fallback failed: ${e.message}", e)
+                showHud("H.264 fallback failed: ${e.message}", 6000)
+            }
         }
     }
 
