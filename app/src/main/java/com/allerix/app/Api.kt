@@ -501,12 +501,14 @@ object Api {
             val tu = src.transcodingUrl
             if (src.directPlay && tu.isNullOrEmpty()) return PlaybackPlan(streamUrl(id, sourceId), false, false, sid, "Direct play")
             if (!tu.isNullOrEmpty()) {
-                val url = if (tu.startsWith("http")) tu else base + (if (tu.startsWith("/")) tu else "/$tu")
-                val full = if (url.contains("api_key=")) url else url + (if (url.contains("?")) "&" else "?") + "api_key=$token"
-                val reasons = Regex("[?&]TranscodeReasons=([^&]+)", RegexOption.IGNORE_CASE).find(full)
-                    ?.groupValues?.get(1)?.replace(",", ", ").orEmpty()
-                val label = "Transcoding" + (if (reasons.isNotEmpty()) " ($reasons)" else "")
-                return PlaybackPlan(full, full.contains(".m3u8", ignoreCase = true), true, sid, label)
+                // AUTO must not silently start a server transcode before the local
+                // recovery chain has had a chance. Start with the original stream;
+                // PlayerActivity escalates through libmpv, local copy and on-device
+                // 1080p conversion only if the phone cannot play it.
+                return PlaybackPlan(
+                    streamUrl(id, sourceId), false, false, sid,
+                    "Direct play · local recovery enabled"
+                )
             }
         } catch (e: Exception) { /* fall back to direct play below */ }
         return direct
