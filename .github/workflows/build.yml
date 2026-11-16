@@ -26,6 +26,14 @@ jobs:
           repository: mpv-android/mpv-android
           ref: master
           path: mpv-android
+      - name: Match libmpv FFmpeg ABI with FFmpegKit
+        working-directory: mpv-android/buildscripts
+        run: |
+          # FFmpegKit 8.1.9 is built from FFmpeg n8.1.2 (libavutil ABI 60).
+          # Keep libmpv on the same FFmpeg release to prevent SONAME collisions
+          # between incompatible libav* libraries in the Android process.
+          sed -i 's/^v_ci_ffmpeg=.*/v_ci_ffmpeg=n8.1.2/' include/depinfo.sh
+          grep -qx 'v_ci_ffmpeg=n8.1.2' include/depinfo.sh
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: 17 }
       - name: Install libmpv native build tools
@@ -71,6 +79,13 @@ jobs:
           } >> "$GITHUB_ENV"
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon
+      - name: Verify packaged FFmpeg ABI compatibility
+        run: |
+          mkdir -p "$RUNNER_TEMP/ffmpeg-abi-check"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libavutil.so > "$RUNNER_TEMP/ffmpeg-abi-check/libavutil.so"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libffmpegkit.so > "$RUNNER_TEMP/ffmpeg-abi-check/libffmpegkit.so"
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavutil.so" | grep -E 'av_log_default_callback@@LIBAVUTIL_60([[:space:]]|$)'
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libffmpegkit.so" | grep -E 'av_log_default_callback@LIBAVUTIL_60([[:space:]]|$)'
       - name: Build permanently signed release APK
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         run: gradle assembleRelease --no-daemon
