@@ -43,7 +43,7 @@ class LocalVideoOptimizer(context: Context) {
         // Avoid spending CPU time re-encoding audio when its source codec is broadly
         // supported in MP4; transcode all other codecs to AAC for compatibility.
         val audioCopyCodecs = setOf("aac", "mp3", "ac3", "eac3", "alac")
-        val audioMode = if (sourceAudioCodec?.lowercase() in audioCopyCodecs) "copy" else "aac"
+        val audioMode = if (sourceAudioCodec?.lowercase()?.let { it in audioCopyCodecs } == true) "copy" else "aac"
         // Force the muxer explicitly: some Android FFmpegKit builds do not infer
         // the output format reliably from an app-private cache filename.
         val args = arrayOf(
