@@ -44,6 +44,8 @@ class LocalVideoOptimizer(context: Context) {
 
         // FFmpeg's native HEVC decoder handles the source. MediaCodec is used only
         // for AVC encoding; AAC is encoded by FFmpeg. No Media3 Transformer decoder.
+        // Force the muxer explicitly: some Android FFmpegKit builds do not infer
+        // the output format reliably from an app-private cache filename.
         val args = arrayOf(
             "-y",
             "-hide_banner",
@@ -60,6 +62,7 @@ class LocalVideoOptimizer(context: Context) {
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "+faststart",
+            "-f", "mp4",
             output.absolutePath
         )
 
