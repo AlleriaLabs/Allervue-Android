@@ -13,9 +13,8 @@ import java.io.File
  * Converts a streamed Jellyfin source into a local 1080p H.264/AAC MP4.
  *
  * FFmpeg performs HEVC decoding in its own codec pipeline, so this path does not
- * depend on Android Media3 finding a hardware HEVC decoder. H.264 encoding uses
- * Android MediaCodec through FFmpeg to keep the encode workload off the CPU where
- * the device exposes a compatible encoder. This is an offline conversion: it must
+ * depend on Android Media3 finding a hardware HEVC decoder. H.264 encoding uses the bundled LGPL OpenH264 software encoder, avoiding
+ * reliance on an optional Android MediaCodec encoder. This is an offline conversion: it must
  * finish before the local copy can be played.
  */
 class LocalVideoOptimizer(context: Context) {
@@ -42,8 +41,8 @@ class LocalVideoOptimizer(context: Context) {
         this.callback = callback
         cancelled = false
 
-        // FFmpeg's native HEVC decoder handles the source. MediaCodec is used only
-        // for AVC encoding; AAC is encoded by FFmpeg. No Media3 Transformer decoder.
+        // FFmpeg's native HEVC decoder handles the source. OpenH264 performs AVC
+        // encoding in software; AAC is encoded by FFmpeg.
         // Force the muxer explicitly: some Android FFmpegKit builds do not infer
         // the output format reliably from an app-private cache filename.
         val args = arrayOf(
@@ -57,7 +56,7 @@ class LocalVideoOptimizer(context: Context) {
             "-map", "0:a:0?",
             "-sn",
             "-vf", "scale=-2:1080:flags=fast_bilinear",
-            "-c:v", "h264_mediacodec",
+            "-c:v", "libopenh264",
             "-b:v", "5M",
             "-c:a", "aac",
             "-b:a", "192k",
