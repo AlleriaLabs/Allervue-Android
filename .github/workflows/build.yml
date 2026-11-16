@@ -49,18 +49,19 @@ jobs:
           # Upstream mpv-android intentionally disables every encoder except
           # MJPEG and PNG. Allervue's local optimizer needs FFmpeg's Android
           # MediaCodec H.264 encoder, so explicitly enable it in the shared
-          # libavcodec build packaged with the app.
+          # libavcodec build packaged with the app. The optimizer also needs
+          # FFmpeg's native AAC audio encoder.
           python3 - <<'PY'
           from pathlib import Path
           path = Path("scripts/ffmpeg.sh")
           source = path.read_text()
           old = "--enable-encoder=mjpeg,png"
-          new = "--enable-encoder=mjpeg,png,h264_mediacodec"
+          new = "--enable-encoder=mjpeg,png,h264_mediacodec,aac"
           if source.count(old) != 1:
               raise SystemExit("Could not find the expected FFmpeg encoder allowlist")
           path.write_text(source.replace(old, new, 1))
           PY
-          grep -F -- '--enable-encoder=mjpeg,png,h264_mediacodec' scripts/ffmpeg.sh
+          grep -F -- '--enable-encoder=mjpeg,png,h264_mediacodec,aac' scripts/ffmpeg.sh
       - name: Build upstream libmpv for Android ARM64
         working-directory: mpv-android/buildscripts
         env:
@@ -150,6 +151,11 @@ jobs:
           readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so" | grep -E 'av_get_saf_open@LIBAVUTIL_60([[:space:]]|$)'
           readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so" | grep -E 'av_get_saf_close@LIBAVUTIL_60([[:space:]]|$)'
           strings -n 3 "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so" | grep -qx 'saf'
+      - name: Verify optimizer encoders are packaged
+        run: |
+          unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libavcodec.so > "$RUNNER_TEMP/ffmpeg-abi-check/libavcodec.so"
+          strings -n 3 "$RUNNER_TEMP/ffmpeg-abi-check/libavcodec.so" | grep -qx 'h264_mediacodec'
+          strings -n 3 "$RUNNER_TEMP/ffmpeg-abi-check/libavcodec.so" | grep -qx 'aac'
       - name: Build permanently signed release APK
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         run: gradle assembleRelease --no-daemon
