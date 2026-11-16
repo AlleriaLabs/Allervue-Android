@@ -103,6 +103,7 @@ class PlayerActivity : ComponentActivity() {
     private var mpvResolveInProgress = false
     private var localOptimizedActive = false
     private var sourceVideoHeight = 0
+    private var sourceVideoCodec: String? = null
     private val localOptimizer by lazy { LocalVideoOptimizer(this) }
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
@@ -995,10 +996,15 @@ class PlayerActivity : ComponentActivity() {
         DiagnosticLog.record(this, "LOCAL_OPTIMIZER started input=Jellyfin direct stream output=1080p H.264")
         try {
             val sourceAudioCodec = audioStreams.firstOrNull()?.codec
-            localOptimizer.start(Api.streamUrl(itemId, sourceId), output, sourceAudioCodec, object : LocalVideoOptimizer.Callback {
+            localOptimizer.start(Api.streamUrl(itemId, sourceId), output, sourceVideoCodec, sourceAudioCodec, object : LocalVideoOptimizer.Callback {
                 override fun onProgress(framesProcessed: Int, speed: Double) {
                     val speedLabel = if (speed > 0.0) String.format(Locale.US, "%.2fx", speed) else "working"
                     showHud("Local conversion · $framesProcessed frames · $speedLabel", 1100)
+                }
+
+                override fun onFallbackToSoftware() {
+                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_OPTIMIZER hardware HEVC decode failed; retrying with software decoder")
+                    showHud("Hardware HEVC decode unsupported · retrying software", 2500)
                 }
 
                 override fun onCompleted(outputFile: File) {
@@ -1566,6 +1572,7 @@ class PlayerActivity : ComponentActivity() {
             val video = src.streams.firstOrNull { it.type == "Video" }
             val h = video?.height ?: 0
             sourceVideoHeight = h
+            sourceVideoCodec = video?.codec
             val range = video?.videoRange.orEmpty()
             val hdrContent = range.contains("HDR", true) || range.contains("HLG", true) || range.contains("DOVI", true)
             if (hdrContent && Build.VERSION.SDK_INT >= 26 && Device.supportsHdr(this@PlayerActivity)) {
