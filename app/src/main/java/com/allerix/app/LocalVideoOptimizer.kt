@@ -62,7 +62,10 @@ class LocalVideoOptimizer(context: Context) {
             "-c:a", "aac",
             "-b:a", "192k",
             "-movflags", "+faststart",
-            "-f", "mp4",
+            // The packaged Android FFmpeg build registers the MOV muxer; use its
+            // MP4-compatible brand explicitly instead of the unavailable mp4 alias.
+            "-f", "mov",
+            "-brand", "mp42",
             output.absolutePath
         )
 
