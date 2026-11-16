@@ -50,6 +50,41 @@ jobs:
           DONT_BUILD_RELEASE: "1"
         run: |
           ./download.sh
+
+          # FFmpegKit's Android AAR uses a custom SAF protocol bridge. Its JNI
+          # library calls av_set_saf_open/close in libavutil, and libavformat
+          # registers the matching "saf:" protocol. Reapply the same upstream
+          # FFmpegKit protocol patch to the FFmpeg source used by libmpv so the
+          # single packaged libav* set satisfies both native engines.
+          FFMPEG_SRC="$PWD/deps/ffmpeg"
+          SAF_PATCH_BASE="https://raw.githubusercontent.com/ffmpegkit-maintained/ffmpeg/c72e151c1ba5bd6ce602a1dfd5eae402095bae86/android-8.1-lts/tools/protocols"
+          mkdir -p "$RUNNER_TEMP/ffmpegkit-saf"
+          curl -fsSL "$SAF_PATCH_BASE/libavutil_file.h" -o "$RUNNER_TEMP/ffmpegkit-saf/libavutil_file.h"
+          curl -fsSL "$SAF_PATCH_BASE/libavutil_file.c" -o "$RUNNER_TEMP/ffmpegkit-saf/libavutil_file.c"
+          curl -fsSL "$SAF_PATCH_BASE/libavformat_file.c" -o "$RUNNER_TEMP/ffmpegkit-saf/libavformat_file.c"
+          ! grep -q 'av_set_saf_open' "$FFMPEG_SRC/libavutil/file.c"
+          ! grep -q 'ff_saf_protocol' "$FFMPEG_SRC/libavformat/protocols.c"
+          cat "$RUNNER_TEMP/ffmpegkit-saf/libavutil_file.h" >> "$FFMPEG_SRC/libavutil/file.h"
+          cat "$RUNNER_TEMP/ffmpegkit-saf/libavutil_file.c" >> "$FFMPEG_SRC/libavutil/file.c"
+          cat "$RUNNER_TEMP/ffmpegkit-saf/libavformat_file.c" >> "$FFMPEG_SRC/libavformat/file.c"
+          python3 - "$FFMPEG_SRC/libavformat/protocols.c" <<'PY'
+          from pathlib import Path
+          import sys
+          path = Path(sys.argv[1])
+          source = path.read_text()
+          anchor = "extern const URLProtocol ff_file_protocol;"
+          if source.count(anchor) != 1:
+              raise SystemExit("Expected exactly one ff_file_protocol registration anchor")
+          path.write_text(source.replace(
+              anchor,
+              anchor + "\\nextern const URLProtocol ff_saf_protocol;",
+              1,
+          ))
+          PY
+
+          grep -q 'av_set_saf_open' "$FFMPEG_SRC/libavutil/file.c"
+          grep -q 'av_get_saf_open' "$FFMPEG_SRC/libavformat/file.c"
+          grep -q 'ff_saf_protocol' "$FFMPEG_SRC/libavformat/protocols.c"
           ./buildall.sh --arch arm64 mpv-android
       - name: Install libmpv runtime into Allervue
         run: |
@@ -83,9 +118,20 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/ffmpeg-abi-check"
           unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libavutil.so > "$RUNNER_TEMP/ffmpeg-abi-check/libavutil.so"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libavformat.so > "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so"
           unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libffmpegkit.so > "$RUNNER_TEMP/ffmpeg-abi-check/libffmpegkit.so"
+          # FFmpeg version ABI must match.
           readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavutil.so" | grep -E 'av_log_default_callback@@LIBAVUTIL_60([[:space:]]|$)'
           readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libffmpegkit.so" | grep -E 'av_log_default_callback@LIBAVUTIL_60([[:space:]]|$)'
+          # FFmpegKit's custom SAF hooks must exist in the one packaged libavutil.
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavutil.so" | grep -E 'av_set_saf_open@@LIBAVUTIL_60([[:space:]]|$)'
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavutil.so" | grep -E 'av_set_saf_close@@LIBAVUTIL_60([[:space:]]|$)'
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libffmpegkit.so" | grep -E 'av_set_saf_open@LIBAVUTIL_60([[:space:]]|$)'
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libffmpegkit.so" | grep -E 'av_set_saf_close@LIBAVUTIL_60([[:space:]]|$)'
+          # libavformat must consume the same hooks and register the saf: protocol.
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so" | grep -E 'av_get_saf_open@LIBAVUTIL_60([[:space:]]|$)'
+          readelf -Ws "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so" | grep -E 'av_get_saf_close@LIBAVUTIL_60([[:space:]]|$)'
+          strings -n 3 "$RUNNER_TEMP/ffmpeg-abi-check/libavformat.so" | grep -qx 'saf'
       - name: Build permanently signed release APK
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         run: gradle assembleRelease --no-daemon
