@@ -167,8 +167,12 @@ class LocalVideoOptimizer(context: Context) {
                     // Keep the hardware encoder on a low-latency, simple GOP.
                     // B-frames add buffering and are unnecessary for this local playback copy.
                     "-bf", "0",
-                    "-g", "60",
-                    "-b:v", "5M",
+                    // Favor throughput over file size: fewer keyframes and a moderate
+                    // bitrate reduce encoder work while keeping 1080p watchable.
+                    "-g", "120",
+                    "-b:v", "3.5M",
+                    "-maxrate", "4M",
+                    "-bufsize", "8M",
                     "-c:a", audioMode,
                     "-b:a", "192k",
                     // This file is played only after conversion completes. Omitting
