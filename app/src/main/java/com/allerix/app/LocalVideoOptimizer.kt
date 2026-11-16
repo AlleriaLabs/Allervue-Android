@@ -125,7 +125,7 @@ class LocalVideoOptimizer(context: Context) {
         // Some devices cannot expose 10-bit HEVC through MediaCodec, so retry
         // the exact same conversion with FFmpeg's software decoder on failure.
         val tryHardwareHevc = videoCodec in setOf("hevc", "h265", "hev1", "hvc1")
-        val audioCopyCodecs = setOf("aac", "mp3")
+        val audioCopyCodecs = setOf("aac", "mp3", "ac3", "eac3")
         val audioMode = if (sourceAudioCodec?.lowercase()?.let { it in audioCopyCodecs } == true) "copy" else "aac"
 
         fun finishWithError(finished: FFmpegSession) {
@@ -164,10 +164,15 @@ class LocalVideoOptimizer(context: Context) {
                     "-sn",
                     "-vf", "scale=-2:1080:flags=fast_bilinear",
                     "-c:v", "h264_mediacodec",
+                    // Keep the hardware encoder on a low-latency, simple GOP.
+                    // B-frames add buffering and are unnecessary for this local playback copy.
+                    "-bf", "0",
+                    "-g", "60",
                     "-b:v", "5M",
                     "-c:a", audioMode,
                     "-b:a", "192k",
-                    "-movflags", "+faststart",
+                    // This file is played only after conversion completes. Omitting
+                    // faststart avoids FFmpeg's extra MP4 relocation pass.
                     "-f", "mov",
                     "-brand", "mp42",
                     output.absolutePath
