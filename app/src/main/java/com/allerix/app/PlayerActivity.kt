@@ -893,13 +893,21 @@ class PlayerActivity : ComponentActivity() {
             applyChoice(all[i], audioMode); dlg.dismiss()
         })
         box.addView(sectionLabel("On-device processing"))
+        box.addView(pill("Fast local copy · original quality") {
+            dlg.dismiss()
+            startFastLocalCopy()
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        box.addView(noteText(
+            "Copies the original video and audio streams into a local MKV without re-encoding. Usually much faster " +
+                "than conversion, with no quality loss. Original resolution is retained; playback codec support still depends on the player."
+        ))
         box.addView(pill("Optimize locally to 1080p") {
             dlg.dismiss()
             startLocalOptimization()
         }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
         box.addView(noteText(
-            "Creates a cached 1080p H.264 copy on this phone before playback. Conversion time, heat, battery " +
-                "and storage use depend on the device. The original Jellyfin file is never changed."
+            "Re-encodes to 1080p H.264 for wider playback compatibility. This takes longer and uses more battery. " +
+                "The original Jellyfin file is never changed."
         ))
     }
 
@@ -938,6 +946,84 @@ class PlayerActivity : ComponentActivity() {
             }
             .setNegativeButton("Close", null)
             .show()
+    }
+
+    private fun startFastLocalCopy() {
+        if (offlinePath != null) {
+            showHud("This title is already stored locally", 2500)
+            return
+        }
+        if (sourceId.isBlank()) {
+            showHud("Wait for Jellyfin video details to load", 2500)
+            return
+        }
+        val outputDir = File(cacheDir, "local-copies")
+        if (!outputDir.exists() && !outputDir.mkdirs()) {
+            showHud("Couldn't prepare local copy cache", 3000)
+            return
+        }
+        val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_original.mkv")
+        val resumeAt = playbackPositionMs().coerceAtLeast(0L)
+        if ((!output.exists() || output.length() <= 0L) && outputDir.usableSpace < 1_500L * 1024L * 1024L) {
+            showHud("Not enough free storage for local copy", 3500)
+            return
+        }
+        if (output.exists() && output.length() > 0L) {
+            playFastLocalCopy(output, resumeAt)
+            return
+        }
+        handler.removeCallbacks(stalledPlaybackFallback)
+        if (mpvActive) {
+            mpvView.pausePlayback()
+            mpvActive = false
+            mpvView.visibility = View.GONE
+            playerView.visibility = View.VISIBLE
+        }
+        player.pause()
+        showHud("Copying original streams · no re-encoding…", 5000)
+        DiagnosticLog.record(this, "LOCAL_COPY started mode=stream-copy container=matroska")
+        try {
+            localOptimizer.startFastCopy(Api.streamUrl(itemId, sourceId), output, object : LocalVideoOptimizer.Callback {
+                override fun onProgress(framesProcessed: Int, speed: Double) {
+                    showHud("Fast local copy · $framesProcessed frames", 1100)
+                }
+                override fun onCompleted(outputFile: File) {
+                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_COPY completed bytes=${outputFile.length()}")
+                    playFastLocalCopy(outputFile, resumeAt)
+                }
+                override fun onError(error: Throwable) {
+                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_COPY failed: ${error.message}", error)
+                    showLocalOptimizerFailure(error)
+                    player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
+                    player.prepare()
+                    player.playWhenReady = true
+                }
+            })
+        } catch (error: Throwable) {
+            DiagnosticLog.record(this, "LOCAL_COPY could not start: ${error.message}", error)
+            showLocalOptimizerFailure(error)
+            player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
+            player.prepare()
+            player.playWhenReady = true
+        }
+    }
+
+    private fun playFastLocalCopy(file: File, resumeAt: Long) {
+        val localUrl = Uri.fromFile(file).toString()
+        handler.removeCallbacks(stalledPlaybackFallback)
+        player.pause()
+        player.stop()
+        playerView.visibility = View.GONE
+        mpvView.visibility = View.VISIBLE
+        mpvActive = true
+        localOptimizedActive = false
+        plan = PlaybackPlan(localUrl, false, false, sessionId, "Local original · stream copy")
+        updateTopPlaybackInfo()
+        mpvView.play(localUrl, resumeAt)
+        spinner.visibility = View.GONE
+        handler.postDelayed({ if (mpvActive) updateProgress() }, 1200)
+        showHud("Playing original-quality local copy", 2500)
+        DiagnosticLog.record(this, "LOCAL_COPY playback started file=${file.name} resume=${resumeAt}ms")
     }
 
     private fun startLocalOptimization() {
