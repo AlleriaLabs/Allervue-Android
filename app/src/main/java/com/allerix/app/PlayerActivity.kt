@@ -994,7 +994,8 @@ class PlayerActivity : ComponentActivity() {
         showHud("Preparing local 1080p conversion…", 5000)
         DiagnosticLog.record(this, "LOCAL_OPTIMIZER started input=Jellyfin direct stream output=1080p H.264")
         try {
-            localOptimizer.start(Api.streamUrl(itemId, sourceId), output, object : LocalVideoOptimizer.Callback {
+            val sourceAudioCodec = audioStreams.firstOrNull()?.codec
+            localOptimizer.start(Api.streamUrl(itemId, sourceId), output, sourceAudioCodec, object : LocalVideoOptimizer.Callback {
                 override fun onProgress(framesProcessed: Int, speed: Double) {
                     val speedLabel = if (speed > 0.0) String.format(Locale.US, "%.2fx", speed) else "working"
                     showHud("Local conversion · $framesProcessed frames · $speedLabel", 1100)
