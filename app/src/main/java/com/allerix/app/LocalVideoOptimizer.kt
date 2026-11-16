@@ -12,10 +12,8 @@ import java.io.File
 /**
  * Converts a streamed Jellyfin source into a local 1080p H.264/AAC MP4.
  *
- * FFmpeg performs HEVC decoding in its own codec pipeline, so this path does not
- * depend on Android Media3 finding a hardware HEVC decoder. H.264 encoding uses the bundled LGPL FFmpeg's built-in H.264 built-in software encoder, avoiding
- * reliance on an optional Android MediaCodec encoder. This is an offline conversion: it must
- * finish before the local copy can be played.
+ * FFmpeg decodes HEVC and the bundled Android MediaCodec encoder produces H.264.
+ * This is an offline conversion: it must finish before the local copy can be played.
  */
 class LocalVideoOptimizer(context: Context) {
     interface Callback {
@@ -31,7 +29,7 @@ class LocalVideoOptimizer(context: Context) {
 
     fun isRunning(): Boolean = session != null
 
-    fun start(sourceUrl: String, output: File, callback: Callback) {
+    fun start(sourceUrl: String, output: File, sourceAudioCodec: String?, callback: Callback) {
         check(session == null) { "A local optimization is already running" }
         require(sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
             "Unsupported Jellyfin source URL"
@@ -41,8 +39,11 @@ class LocalVideoOptimizer(context: Context) {
         this.callback = callback
         cancelled = false
 
-        // FFmpeg's native HEVC decoder handles the source. FFmpeg's built-in H.264 performs AVC
-        // encoding in software; AAC is encoded by FFmpeg.
+        // Keep the known-working HEVC decode + MediaCodec H.264 encode path.
+        // Avoid spending CPU time re-encoding audio when its source codec is broadly
+        // supported in MP4; transcode all other codecs to AAC for compatibility.
+        val audioCopyCodecs = setOf("aac", "mp3", "ac3", "eac3", "alac")
+        val audioMode = if (sourceAudioCodec?.lowercase() in audioCopyCodecs) "copy" else "aac"
         // Force the muxer explicitly: some Android FFmpegKit builds do not infer
         // the output format reliably from an app-private cache filename.
         val args = arrayOf(
@@ -58,7 +59,7 @@ class LocalVideoOptimizer(context: Context) {
             "-vf", "scale=-2:1080:flags=fast_bilinear",
             "-c:v", "h264_mediacodec",
             "-b:v", "5M",
-            "-c:a", "aac",
+            "-c:a", audioMode,
             "-b:a", "192k",
             "-movflags", "+faststart",
             // The packaged Android FFmpeg build registers the MOV muxer; use its
