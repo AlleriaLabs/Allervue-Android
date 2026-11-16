@@ -31,8 +31,12 @@ class LocalVideoOptimizer(context: Context) {
     fun isRunning(): Boolean = session != null
 
     /** Copies compatible streams into a local Matroska file without decoding or re-encoding. */
+    @Synchronized
     fun startFastCopy(sourceUrl: String, output: File, callback: Callback) {
-        check(session == null) { "A local optimization is already running" }
+        if (session != null) {
+            handler.post { callback.onError(IllegalStateException("A local video task is already running")) }
+            return
+        }
         require(sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
             "Unsupported Jellyfin source URL"
         }
@@ -96,6 +100,7 @@ class LocalVideoOptimizer(context: Context) {
         }
     }
 
+    @Synchronized
     fun start(
         sourceUrl: String,
         output: File,
@@ -103,7 +108,10 @@ class LocalVideoOptimizer(context: Context) {
         sourceAudioCodec: String?,
         callback: Callback
     ) {
-        check(session == null) { "A local optimization is already running" }
+        if (session != null) {
+            handler.post { callback.onError(IllegalStateException("A local video task is already running")) }
+            return
+        }
         require(sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
             "Unsupported Jellyfin source URL"
         }
