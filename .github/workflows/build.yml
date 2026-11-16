@@ -43,6 +43,24 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/meson-venv"
           "$RUNNER_TEMP/meson-venv/bin/pip" install --upgrade 'meson>=1.11.0'
           echo "$RUNNER_TEMP/meson-venv/bin" >> "$GITHUB_PATH"
+      - name: Enable H.264 MediaCodec encoder in bundled FFmpeg
+        working-directory: mpv-android/buildscripts
+        run: |
+          # Upstream mpv-android intentionally disables every encoder except
+          # MJPEG and PNG. Allervue's local optimizer needs FFmpeg's Android
+          # MediaCodec H.264 encoder, so explicitly enable it in the shared
+          # libavcodec build packaged with the app.
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/ffmpeg.sh")
+          source = path.read_text()
+          old = "--enable-encoder=mjpeg,png"
+          new = "--enable-encoder=mjpeg,png,h264_mediacodec"
+          if source.count(old) != 1:
+              raise SystemExit("Could not find the expected FFmpeg encoder allowlist")
+          path.write_text(source.replace(old, new, 1))
+          PY
+          grep -F -- '--enable-encoder=mjpeg,png,h264_mediacodec' scripts/ffmpeg.sh
       - name: Build upstream libmpv for Android ARM64
         working-directory: mpv-android/buildscripts
         env:
