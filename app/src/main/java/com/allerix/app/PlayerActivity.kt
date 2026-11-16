@@ -102,6 +102,7 @@ class PlayerActivity : ComponentActivity() {
     private var mpvAttempted = false
     private var mpvResolveInProgress = false
     private var localOptimizedActive = false
+    private var autoLocalCopyAttempted = false
     private var sourceVideoHeight = 0
     private var sourceVideoCodec: String? = null
     private val localOptimizer by lazy { LocalVideoOptimizer(this) }
@@ -2038,17 +2039,77 @@ class PlayerActivity : ComponentActivity() {
         if (autoRetried || offlinePath != null) return
         autoRetried = true
         handler.removeCallbacks(stalledPlaybackFallback)
-        val pos = playbackPositionMs()
+        val pos = playbackPositionMs().coerceAtLeast(0L)
         if (mpvActive) {
             mpvView.pausePlayback()
             mpvActive = false
             mpvView.visibility = View.GONE
             playerView.visibility = View.VISIBLE
         }
+
+        // Only attempt a local stream-copy after both normal playback and the
+        // original-stream libmpv fallback have failed. Never copy every title.
+        if (!autoLocalCopyAttempted && sourceId.isNotBlank()) {
+            autoLocalCopyAttempted = true
+            val outputDir = File(cacheDir, "local-copies")
+            val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_original.mkv")
+            if (output.exists() && output.length() > 0L) {
+                playFastLocalCopy(output, pos)
+                monitorAutomaticLocalCopyPlayback(pos)
+                return
+            }
+            if ((outputDir.exists() || outputDir.mkdirs()) &&
+                outputDir.usableSpace >= 1_500L * 1024L * 1024L) {
+                showHud("Trying automatic local copy…", 4000)
+                DiagnosticLog.record(this, "AUTO_LOCAL_COPY started after direct/libmpv playback failure")
+                try {
+                    localOptimizer.startFastCopy(Api.streamUrl(itemId, sourceId), output,
+                        object : LocalVideoOptimizer.Callback {
+                            override fun onProgress(framesProcessed: Int, speed: Double) {
+                                showHud("Preparing local copy · $framesProcessed frames", 1200)
+                            }
+                            override fun onCompleted(outputFile: File) {
+                                DiagnosticLog.record(this@PlayerActivity, "AUTO_LOCAL_COPY completed bytes=${outputFile.length()}")
+                                playFastLocalCopy(outputFile, pos)
+                                monitorAutomaticLocalCopyPlayback(pos)
+                            }
+                            override fun onError(error: Throwable) {
+                                DiagnosticLog.record(this@PlayerActivity, "AUTO_LOCAL_COPY failed; using server transcode", error)
+                                startServerTranscodeFallback(pos)
+                            }
+                        })
+                    return
+                } catch (error: Throwable) {
+                    DiagnosticLog.record(this, "AUTO_LOCAL_COPY could not start; using server transcode", error)
+                }
+            } else {
+                DiagnosticLog.record(this, "AUTO_LOCAL_COPY skipped: insufficient storage or cache unavailable")
+            }
+        }
+        startServerTranscodeFallback(pos)
+    }
+
+    private fun monitorAutomaticLocalCopyPlayback(resumeAt: Long) {
+        handler.postDelayed({
+            if (!mpvActive) return@postDelayed
+            val current = mpvView.positionMs()
+            if (current < resumeAt + 500L) {
+                DiagnosticLog.record(this, "AUTO_LOCAL_COPY playback did not advance; falling back to Jellyfin H.264 transcode")
+                mpvView.pausePlayback()
+                mpvActive = false
+                mpvView.visibility = View.GONE
+                playerView.visibility = View.VISIBLE
+                startServerTranscodeFallback(resumeAt)
+            } else {
+                DiagnosticLog.record(this, "AUTO_LOCAL_COPY playback verified position=${current}ms")
+            }
+        }, 18_000)
+    }
+
+    private fun startServerTranscodeFallback(pos: Long) {
         showHud("Playback failed. Retrying as H.264 1080p…", 3500)
         lifecycleScope.launch {
             try {
-                // Direct stream can fail before the parallel metadata request finishes.
                 val resolvedSourceId = sourceId.ifBlank {
                     Api.item(itemId).mediaSources?.firstOrNull()?.id ?: error("Jellyfin returned no media source")
                 }
