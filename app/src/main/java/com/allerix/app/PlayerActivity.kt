@@ -934,6 +934,11 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun startFastLocalCopy() {
+        if (localOptimizer.isRunning()) {
+            showHud("A local video task is already running. Please wait for it to finish.", 3500)
+            DiagnosticLog.record(this, "LOCAL_COPY ignored: LocalVideoOptimizer already running")
+            return
+        }
         if (offlinePath != null) {
             showHud("This title is already stored locally", 2500)
             return
