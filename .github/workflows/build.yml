@@ -77,7 +77,7 @@ jobs:
               raise SystemExit("Expected exactly one ff_file_protocol registration anchor")
           path.write_text(source.replace(
               anchor,
-              anchor + "\\nextern const URLProtocol ff_saf_protocol;",
+              anchor + "\nextern const URLProtocol ff_saf_protocol;",
               1,
           ))
           PY
