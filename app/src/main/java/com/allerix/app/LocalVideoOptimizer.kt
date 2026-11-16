@@ -30,6 +30,72 @@ class LocalVideoOptimizer(context: Context) {
 
     fun isRunning(): Boolean = session != null
 
+    /** Copies compatible streams into a local Matroska file without decoding or re-encoding. */
+    fun startFastCopy(sourceUrl: String, output: File, callback: Callback) {
+        check(session == null) { "A local optimization is already running" }
+        require(sourceUrl.startsWith("http://") || sourceUrl.startsWith("https://")) {
+            "Unsupported Jellyfin source URL"
+        }
+        output.parentFile?.mkdirs()
+        if (output.exists()) output.delete()
+        this.callback = callback
+        cancelled = false
+
+        val args = arrayOf(
+            "-y", "-hide_banner", "-loglevel", "info", "-stats_period", "0.5",
+            "-i", sourceUrl,
+            "-map", "0:v:0",
+            "-map", "0:a?",
+            "-sn",
+            "-c", "copy",
+            "-map_metadata", "0",
+            "-f", "matroska",
+            output.absolutePath
+        )
+        try {
+            val created = FFmpegKit.executeWithArgumentsAsync(
+                args,
+                { finished ->
+                    session = null
+                    if (cancelled || ReturnCode.isCancel(finished.returnCode)) {
+                        output.delete()
+                        this.callback = null
+                    } else if (ReturnCode.isSuccess(finished.returnCode) && output.exists() && output.length() > 0L) {
+                        val cb = this.callback
+                        this.callback = null
+                        handler.post { cb?.onCompleted(output) }
+                    } else {
+                        output.delete()
+                        val detail = (finished.output ?: finished.allLogsAsString ?: finished.failStackTrace)
+                            .orEmpty()
+                            .replace(Regex("(?i)(api_key=)[^&\\s]+"), "$1[redacted]")
+                            .takeLast(1800)
+                            .ifBlank { "FFmpeg returned ${finished.returnCode ?: "no return code"}" }
+                        val cb = this.callback
+                        this.callback = null
+                        handler.post { cb?.onError(IllegalStateException(detail)) }
+                    }
+                },
+                null,
+                { statistics: Statistics ->
+                    handler.post {
+                        if (!cancelled) this.callback?.onProgress(
+                            statistics.videoFrameNumber,
+                            statistics.speed.toDouble()
+                        )
+                    }
+                }
+            )
+            session = created
+        } catch (error: Throwable) {
+            session = null
+            output.delete()
+            val cb = this.callback
+            this.callback = null
+            handler.post { cb?.onError(error) }
+        }
+    }
+
     fun start(
         sourceUrl: String,
         output: File,
