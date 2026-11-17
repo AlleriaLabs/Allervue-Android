@@ -55,7 +55,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         DiagnosticLog.install(this)
         DiagnosticLog.record(this, "MainActivity onCreate")
-        Api.load(this)
+        Api.load(this)\n        SeerrApi.load(this)
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
