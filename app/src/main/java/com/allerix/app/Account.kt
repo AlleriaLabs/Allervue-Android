@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -514,6 +515,7 @@ fun ClientSettingsScreen(
 
 @Composable
 fun RequestShowScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var jellyfinUser by remember { mutableStateOf(Api.username) }
