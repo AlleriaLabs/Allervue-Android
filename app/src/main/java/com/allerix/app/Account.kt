@@ -514,82 +514,165 @@ fun ClientSettingsScreen(
 
 @Composable
 fun RequestShowScreen(back: () -> Unit) {
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var title by remember { mutableStateOf("") }
-    var year by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("Movie") }
+    var query by remember { mutableStateOf("") }
+    var jellyfinUser by remember { mutableStateOf(Api.username) }
+    var jellyfinPassword by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<SeerrTitle>>(emptyList()) }
+    var requests by remember { mutableStateOf<List<String>>(emptyList()) }
     var status by remember { mutableStateOf("") }
-    var isError by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
+    var connected by remember { mutableStateOf(SeerrApi.isConnected()) }
     val colors = appFieldColors()
 
-    Column(Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
-        ScreenHeader("Request a show", back)
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            OutlinedTextField(
-                title, { title = it; status = "" }, label = { Text("Title *") }, singleLine = true,
-                colors = colors, modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(
-                year, { if (it.length <= 4 && it.all { c -> c.isDigit() }) { year = it; status = "" } },
-                label = { Text("Year (optional)") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                colors = colors, modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(Modifier.height(16.dp))
-            Text("CATEGORY", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("Movie", "Series", "Anime").forEach { c ->
-                    Button(
-                        onClick = { category = c }, shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (c == category) Red else Color(0xFF2A2A2A),
-                            contentColor = Color.White
-                        )
-                    ) { Text(c) }
+    LaunchedEffect(connected) {
+        if (connected) requests = runCatching { SeerrApi.myRequests() }.getOrDefault(emptyList())
+    }
+
+    Column(Modifier.fillMaxSize().background(BgDark)) {
+        ScreenHeader("Request Movies & TV", back)
+        Column(
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("SEERR REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Search the catalog and request titles for your library.", color = Grey, fontSize = 13.sp)
                 }
+                Text(if (connected) "CONNECTED" else "NOT CONNECTED",
+                    color = if (connected) Color(0xFF72C99A) else Grey, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
-            Spacer(Modifier.height(20.dp))
-            Button(
-                enabled = !busy, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
-                onClick = {
-                    val t = title.trim()
-                    val thisYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
-                    when {
-                        t.isEmpty() -> { status = "Title is required"; isError = true }
-                        year.isNotEmpty() && (year.length != 4 || year.toInt() !in 1888..(thisYear + 3)) ->
-                            { status = "Enter a valid 4-digit year, or leave it empty"; isError = true }
-                        else -> {
-                            busy = true; isError = false; status = "Sending…"
+            Spacer(Modifier.height(16.dp))
+
+            if (!connected) {
+                Column(Modifier.fillMaxWidth().background(Color(0xFF171719), RoundedCornerShape(14.dp)).padding(16.dp)) {
+                    Text("Connect your Seerr account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("Use the same Jellyfin username and password you use to sign in to Allervue. Your password is only sent to Seerr to create its session; it isn't saved by this feature.", color = Grey, fontSize = 12.sp)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(jellyfinUser, { jellyfinUser = it }, label = { Text("Jellyfin username") },
+                        singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(jellyfinPassword, { jellyfinPassword = it }, label = { Text("Jellyfin password") },
+                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
+                        colors = colors, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        enabled = !busy && jellyfinUser.isNotBlank() && jellyfinPassword.isNotBlank(),
+                        onClick = {
+                            busy = true; status = "Connecting to Seerr…"
                             scope.launch {
                                 try {
-                                    if (Api.sendRequest(t, year, category)) {
-                                        status = "✓ Request sent. Thank you!"
-                                        title = ""; year = ""
-                                    } else {
-                                        ctx.startActivity(Intent.createChooser(
-                                            Intent(Intent.ACTION_SEND).apply {
-                                                type = "text/plain"
-                                                putExtra(Intent.EXTRA_SUBJECT, "Show request: $t")
-                                                putExtra(Intent.EXTRA_TEXT, Api.requestText(t, year, category))
-                                            }, "Send request via"))
-                                        status = "Choose an app to send your request to the admin."
-                                    }
+                                    SeerrApi.login( LocalContext.current, jellyfinUser.trim(), jellyfinPassword)
+                                    connected = true
+                                    jellyfinPassword = ""
+                                    status = "Connected to Seerr."
                                 } catch (e: Exception) {
-                                    isError = true; status = "Couldn't send request (${e.message})"
+                                    status = e.message ?: "Couldn't connect to Seerr."
                                 }
                                 busy = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Red)
+                    ) { Text(if (busy) "Connecting…" else "Connect Seerr", color = Color.White) }
+                }
+            } else {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it },
+                    label = { Text("Search movies and TV shows") }, singleLine = true,
+                    colors = colors, modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    enabled = !busy && query.trim().length >= 2,
+                    onClick = {
+                        busy = true; status = ""
+                        scope.launch {
+                            try { results = SeerrApi.search(query); if (results.isEmpty()) status = "No matching titles found." }
+                            catch (e: Exception) { status = e.message ?: "Search failed." }
+                            busy = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Red)
+                ) { Text(if (busy) "Searching…" else "Search Seerr", color = Color.White) }
+
+                if (results.isNotEmpty()) {
+                    Spacer(Modifier.height(14.dp))
+                    Text("SEARCH RESULTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    results.forEach { item ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                .background(Color(0xFF171719), RoundedCornerShape(12.dp)).padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (item.posterPath.isNotBlank()) {
+                                coil.compose.AsyncImage(
+                                    model = "https://image.tmdb.org/t/p/w185${item.posterPath}",
+                                    contentDescription = item.title,
+                                    modifier = Modifier.width(58.dp).height(86.dp).clip(RoundedCornerShape(7.dp)),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                            }
+                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                                Text(item.title, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+                                Text((if (item.year.isNotBlank()) item.year + " · " else "") +
+                                    if (item.mediaType == "movie") "Movie" else "TV Series",
+                                    color = Grey, fontSize = 11.sp)
+                                if (item.overview.isNotBlank()) Text(item.overview, color = Dim, fontSize = 11.sp,
+                                    maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                Spacer(Modifier.height(6.dp))
+                                if (item.requestStatus.isNotBlank()) {
+                                    Text("Already in library or requested · ${item.requestStatus}", color = Color(0xFFD8B77E), fontSize = 10.sp)
+                                } else {
+                                    Button(
+                                        enabled = !busy,
+                                        onClick = {
+                                            busy = true; status = "Submitting ${item.title}…"
+                                            scope.launch {
+                                                try {
+                                                    val message = SeerrApi.request(item)
+                                                    status = "✓ ${item.title}: $message"
+                                                    results = results.map { if (it.id == item.id && it.mediaType == item.mediaType) it.copy(requestStatus = "Requested") else it }
+                                                    requests = runCatching { SeerrApi.myRequests() }.getOrDefault(requests)
+                                                } catch (e: Exception) { status = e.message ?: "Request failed." }
+                                                busy = false
+                                            }
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Red)
+                                    ) { Text("Request", fontSize = 11.sp, color = Color.White) }
+                                }
                             }
                         }
                     }
                 }
-            ) { Text("Submit request", fontWeight = FontWeight.Bold) }
-            if (status.isNotEmpty()) Text(status, color = if (isError) Color(0xFFFF6B6B) else Grey,
-                fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp))
+                Spacer(Modifier.height(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("YOUR REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        scope.launch { requests = runCatching { SeerrApi.myRequests() }.getOrDefault(requests) }
+                    }) { Text("Refresh", color = Grey) }
+                }
+                if (requests.isEmpty()) Text("No recent requests found.", color = Dim, fontSize = 12.sp)
+                requests.forEach { line ->
+                    Text(line, color = Color.White, fontSize = 13.sp, modifier = Modifier.fillMaxWidth()
+                        .padding(vertical = 7.dp).background(Color(0xFF171719), RoundedCornerShape(8.dp)).padding(12.dp))
+                }
+                TextButton(onClick = {
+                    SeerrApi.disconnect(LocalContext.current)
+                    connected = false
+                    results = emptyList()
+                    status = "Seerr disconnected."
+                }) { Text("Disconnect Seerr", color = Grey) }
+            }
+            if (status.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
+                Text(status, color = if (status.contains("failed", true) || status.contains("couldn't", true) || status.contains("HTTP")) Color(0xFFFF7777) else Grey,
+                    fontSize = 12.sp)
+            }
         }
     }
 }
