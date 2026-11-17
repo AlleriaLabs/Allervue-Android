@@ -564,7 +564,7 @@ fun RequestShowScreen(back: () -> Unit) {
                             busy = true; status = "Connecting to Seerr…"
                             scope.launch {
                                 try {
-                                    SeerrApi.login( LocalContext.current, jellyfinUser.trim(), jellyfinPassword)
+                                    SeerrApi.login(ctx, jellyfinUser.trim(), jellyfinPassword)
                                     connected = true
                                     jellyfinPassword = ""
                                     status = "Connected to Seerr."
@@ -662,7 +662,7 @@ fun RequestShowScreen(back: () -> Unit) {
                         .padding(vertical = 7.dp).background(Color(0xFF171719), RoundedCornerShape(8.dp)).padding(12.dp))
                 }
                 TextButton(onClick = {
-                    SeerrApi.disconnect(LocalContext.current)
+                    SeerrApi.disconnect(ctx)
                     connected = false
                     results = emptyList()
                     status = "Seerr disconnected."
