@@ -91,7 +91,9 @@ object SeerrApi {
         }
 
     suspend fun search(query: String): List<SeerrTitle> {
-        val encoded = URLEncoder.encode(query.trim(), "UTF-8")
+        // Seerr requires URI-component encoding. URLEncoder uses '+' for spaces,
+        // which is form encoding; Seerr expects spaces as %20.
+        val encoded = URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
         val root = json.parseToJsonElement(call("GET", "/search?query=$encoded&page=1")).jsonObject
         val results = root["results"]?.jsonArray ?: JsonArray(emptyList())
         return results.mapNotNull { value ->
