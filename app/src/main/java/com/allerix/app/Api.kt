@@ -58,7 +58,7 @@ object Api {
     private fun save(ctx: Context) = ctx.getSharedPreferences("allerix", Context.MODE_PRIVATE).edit()
         .putString("server", base).putString("token", token).putString("user", userId).putString("username", username).apply()
 
-    fun logout(ctx: Context) { token = ""; userId = ""; username = ""; save(ctx) }
+    fun logout(ctx: Context) { token = ""; userId = ""; username = ""; save(ctx); SeerrApi.disconnect(ctx) }
 
     fun normalize(raw: String): String {
         var s = raw.trim().trimEnd('/')
