@@ -365,18 +365,42 @@ fun SettingsMenuScreen(
     onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit
 ) {
     var help by remember { mutableStateOf(false) }
+    var about by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val appVersion = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull() ?: "Unknown"
+    }
     Column(Modifier.fillMaxSize().background(BgDark)) {
         ScreenHeader("Settings", back)
         SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
         SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
         SettingsRow("⚙", "Client settings", "Server address and password", onClient)
         SettingsRow("⌁", "Diagnostics", "Capture player crashes and share a log", onDiagnostics)
+        SettingsRow("ⓘ", "About Allervue", "App information and version") { about = true }
         SettingsRow("?", "Help & Support", "Account portal and password reset") { help = true }
         SettingsRow("⎋", "Sign out", "", onSignOut)
         Spacer(Modifier.weight(1f))
-        Text("Allervue 1.0", color = Color(0xFF666666), fontSize = 12.sp,
+        Text("Allervue $appVersion", color = Color(0xFF666666), fontSize = 12.sp,
             modifier = Modifier.padding(20.dp))
     }
+    if (about) AlertDialog(
+        onDismissRequest = { about = false }, containerColor = Color(0xFF181818),
+        title = { Text("About Allervue", color = Color.White) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("Version $appVersion", color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Allervue is an Alleria Labs media experience for browsing your Jellyfin library, " +
+                        "watching movies and series, managing downloads, and requesting titles through Seerr.",
+                    color = Grey, fontSize = 14.sp
+                )
+                Text("Great stories. Anytime. Anywhere.", color = Color(0xFFD8B77E), fontSize = 13.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = { about = false }) { Text("Close", color = Red) } }
+    )
     if (help) AlertDialog(
         onDismissRequest = { help = false }, containerColor = Color(0xFF181818),
         title = { Text("Help & Support", color = Color.White) },
