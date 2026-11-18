@@ -64,7 +64,7 @@ object SeerrApi {
             if (!response.isSuccessful) {
                 val message = runCatching {
                     val obj = json.parseToJsonElement(payload).jsonObject
-                    obj["message"]?.jsonPrimitive?.content ?: obj["error"]?.jsonPrimitive?.content
+                    (obj["message"]?.jsonPrimitive?.content ?: obj["error"]?.jsonPrimitive?.content)?.replace(Regex("(?i)Seerr"), "Allervue")
                 }.getOrNull()
                 error(message ?: "Allervue sign-in failed (HTTP ${response.code}).")
             }
@@ -158,7 +158,7 @@ object SeerrApi {
             val media = obj["media"]?.jsonObject
             val requestId = obj["id"]?.jsonPrimitive?.intOrNull ?: index + 1
 
-            // Seerr's request payload contains the TMDB ID and media state, but
+            // The request payload contains the TMDB ID and media state, but
             // does not include title/poster metadata. Those fields come from
             // the dedicated /movie/:id or /tv/:id detail endpoints.
             val mediaId = media?.get("tmdbId")?.jsonPrimitive?.intOrNull
