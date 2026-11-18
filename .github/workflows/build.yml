@@ -182,7 +182,7 @@ jobs:
 
           - In-app GitHub release update notifications
           - Updates install over the existing app when signed with the permanent Allervue release key
-          - Seerr request cards resolve movie and TV titles/posters from Seerr detail endpoints
+          - Allervue request cards now show movie and TV titles and posters
           - Player, Jellyfin library, and playback features
           
           Install: download Allervue.apk and allow "Install unknown apps" when Android asks.
