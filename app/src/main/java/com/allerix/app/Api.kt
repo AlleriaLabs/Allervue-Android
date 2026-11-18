@@ -103,6 +103,9 @@ object Api {
         val r = json.decodeFromString<AuthResult>(call("POST", "/Users/AuthenticateByName", body))
         token = r.token; userId = r.user.id; username = user
         save(ctx)
+        // Reuse the credentials from the primary Jellyfin sign-in to establish
+        // the request-service session. A request-service outage must not block playback sign-in.
+        runCatching { SeerrApi.login(ctx, user, pw) }
     }
 
     // ---- account ----
