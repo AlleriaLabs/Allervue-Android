@@ -539,6 +539,7 @@ fun ClientSettingsScreen(
 
 @Composable
 fun RequestShowScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SeerrTitle>>(emptyList()) }
