@@ -134,44 +134,75 @@ object SeerrApi {
         return result["message"]?.jsonPrimitive?.contentOrNull ?: "Request submitted to Seerr."
     }
 
+    private suspend fun fetchMediaDetails(mediaId: Int, mediaTypeHint: String): JsonObject? {
+        val paths = if (mediaTypeHint.equals("tv", true) || mediaTypeHint.equals("series", true)) {
+            listOf("/tv/$mediaId", "/movie/$mediaId")
+        } else {
+            listOf("/movie/$mediaId", "/tv/$mediaId")
+        }
+        for (path in paths) {
+            val details = runCatching {
+                json.parseToJsonElement(call("GET", path)).jsonObject
+            }.getOrNull()
+            if (details != null) return details
+        }
+        return null
+    }
+
     suspend fun myRequests(): List<SeerrRequest> {
         val root = json.parseToJsonElement(call("GET", "/request?take=20&skip=0")).jsonObject
         val results = root["results"]?.jsonArray ?: JsonArray(emptyList())
-        return results.mapIndexedNotNull { index, value ->
-            runCatching {
-                val obj = value.jsonObject
-                val media = obj["media"]?.jsonObject
-                val id = obj["id"]?.jsonPrimitive?.intOrNull ?: index + 1
-                val mediaId = media?.get("tmdbId")?.jsonPrimitive?.intOrNull
-                    ?: media?.get("id")?.jsonPrimitive?.intOrNull
-                val mediaType = obj["mediaType"]?.jsonPrimitive?.contentOrNull
-                    ?: obj["type"]?.jsonPrimitive?.contentOrNull
-                    ?: media?.get("mediaType")?.jsonPrimitive?.contentOrNull
-                    ?: "movie"
-                val title = media?.get("title")?.jsonPrimitive?.contentOrNull
-                    ?: media?.get("name")?.jsonPrimitive?.contentOrNull
-                    ?: obj["title"]?.jsonPrimitive?.contentOrNull
-                    ?: obj["name"]?.jsonPrimitive?.contentOrNull
-                    ?: mediaId?.let { "Request · TMDB #$it" }
-                    ?: "Movie request #$id"
-                val poster = media?.get("posterPath")?.jsonPrimitive?.contentOrNull
-                    ?: obj["posterPath"]?.jsonPrimitive?.contentOrNull ?: ""
-                val requestStatus = when (obj["status"]?.jsonPrimitive?.intOrNull) {
-                    1 -> "Pending approval"
-                    2 -> "Approved"
-                    3 -> "Declined"
-                    else -> "Submitted"
-                }
-                val availability = when (media?.get("status")?.jsonPrimitive?.intOrNull) {
-                    2 -> "Queued"
-                    3 -> "Processing"
-                    4 -> "Partially available"
-                    5 -> "Available"
-                    6 -> "Deleted"
-                    else -> ""
-                }
-                SeerrRequest(id, title, poster, mediaType, requestStatus, availability)
-            }.getOrNull()
+        val requests = mutableListOf<SeerrRequest>()
+        results.forEachIndexed { index, value ->
+            val obj = runCatching { value.jsonObject }.getOrNull() ?: return@forEachIndexed
+            val media = obj["media"]?.jsonObject
+            val requestId = obj["id"]?.jsonPrimitive?.intOrNull ?: index + 1
+
+            // Seerr's request payload contains the TMDB ID and media state, but
+            // does not include title/poster metadata. Those fields come from
+            // the dedicated /movie/:id or /tv/:id detail endpoints.
+            val mediaId = media?.get("tmdbId")?.jsonPrimitive?.intOrNull
+            val typeHint = obj["mediaType"]?.jsonPrimitive?.contentOrNull
+                ?: obj["type"]?.jsonPrimitive?.contentOrNull
+                ?: media?.get("mediaType")?.jsonPrimitive?.contentOrNull
+                ?: ""
+
+            val details = mediaId?.let { fetchMediaDetails(it, typeHint) }
+            val resolvedType = when {
+                details?.get("name") != null -> "tv"
+                details?.get("title") != null -> "movie"
+                typeHint.equals("tv", true) || typeHint.equals("series", true) -> "tv"
+                else -> "movie"
+            }
+            val title = details?.get("title")?.jsonPrimitive?.contentOrNull
+                ?: details?.get("name")?.jsonPrimitive?.contentOrNull
+                ?: media?.get("title")?.jsonPrimitive?.contentOrNull
+                ?: media?.get("name")?.jsonPrimitive?.contentOrNull
+                ?: obj["title"]?.jsonPrimitive?.contentOrNull
+                ?: obj["name"]?.jsonPrimitive?.contentOrNull
+                ?: mediaId?.let { "Requested title (TMDB #$it)" }
+                ?: "Requested item #$requestId"
+            val poster = details?.get("posterPath")?.jsonPrimitive?.contentOrNull
+                ?: media?.get("posterPath")?.jsonPrimitive?.contentOrNull
+                ?: obj["posterPath"]?.jsonPrimitive?.contentOrNull
+                ?: ""
+            val requestStatus = when (obj["status"]?.jsonPrimitive?.intOrNull) {
+                1 -> "Pending approval"
+                2 -> "Approved"
+                3 -> "Declined"
+                else -> "Submitted"
+            }
+            val availability = when (media?.get("status")?.jsonPrimitive?.intOrNull) {
+                2 -> "Queued"
+                3 -> "Processing"
+                4 -> "Partially available"
+                5 -> "Available"
+                6 -> "Deleted"
+                else -> ""
+            }
+            requests += SeerrRequest(
+                requestId, title, poster, resolvedType, requestStatus, availability
+            )
         }
-    }
-}
+        return requests
+    }}
