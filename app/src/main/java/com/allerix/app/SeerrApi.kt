@@ -66,12 +66,12 @@ object SeerrApi {
                     val obj = json.parseToJsonElement(payload).jsonObject
                     obj["message"]?.jsonPrimitive?.content ?: obj["error"]?.jsonPrimitive?.content
                 }.getOrNull()
-                error(message ?: "Seerr sign-in failed (HTTP ${response.code}).")
+                error(message ?: "Allervue sign-in failed (HTTP ${response.code}).")
             }
             val cookie = response.headers("Set-Cookie")
                 .firstOrNull { it.substringBefore("=") == "connect.sid" }
                 ?.substringBefore(";")
-                ?: error("Seerr signed in but did not return a session cookie.")
+                ?: error("Allervue sign-in completed but did not return a session cookie.")
             sessionCookie = cookie
             ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
                 .putString(COOKIE_KEY, cookie).apply()
@@ -80,7 +80,7 @@ object SeerrApi {
 
     private suspend fun call(method: String, path: String, body: String? = null): String =
         withContext(Dispatchers.IO) {
-            check(sessionCookie.isNotBlank()) { "Connect your Seerr account first." }
+            check(sessionCookie.isNotBlank()) { "Connect your Allervue account first." }
             val builder = Request.Builder().url(BASE_URL + "/api/v1" + path)
                 .header("Accept", "application/json")
                 .header("Cookie", sessionCookie)
@@ -93,7 +93,7 @@ object SeerrApi {
                         val obj = json.parseToJsonElement(payload).jsonObject
                         obj["message"]?.jsonPrimitive?.content ?: obj["error"]?.jsonPrimitive?.content
                     }.getOrNull()
-                    error(message ?: "Seerr returned HTTP ${response.code}.")
+                    error(message ?: "Allervue returned HTTP ${response.code}.")
                 }
                 payload
             }
@@ -131,7 +131,7 @@ object SeerrApi {
             put("mediaType", item.mediaType)
         }.toString()
         val result = json.parseToJsonElement(call("POST", "/request", body)).jsonObject
-        return result["message"]?.jsonPrimitive?.contentOrNull ?: "Request submitted to Seerr."
+        return result["message"]?.jsonPrimitive?.contentOrNull ?: "Request submitted through Allervue."
     }
 
     private suspend fun fetchMediaDetails(mediaId: Int, mediaTypeHint: String): JsonObject? {
