@@ -545,7 +545,7 @@ fun RequestShowScreen(back: () -> Unit) {
     var jellyfinUser by remember { mutableStateOf(Api.username) }
     var jellyfinPassword by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SeerrTitle>>(emptyList()) }
-    var requests by remember { mutableStateOf<List<String>>(emptyList()) }
+    var requests by remember { mutableStateOf<List<SeerrRequest>>(emptyList()) }
     var status by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var connected by remember { mutableStateOf(SeerrApi.isConnected()) }
@@ -682,10 +682,59 @@ fun RequestShowScreen(back: () -> Unit) {
                         scope.launch { requests = runCatching { SeerrApi.myRequests() }.getOrDefault(requests) }
                     }) { Text("Refresh", color = Grey) }
                 }
-                if (requests.isEmpty()) Text("No recent requests found.", color = Dim, fontSize = 12.sp)
-                requests.forEach { line ->
-                    Text(line, color = Color.White, fontSize = 13.sp, modifier = Modifier.fillMaxWidth()
-                        .padding(vertical = 7.dp).background(Color(0xFF171719), RoundedCornerShape(8.dp)).padding(12.dp))
+                if (requests.isEmpty()) {
+                    Text("No recent requests found.", color = Dim, fontSize = 12.sp,
+                        modifier = Modifier.padding(vertical = 10.dp))
+                }
+                requests.forEach { request ->
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                            .background(Color(0xFF171719), RoundedCornerShape(12.dp)).padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier.width(64.dp).height(94.dp).clip(RoundedCornerShape(7.dp))
+                                .background(Color(0xFF29292D)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (request.posterPath.isNotBlank()) {
+                                coil.compose.AsyncImage(
+                                    model = "https://image.tmdb.org/t/p/w185${request.posterPath}",
+                                    contentDescription = request.title,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                                )
+                            } else {
+                                Text("NO\nPOSTER", color = Dim, fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold, lineHeight = 11.sp)
+                            }
+                        }
+                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Text(request.title, color = Color.White, fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold, maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                            Text(if (request.mediaType.equals("tv", true) || request.mediaType.equals("series", true))
+                                "TV Series" else "Movie", color = Grey, fontSize = 11.sp,
+                                modifier = Modifier.padding(top = 3.dp))
+                            Spacer(Modifier.height(8.dp))
+                            val stateColor = when (request.requestStatus) {
+                                "Approved" -> Color(0xFF83C99A)
+                                "Declined" -> Color(0xFFFF8585)
+                                else -> Color(0xFFD8B77E)
+                            }
+                            Text(
+                                request.requestStatus.uppercase(),
+                                color = stateColor, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clip(RoundedCornerShape(5.dp))
+                                    .background(stateColor.copy(alpha = 0.12f))
+                                    .padding(horizontal = 8.dp, vertical = 5.dp)
+                            )
+                            if (request.availabilityStatus.isNotBlank()) {
+                                Text(request.availabilityStatus, color = Grey, fontSize = 11.sp,
+                                    modifier = Modifier.padding(top = 5.dp))
+                            }
+                        }
+                    }
                 }
                 TextButton(onClick = {
                     SeerrApi.disconnect(ctx)
