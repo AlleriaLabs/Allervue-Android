@@ -539,11 +539,8 @@ fun ClientSettingsScreen(
 
 @Composable
 fun RequestShowScreen(back: () -> Unit) {
-    val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var query by remember { mutableStateOf("") }
-    var jellyfinUser by remember { mutableStateOf(Api.username) }
-    var jellyfinPassword by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SeerrTitle>>(emptyList()) }
     var requests by remember { mutableStateOf<List<SeerrRequest>>(emptyList()) }
     var status by remember { mutableStateOf("") }
@@ -572,37 +569,15 @@ fun RequestShowScreen(back: () -> Unit) {
             Spacer(Modifier.height(16.dp))
 
             if (!connected) {
-                Column(Modifier.fillMaxWidth().background(Color(0xFF171719), RoundedCornerShape(14.dp)).padding(16.dp)) {
-                    Text("Connect your Allervue account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Column(
+                    Modifier.fillMaxWidth().background(Color(0xFF171719), RoundedCornerShape(14.dp)).padding(16.dp)
+                ) {
+                    Text("Finish connecting your account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    Text("Use the same Jellyfin username and password you use to sign in to Allervue. Your password is only sent to Allervue to create its session; it isn't saved by this feature.", color = Grey, fontSize = 12.sp)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(jellyfinUser, { jellyfinUser = it }, label = { Text("Jellyfin username") },
-                        singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(jellyfinPassword, { jellyfinPassword = it }, label = { Text("Jellyfin password") },
-                        singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                        colors = colors, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(12.dp))
-                    Button(
-                        enabled = !busy && jellyfinUser.isNotBlank() && jellyfinPassword.isNotBlank(),
-                        onClick = {
-                            busy = true; status = "Connecting to Allervue…"
-                            scope.launch {
-                                try {
-                                    SeerrApi.login(ctx, jellyfinUser.trim(), jellyfinPassword)
-                                    connected = true
-                                    jellyfinPassword = ""
-                                    status = "Connected to Allervue."
-                                } catch (e: Exception) {
-                                    status = e.message ?: "Couldn't connect to Allervue."
-                                }
-                                busy = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Red)
-                    ) { Text(if (busy) "Connecting…" else "Connect Allervue", color = Color.White) }
+                    Text(
+                        "Allervue connects your request account automatically when you sign in. If you were already signed in before this update, sign out of Allervue and sign in again once. You won't need a separate request login.",
+                        color = Grey, fontSize = 12.sp
+                    )
                 }
             } else {
                 OutlinedTextField(
