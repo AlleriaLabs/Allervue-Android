@@ -393,7 +393,7 @@ fun SettingsMenuScreen(
                 Text("Version $appVersion", color = Color.White, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Allervue is an Alleria Labs media experience for browsing your Jellyfin library, " +
-                        "watching movies and series, managing downloads, and requesting titles through Seerr.",
+                        "watching movies and series, managing downloads, and requesting titles through Allervue.",
                     color = Grey, fontSize = 14.sp
                 )
                 Text("Great stories. Anytime. Anywhere.", color = Color(0xFFD8B77E), fontSize = 13.sp)
@@ -563,7 +563,7 @@ fun RequestShowScreen(back: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("SEERR REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("ALLERVUE REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text("Search the catalog and request titles for your library.", color = Grey, fontSize = 13.sp)
                 }
                 Text(if (connected) "CONNECTED" else "NOT CONNECTED",
@@ -573,9 +573,9 @@ fun RequestShowScreen(back: () -> Unit) {
 
             if (!connected) {
                 Column(Modifier.fillMaxWidth().background(Color(0xFF171719), RoundedCornerShape(14.dp)).padding(16.dp)) {
-                    Text("Connect your Seerr account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Connect your Allervue account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
-                    Text("Use the same Jellyfin username and password you use to sign in to Allervue. Your password is only sent to Seerr to create its session; it isn't saved by this feature.", color = Grey, fontSize = 12.sp)
+                    Text("Use the same Jellyfin username and password you use to sign in to Allervue. Your password is only sent to Allervue to create its session; it isn't saved by this feature.", color = Grey, fontSize = 12.sp)
                     Spacer(Modifier.height(12.dp))
                     OutlinedTextField(jellyfinUser, { jellyfinUser = it }, label = { Text("Jellyfin username") },
                         singleLine = true, colors = colors, modifier = Modifier.fillMaxWidth())
@@ -587,22 +587,22 @@ fun RequestShowScreen(back: () -> Unit) {
                     Button(
                         enabled = !busy && jellyfinUser.isNotBlank() && jellyfinPassword.isNotBlank(),
                         onClick = {
-                            busy = true; status = "Connecting to Seerr…"
+                            busy = true; status = "Connecting to Allervue…"
                             scope.launch {
                                 try {
                                     SeerrApi.login(ctx, jellyfinUser.trim(), jellyfinPassword)
                                     connected = true
                                     jellyfinPassword = ""
-                                    status = "Connected to Seerr."
+                                    status = "Connected to Allervue."
                                 } catch (e: Exception) {
-                                    status = e.message ?: "Couldn't connect to Seerr."
+                                    status = e.message ?: "Couldn't connect to Allervue."
                                 }
                                 busy = false
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = Red)
-                    ) { Text(if (busy) "Connecting…" else "Connect Seerr", color = Color.White) }
+                    ) { Text(if (busy) "Connecting…" else "Connect Allervue", color = Color.White) }
                 }
             } else {
                 OutlinedTextField(
@@ -622,7 +622,7 @@ fun RequestShowScreen(back: () -> Unit) {
                         }
                     },
                     modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Red)
-                ) { Text(if (busy) "Searching…" else "Search Seerr", color = Color.White) }
+                ) { Text(if (busy) "Searching…" else "Search Allervue", color = Color.White) }
 
                 if (results.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
@@ -740,8 +740,8 @@ fun RequestShowScreen(back: () -> Unit) {
                     SeerrApi.disconnect(ctx)
                     connected = false
                     results = emptyList()
-                    status = "Seerr disconnected."
-                }) { Text("Disconnect Seerr", color = Grey) }
+                    status = "Allervue disconnected."
+                }) { Text("Disconnect Allervue", color = Grey) }
             }
             if (status.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
