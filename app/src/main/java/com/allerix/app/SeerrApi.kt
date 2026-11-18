@@ -91,8 +91,6 @@ object SeerrApi {
         }
 
     suspend fun search(query: String): List<SeerrTitle> {
-        // Seerr requires URI-component encoding. URLEncoder uses '+' for spaces,
-        // which is form encoding; Seerr expects spaces as %20.
         val encoded = URLEncoder.encode(query.trim(), "UTF-8").replace("+", "%20")
         val root = json.parseToJsonElement(call("GET", "/search?query=$encoded&page=1")).jsonObject
         val results = root["results"]?.jsonArray ?: JsonArray(emptyList())
@@ -130,21 +128,39 @@ object SeerrApi {
     suspend fun myRequests(): List<String> {
         val root = json.parseToJsonElement(call("GET", "/request?take=20&skip=0")).jsonObject
         val results = root["results"]?.jsonArray ?: JsonArray(emptyList())
-        return results.mapNotNull { value ->
-            val obj = value.jsonObject
-            val media = obj["media"]?.jsonObject
-            val title = media?.get("title")?.jsonPrimitive?.contentOrNull
-                ?: media?.get("name")?.jsonPrimitive?.contentOrNull
-            title?.let { name ->
-                val state = when (obj["status"]?.jsonPrimitive?.intOrNull) {
-                    1 -> "Pending"
+        return results.mapIndexedNotNull { index, value ->
+            runCatching {
+                val obj = value.jsonObject
+                val media = obj["media"]?.jsonObject
+                val id = obj["id"]?.jsonPrimitive?.intOrNull
+                val mediaId = media?.get("tmdbId")?.jsonPrimitive?.intOrNull
+                    ?: media?.get("id")?.jsonPrimitive?.intOrNull
+                val mediaType = obj["mediaType"]?.jsonPrimitive?.contentOrNull
+                    ?: obj["type"]?.jsonPrimitive?.contentOrNull
+                    ?: "media"
+                val title = obj["title"]?.jsonPrimitive?.contentOrNull
+                    ?: obj["name"]?.jsonPrimitive?.contentOrNull
+                    ?: media?.get("title")?.jsonPrimitive?.contentOrNull
+                    ?: media?.get("name")?.jsonPrimitive?.contentOrNull
+                    ?: mediaId?.let { "${mediaType.replaceFirstChar { c -> c.uppercase() }} request · TMDB #$it" }
+                    ?: "${mediaType.replaceFirstChar { c -> c.uppercase() }} request${id?.let { " #$it" } ?: " #${index + 1}"}"
+
+                val requestState = when (obj["status"]?.jsonPrimitive?.intOrNull) {
+                    1 -> "Pending approval"
                     2 -> "Approved"
                     3 -> "Declined"
-                    4 -> "Available"
                     else -> "Submitted"
                 }
-                "$name · $state"
-            }
+                val availability = when (media?.get("status")?.jsonPrimitive?.intOrNull) {
+                    2 -> " · Queued"
+                    3 -> " · Processing"
+                    4 -> " · Partially available"
+                    5 -> " · Available"
+                    6 -> " · Deleted"
+                    else -> ""
+                }
+                "$title · $requestState$availability"
+            }.getOrNull()
         }
     }
 }
