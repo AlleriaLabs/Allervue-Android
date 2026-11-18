@@ -187,9 +187,16 @@ jobs:
           
           Install: download Allervue.apk and allow "Install unknown apps" when Android asks.
           NOTES
-          gh release create "$TAG" Allervue.apk \
-            --repo "${{ github.repository }}" --target "${{ github.sha }}" \
-            --title "Allervue $TAG" --notes-file notes.md
+          if gh release view "$TAG" --repo "${{ github.repository }}" >/dev/null 2>&1; then
+            gh release upload "$TAG" Allervue.apk \
+              --repo "${{ github.repository }}" --clobber
+            gh release edit "$TAG" --repo "${{ github.repository }}" \
+              --title "Allervue $TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" Allervue.apk \
+              --repo "${{ github.repository }}" --target "${{ github.sha }}" \
+              --title "Allervue $TAG" --notes-file notes.md
+          fi
       - name: Explain why release signing is unavailable
         if: ${{ env.HAS_RELEASE_SIGNING != 'true' }}
         run: echo "::warning::Permanent signing secrets are not configured. Only an unsigned-key debug build artifact is produced; no update release is published."
