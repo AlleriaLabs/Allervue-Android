@@ -1111,8 +1111,31 @@ fun EpisodeRow(ep: Item, onPlay: () -> Unit, onDownload: () -> Unit, downloadSta
             }
             if (dlLabel.isNotEmpty()) Text(dlLabel, color = if (downloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL) Color(0xFF8FC7A0) else Grey, fontSize = 11.sp)
         }
-        IconButton(onClick = onDownload, enabled = downloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL) {
-            SmallIcon(if (downloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL) R.drawable.ic_check else R.drawable.ic_download)
+        val downloadRunning = downloadState?.status == android.app.DownloadManager.STATUS_RUNNING ||
+            downloadState?.status == android.app.DownloadManager.STATUS_PENDING
+        val downloadComplete = downloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL
+        IconButton(
+            onClick = onDownload,
+            enabled = !downloadRunning && !downloadComplete
+        ) {
+            when {
+                downloadComplete -> SmallIcon(R.drawable.ic_check, Color(0xFF8FC7A0))
+                downloadRunning -> {
+                    val progress = if (downloadState.total > 0L) {
+                        (downloadState.done.toFloat() / downloadState.total.toFloat()).coerceIn(0f, 1f)
+                    } else {
+                        0f
+                    }
+                    CircularProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier.size(24.dp),
+                        color = Color(0xFFD9B77E),
+                        trackColor = Color(0x44FFFFFF),
+                        strokeWidth = 2.5.dp
+                    )
+                }
+                else -> SmallIcon(R.drawable.ic_download, Color.White, 24)
+            }
         }
     }
 }
