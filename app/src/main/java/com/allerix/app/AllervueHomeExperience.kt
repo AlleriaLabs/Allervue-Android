@@ -97,7 +97,7 @@ internal fun AllervueHome(
             picks = runCatching {
                 Api.personalizedPicks((resume + recent).map { it.id }.toSet())
             }.getOrDefault(emptyList())
-            selected = featured ?: resume.firstOrNull() ?: recent.firstOrNull() ?: picks.firstOrNull()
+            selected = picks.firstOrNull() ?: featured ?: resume.firstOrNull() ?: recent.firstOrNull()
             if (featured == null && resume.isEmpty() && recent.isEmpty() && picks.isEmpty()) failure = true
         } catch (error: Exception) {
             if (error.message?.contains("401") == true) onLogout() else failure = true
@@ -109,7 +109,23 @@ internal fun AllervueHome(
     val allItems = remember(featured, resume, recent, picks) {
         (listOfNotNull(featured) + resume + recent + picks).distinctBy { it.id }
     }
-    val centerItem = selected ?: featured ?: allItems.firstOrNull()
+    // PersonalizedPicks are ranked locally from this Jellyfin user's watched titles
+    // and favorites. Fall back to Jellyfin's random featured results when history
+    // is unavailable or too sparse.
+    val centerCandidates = remember(picks, featured, recent, resume) {
+        (picks + listOfNotNull(featured) + recent + resume).distinctBy { it.id }
+    }
+    LaunchedEffect(centerCandidates.map { it.id }) {
+        if (centerCandidates.size > 1) {
+            var index = centerCandidates.indexOfFirst { it.id == selected?.id }.coerceAtLeast(0)
+            while (true) {
+                delay(3_000)
+                index = (index + 1) % centerCandidates.size
+                selected = centerCandidates[index]
+            }
+        }
+    }
+    val centerItem = selected ?: centerCandidates.firstOrNull() ?: allItems.firstOrNull()
     val orbitItems = allItems.filter { it.id != centerItem?.id }
     var orbitContentStep by remember { mutableIntStateOf(0) }
     LaunchedEffect(orbitItems.map { it.id }) {
