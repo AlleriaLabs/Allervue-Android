@@ -93,7 +93,7 @@ import kotlin.math.log10
  */
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
-    private val accent = 0xFF24D6E8.toInt()
+    private val accent = 0xFFD8B77E.toInt()
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
@@ -384,7 +384,7 @@ class PlayerActivity : ComponentActivity() {
 
     /** 10-second skip button: a clean solid charcoal disc, with no glass treatment. */
     private fun skipButton(forward: Boolean): FrameLayout = FrameLayout(this).apply {
-        background = circleBg(0xFF171E2D.toInt())
+        background = circleBg(0xFF202024.toInt())
         setPadding(dp(10), dp(10), dp(10), dp(10))
         addView(ImageView(context).apply {
             setImageResource(R.drawable.ic_replay); setColorFilter(Color.WHITE)
@@ -396,7 +396,7 @@ class PlayerActivity : ComponentActivity() {
         }, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
     }
 
-    /** Icon with a small label underneath; one entry in the bottom glass card. */
+    /** Icon with a small label underneath; one entry in the bottom control dock. */
     /** Individual floating action: no shared toolbar slab or glass panel. */
     private fun action(res: Int, label: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
@@ -410,12 +410,12 @@ class PlayerActivity : ComponentActivity() {
             }
             elevation = dp(2).toFloat()
             addView(ImageView(context).apply {
-                setImageResource(res); setColorFilter(0xFF24D6E8.toInt())
+                setImageResource(res); setColorFilter(0xFFD8B77E.toInt())
                 setPadding(dp(12), dp(12), dp(12), dp(12))
             }, FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER))
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         addView(TextView(context).apply {
-            text = label; setTextColor(0xFFDCE5F2.toInt()); textSize = 10f
+            text = label; setTextColor(0xFFE4E4E8.toInt()); textSize = 10f
             gravity = Gravity.CENTER; maxLines = 1; setPadding(0, dp(5), 0, 0)
         })
     }
@@ -442,7 +442,7 @@ class PlayerActivity : ComponentActivity() {
         val backBtn = glassIcon(R.drawable.ic_back, 30, 7)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF2F6FC.toInt()); textSize = 15f
+            setTextColor(0xFFF4EFE5.toInt()); textSize = 15f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
             maxLines = 1; maxWidth = dp(240); ellipsize = TextUtils.TruncateAt.END
         }
@@ -506,15 +506,13 @@ class PlayerActivity : ComponentActivity() {
             }
 
         val lockAction = featureAction(R.drawable.ic_lock, "Lock")
-        val qualityAction = featureAction(R.drawable.ic_tune, "Quality")
-        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subs")
+        val engineAction = featureAction(R.drawable.ic_tune, "Engine")
+        val qualityAction = featureAction(R.drawable.ic_tune, qualityText())
+        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subtitles")
         val audioAction = featureAction(R.drawable.ic_music, "Audio")
-        val audioOutputAction = featureAction(R.drawable.ic_volume, "Output")
-        val aspectAction = featureAction(R.drawable.ic_aspect, "Aspect")
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
         speedLabel = speedAction.getChildAt(1) as TextView
-        val qualityLabel = qualityAction.getChildAt(1) as TextView
-        qualityLabel.text = "Quality"
+        val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
 
         prevEpisodeBtn = episodeNavButton("‹|").apply {
             textSize = 17f; background = null; setPadding(0, 0, 0, 0)
@@ -528,7 +526,7 @@ class PlayerActivity : ComponentActivity() {
         }
         playBtn = icon(R.drawable.ic_pause, 68, 18).apply {
             background = circleBg(0xFFD8B77E.toInt())
-            setColorFilter(0xFF080B12.toInt())
+            setColorFilter(0xFF101013.toInt())
             elevation = dp(5).toFloat()
         }
         val fwdBtn = skipButton(true).apply {
@@ -566,7 +564,7 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         durTime = TextView(this).apply {
-            text = "--:--"; setTextColor(0xFF98A6BC.toInt()); textSize = 10f
+            text = "--:--"; setTextColor(0xFFAAA69E.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -600,16 +598,15 @@ class PlayerActivity : ComponentActivity() {
             addView(durTime, LinearLayout.LayoutParams(-2, dp(28)))
         }
 
-        // Full-width control row: each action gets an equal slot from the left edge
-        // to the right edge, using the previously unused horizontal space.
+        // Seven equal-width actions, matching the approved player mockup.
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             weightSum = 7f
-            setPadding(0, dp(3), 0, dp(10))
+            setPadding(dp(4), dp(4), dp(4), dp(12))
             background = null
             clipToPadding = false
-            listOf(lockAction, qualityAction, subtitlesAction, audioAction, audioOutputAction, aspectAction, speedAction).forEach { v ->
+            listOf(lockAction, engineAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
                 v.minimumWidth = 0
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
@@ -632,7 +629,7 @@ class PlayerActivity : ComponentActivity() {
             setTextColor(Color.WHITE); textSize = 15f
             setPadding(dp(20), dp(12), dp(20), dp(12))
             background = GradientDrawable().apply {
-                setColor(0xFF121A29.toInt()); cornerRadius = dp(10).toFloat()
+                setColor(0xFF17171B.toInt()); cornerRadius = dp(10).toFloat()
             }
             visibility = View.GONE
         }
@@ -703,12 +700,12 @@ class PlayerActivity : ComponentActivity() {
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
         act(lockAction) { toggleLock() }
+        act(engineAction) { showPlaybackEngineSheet() }
         act(qualityAction) { showQualitySheet() }
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
         act(speedAction) { showSpeedSheet() }
-        act(audioOutputAction) { showAudioOutputSheet() }
-        act(aspectAction) { cycleAspect() }
+        act(moreAction) { showMoreSheet() }
         lockOverlay.setOnClickListener { toggleLock() }
     }
 
@@ -751,7 +748,7 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(14), dp(20), dp(22))
             background = GradientDrawable().apply {
-                setColor(0xD9141418.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(0xFF141922.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
             }
         }
         val head = LinearLayout(this).apply {
@@ -831,6 +828,22 @@ class PlayerActivity : ComponentActivity() {
         val serverStream = f.id?.toIntOrNull()?.let { id -> streams.firstOrNull { it.index == id } }
             ?: streams.getOrNull(i)
         return languageName(serverStream?.language ?: f.language)
+    }
+
+    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, _ ->
+        box.addView(sectionLabel("ACTIVE ENGINE"))
+        box.addView(noteText("AUTO  ·  Media3 / ExoPlayer"))
+        box.addView(sectionLabel("HOW IT WORKS"))
+        box.addView(noteText("Playback starts with ExoPlayer. If the device cannot decode the stream, Allervue automatically tries the original stream with libmpv, then its recovery and server-transcode paths. Engine switching is automatic on this build."))
+    }
+
+    private fun showMoreSheet() = sheet("More controls") { box, _ ->
+        box.addView(sheetRow("Volume", volumePercent().toString() + "%") { showVolumeSheet() })
+        box.addView(sheetRow("Aspect ratio", aspectName()) { cycleAspect() })
+        box.addView(sheetRow("Decoder", decoder.label) { showDecoderSheet() })
+        box.addView(sheetRow("Subtitle sync", delayText()) { showSubtitleSyncSheet() })
+        box.addView(sheetRow("Playback device", Build.MANUFACTURER + " " + Build.MODEL) { showDeviceSheet() })
+        box.addView(sheetRow("Take screenshot", "Save current frame") { takeScreenshot() })
     }
 
     private fun showAudioSheet() = sheet("Audio") { box, _ ->
