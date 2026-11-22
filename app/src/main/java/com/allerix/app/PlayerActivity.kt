@@ -834,7 +834,7 @@ class PlayerActivity : ComponentActivity() {
         box.addView(sectionLabel("ACTIVE ENGINE"))
         box.addView(noteText("AUTO  ·  Media3 / ExoPlayer"))
         box.addView(sectionLabel("HOW IT WORKS"))
-        box.addView(noteText("Allervue selects the supported playback path automatically. Hardware decoding is preferred; the player can fall back to a compatible decoder when needed. There is no manual engine switch on this build."))
+        box.addView(noteText("Playback starts with ExoPlayer. If the device cannot decode the stream, Allervue automatically tries the original stream with libmpv, then its recovery and server-transcode paths. Engine switching is automatic on this build."))
     }
 
     private fun showMoreSheet() = sheet("More controls") { box, _ ->
