@@ -518,16 +518,39 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
     val isShow = base.type == "Series" || base.type == "Season"
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            Box(Modifier.fillMaxWidth().height(340.dp).background(VSurface)) {
-                AsyncImage(Api.backdrop(item), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x22000000), VBg))))
-                Text("‹", color = VText, fontSize = 30.sp,
-                    modifier = Modifier.align(Alignment.TopStart).clickable(onClick = back).padding(18.dp))
-                Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
-                    Text(item.type.uppercase(), color = VCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text(item.name, color = VText, fontSize = 29.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(listOfNotNull(item.year?.toString(), item.officialRating, fmtRuntime(item.runTimeTicks).ifEmpty { null }).joinToString("  ·  "),
-                        color = VMuted, fontSize = 12.sp)
+            Column(Modifier.fillMaxWidth().background(VBg).padding(horizontal = 18.dp, vertical = 12.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("‹", color = VText, fontSize = 29.sp,
+                        modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("ALLERVUE / TITLE RECORD", color = VCyan, fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                        Text(item.type.uppercase(), color = VMuted, fontSize = 9.sp, letterSpacing = 1.sp)
+                    }
+                    Text("ID  ${item.id.take(6).uppercase()}", color = VMuted, fontSize = 8.sp)
+                }
+                Spacer(Modifier.height(18.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                    AsyncImage(Api.poster(item), null,
+                        Modifier.width(126.dp).height(184.dp).clip(RoundedCornerShape(10.dp))
+                            .background(VSurface2), contentScale = ContentScale.Crop)
+                    Column(Modifier.weight(1f).padding(start = 15.dp)) {
+                        Text(item.name, color = VText, fontSize = 23.sp, lineHeight = 27.sp,
+                            fontWeight = FontWeight.Bold, maxLines = 4, overflow = TextOverflow.Ellipsis)
+                        Spacer(Modifier.height(9.dp))
+                        Text(listOfNotNull(item.year?.toString(), item.officialRating,
+                            fmtRuntime(item.runTimeTicks).ifEmpty { null }).joinToString("  /  "),
+                            color = VMuted, fontSize = 10.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Box(Modifier.width(36.dp).height(2.dp).background(VCyan))
+                        Spacer(Modifier.height(10.dp))
+                        Text(item.genres.orEmpty().take(3).joinToString("  ·  "),
+                            color = VMuted, fontSize = 10.sp, lineHeight = 15.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Text(if (saved) "IN YOUR LIST" else "LIBRARY ENTRY",
+                            color = VCyan, fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp)
+                    }
                 }
             }
         }
