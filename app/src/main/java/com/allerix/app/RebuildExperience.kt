@@ -73,7 +73,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
-                    RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
+                    RebuildTab.HOME -> AllervueHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
                     RebuildTab.DISCOVER -> RebuildDiscover(onOpen, { stack.add(Nav.Search) })
                     RebuildTab.SAVED -> RebuildSaved(onOpen, onPlay)
                     RebuildTab.DOWNLOADS -> RebuildDownloads()
