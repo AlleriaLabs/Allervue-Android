@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val VBg = Color(0xFF090B10)
+private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 private val VSurface = Color(0xFF141923)
 private val VSurface2 = Color(0xFF1C2430)
 private val VText = Color(0xFFF4F5F7)
@@ -56,7 +58,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
         }
     }
     val onOpen: (Item) -> Unit = { target ->
-        stack.add(if (target.type in detailTypes || !target.isFolder) Nav.Detail(target) else Nav.Grid(target))
+        stack.add(if (target.type in rebuildDetailTypes || !target.isFolder) Nav.Detail(target) else Nav.Grid(target))
     }
     val back: () -> Unit = { if (stack.isNotEmpty()) stack.removeAt(stack.lastIndex) }
     val signOut: () -> Unit = { stack.clear(); onLogout() }
@@ -244,7 +246,7 @@ private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = 
                 ?: if ((item.runTimeTicks ?: 0L) > 0L) ((item.userData?.positionTicks ?: 0L).toFloat() / item.runTimeTicks!!.toFloat()) * 100f else 0f
             if (progress > 0f && progress < 100f) {
                 LinearProgressIndicator(progress = { (progress / 100f).coerceIn(0f, 1f) },
-                    Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp), color = VCyan, trackColor = Color(0x66000000))
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp), color = VCyan, trackColor = Color(0x66000000))
             }
         }
         Spacer(Modifier.height(7.dp))
@@ -373,7 +375,7 @@ private fun RebuildDownloadRow(rec: DownloadRec, state: DlState?, onDelete: () -
             }, color = VMuted, fontSize = 11.sp)
             if (state?.status == DownloadManager.STATUS_RUNNING || state?.status == DownloadManager.STATUS_PENDING) {
                 LinearProgressIndicator(progress = { if (state.total > 0) state.done.toFloat() / state.total else 0f },
-                    Modifier.fillMaxWidth().padding(top = 7.dp).height(3.dp), color = VCyan, trackColor = VSurface2)
+                    modifier = Modifier.fillMaxWidth().padding(top = 7.dp).height(3.dp), color = VCyan, trackColor = VSurface2)
             }
         }
         if (onPlay != null) Text("Play", color = VCyan, modifier = Modifier.clickable(onClick = onPlay).padding(8.dp))
