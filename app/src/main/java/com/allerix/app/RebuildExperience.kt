@@ -260,15 +260,16 @@ private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = 
 private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
     var type by remember { mutableStateOf("Movie") }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Movie" to "Films", "Series" to "TV Shows").forEach { (value, label) ->
+        RebuildHeader("Discover", "Explore your Jellyfin library", onSearch, "Search")
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Movie" to "Films", "Series" to "TV Shows", "Anime" to "Anime").forEach { (value, label) ->
                 val active = type == value
                 Text(label, color = if (active) VBg else VMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.clip(CircleShape).background(if (active) VCyan else VSurface)
-                        .clickable { type = value }.padding(horizontal = 16.dp, vertical = 9.dp))
+                        .clickable { type = value }.padding(horizontal = 15.dp, vertical = 9.dp))
             }
         }
-        RebuildCatalog(if (type == "Movie") "Films" else "TV Shows", type, onOpen, onSearch, Modifier.weight(1f))
+        RebuildCatalog(if (type == "Movie") "Films" else if (type == "Series") "TV Shows" else "Anime", type, onOpen, onSearch, Modifier.weight(1f))
     }
 }
 
@@ -279,7 +280,15 @@ private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, 
     var filter by remember(type) { mutableStateOf("All") }
     LaunchedEffect(type) {
         loading = true
-        entries = runCatching { Api.byType(type) }.getOrDefault(emptyList())
+        entries = if (type == "Anime") {
+            val movies = runCatching { Api.byType("Movie") }.getOrDefault(emptyList())
+            val series = runCatching { Api.byType("Series") }.getOrDefault(emptyList())
+            (movies + series).filter { item ->
+                item.genres.orEmpty().any { genre ->
+                    genre.equals("Anime", ignoreCase = true) || genre.contains("Anime", ignoreCase = true)
+                }
+            }.distinctBy { it.id }
+        } else runCatching { Api.byType(type) }.getOrDefault(emptyList())
         loading = false
     }
     val filtered = when (filter) {
