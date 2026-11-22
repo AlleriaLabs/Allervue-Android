@@ -371,38 +371,76 @@ fun SettingsMenuScreen(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
             .getOrNull() ?: "Unknown"
     }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(
+        Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())
+    ) {
         ScreenHeader("Settings", back)
-        SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
-        SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
-        SettingsRow("⚙", "Client settings", "Server address and password", onClient)
-        SettingsRow("⌁", "Diagnostics", "Capture player crashes and share a log", onDiagnostics)
-        SettingsRow("ⓘ", "About Allervue", "App information and version") { about = true }
-        SettingsRow("?", "Help & Support", "Account portal and password reset") { help = true }
-        SettingsRow("⎋", "Sign out", "", onSignOut)
-        Spacer(Modifier.weight(1f))
-        Text("Allervue $appVersion", color = Color(0xFF666666), fontSize = 12.sp,
-            modifier = Modifier.padding(20.dp))
+        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                    .background(BrandSurface).padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(52.dp).clip(RoundedCornerShape(15.dp)).background(Red),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("A", color = BrandInk, fontSize = 25.sp, fontWeight = FontWeight.ExtraBold)
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("ALLERVUE", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.2.sp)
+                    Text(Api.username.ifBlank { "Connected account" }, color = Grey, fontSize = 13.sp)
+                    Text("Version $appVersion", color = Red, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                }
+                Text("›", color = Red, fontSize = 26.sp)
+            }
+            Spacer(Modifier.height(24.dp))
+            Text("YOUR EXPERIENCE", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BrandSurface)) {
+                SettingsRow("✦", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
+                SettingsRow("▶", "Playback settings", "Quality, audio, speed and auto-play", onPlayback)
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("APP & DEVICE", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BrandSurface)) {
+                SettingsRow("⌘", "Client settings", "Server address and account security", onClient)
+                SettingsRow("⌁", "Diagnostics", "Player logs and troubleshooting", onDiagnostics)
+                SettingsRow("ⓘ", "About Allervue", "App information and release details") { about = true }
+            }
+            Spacer(Modifier.height(20.dp))
+            Text("SUPPORT", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp)
+            Spacer(Modifier.height(8.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BrandSurface)) {
+                SettingsRow("?", "Help & Support", "Account portal and password reset") { help = true }
+                SettingsRow("↗", "Sign out", "Sign out of this Jellyfin account", onSignOut)
+            }
+            Spacer(Modifier.height(24.dp))
+            Text("ALLERIA LABS  ·  GREAT STORIES, ANYTIME.", color = Dim, fontSize = 10.sp,
+                letterSpacing = 1.sp, modifier = Modifier.align(Alignment.CenterHorizontally).padding(bottom = 18.dp))
+        }
     }
     if (about) AlertDialog(
-        onDismissRequest = { about = false }, containerColor = Color(0xFF181818),
+        onDismissRequest = { about = false }, containerColor = BrandSurface,
         title = { Text("About Allervue", color = Color.White) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text("ALLERVUE", color = Red, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 Text("Version $appVersion", color = Color.White, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Allervue is an Alleria Labs media experience for browsing your Jellyfin library, " +
                         "watching movies and series, managing downloads, and requesting titles through Allervue.",
                     color = Grey, fontSize = 14.sp
                 )
-                Text("Great stories. Anytime. Anywhere.", color = Color(0xFFD8B77E), fontSize = 13.sp)
+                Text("Great stories. Anytime. Anywhere.", color = Red, fontSize = 13.sp)
             }
         },
         confirmButton = { TextButton(onClick = { about = false }) { Text("Close", color = Red) } }
     )
     if (help) AlertDialog(
-        onDismissRequest = { help = false }, containerColor = Color(0xFF181818),
+        onDismissRequest = { help = false }, containerColor = BrandSurface,
         title = { Text("Help & Support", color = Color.White) },
         text = {
             Text(
