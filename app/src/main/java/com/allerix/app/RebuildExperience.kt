@@ -68,7 +68,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
-                    RebuildTab.HOME -> AllervueHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
+                    RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
                     RebuildTab.DISCOVER -> RebuildDiscover(onOpen, { stack.add(Nav.Search) })
                     RebuildTab.SAVED -> RebuildSaved(onOpen, onPlay)
                     RebuildTab.DOWNLOADS -> RebuildDownloads()
@@ -101,32 +101,29 @@ fun RebuildMainShell(onLogout: () -> Unit) {
 @Composable
 private fun RebuildBottomNav(selected: RebuildTab, onSelect: (RebuildTab) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Color(0xFF0D1118))
-            .padding(start = 9.dp, end = 9.dp, top = 0.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        Modifier.fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        RebuildTab.values().forEachIndexed { index, destination ->
+        RebuildTab.values().forEach { destination ->
             val active = destination == selected
             Column(
-                Modifier.weight(1f).clickable { onSelect(destination) },
+                Modifier.weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (active) VCyan.copy(alpha = 0.13f) else Color.Transparent)
+                    .clickable { onSelect(destination) }
+                    .padding(vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    Modifier.fillMaxWidth().height(2.dp)
-                        .background(if (active) VCyan else Color.Transparent)
+                SmallIcon(destination.icon, if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant, 21)
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    destination.label,
+                    color = if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 10.sp,
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
                 )
-                Row(
-                    Modifier.padding(top = 8.dp, bottom = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)
-                ) {
-                    Text("0${index + 1}", color = if (active) VCyan else Color(0xFF586270),
-                        fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                    SmallIcon(destination.icon, if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant, 17)
-                }
-                Text(destination.label.uppercase(), color = if (active) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 8.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                    letterSpacing = .7.sp, modifier = Modifier.padding(top = 3.dp, bottom = 2.dp))
             }
         }
     }
@@ -134,23 +131,29 @@ private fun RebuildBottomNav(selected: RebuildTab, onSelect: (RebuildTab) -> Uni
 
 @Composable
 private fun RebuildHeader(title: String, subtitle: String? = null, action: (() -> Unit)? = null, actionText: String = "Search") {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 13.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("ALLERVUE  /  MODULE", color = VCyan, fontSize = 8.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.weight(1f))
-            if (action != null) Text(actionText.uppercase() + "  ↗", color = VCyan, fontSize = 9.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = .8.sp,
-                modifier = Modifier.clip(RoundedCornerShape(7.dp)).clickable(onClick = action)
-                    .padding(horizontal = 9.dp, vertical = 7.dp))
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 26.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = (-.4).sp)
+            if (!subtitle.isNullOrBlank()) {
+                Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp, modifier = Modifier.padding(top = 3.dp))
+            }
         }
-        Spacer(Modifier.height(5.dp))
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 27.sp,
-                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Box(Modifier.padding(bottom = 7.dp).width(38.dp).height(2.dp).background(VCyan))
+        if (action != null) {
+            Box(
+                Modifier.size(42.dp).clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(onClick = action),
+                contentAlignment = Alignment.Center
+            ) {
+                if (actionText.equals("Search", true)) SmallIcon(R.drawable.ic_nav_search, VCyan, 20)
+                else Text("⋯", color = VCyan, fontSize = 22.sp)
+            }
         }
-        if (!subtitle.isNullOrBlank()) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 10.sp, letterSpacing = .3.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
@@ -340,33 +343,37 @@ private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, 
 
 @Composable
 private fun AllervueCatalogCard(item: Item, number: Int, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surface)
-            .clickable(onClick = onClick).padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
     ) {
-        Box {
-            AsyncImage(Api.poster(item), null,
-                Modifier.width(76.dp).height(112.dp).clip(RoundedCornerShape(7.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
-                contentScale = ContentScale.Crop)
-            Text(number.toString().padStart(2, '0'), color = VCyan, fontSize = 8.sp,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.align(Alignment.BottomStart).background(MaterialTheme.colorScheme.background.copy(alpha = .92f))
-                    .padding(horizontal = 5.dp, vertical = 3.dp))
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(0.68f)
+                .clip(RoundedCornerShape(13.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            AsyncImage(Api.poster(item), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+            val progress = item.userData?.playedPercentage?.toFloat()
+                ?: if ((item.runTimeTicks ?: 0L) > 0L)
+                    ((item.userData?.positionTicks ?: 0L).toFloat() / item.runTimeTicks!!.toFloat()) * 100f
+                else 0f
+            if (progress > 0f && progress < 100f) {
+                LinearProgressIndicator(
+                    progress = { (progress / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),
+                    color = VCyan, trackColor = Color(0x66000000)
+                )
+            }
         }
-        Column(Modifier.weight(1f).padding(start = 10.dp, end = 2.dp)) {
-            Text(item.type.uppercase(), color = VCyan, fontSize = 8.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
-            Spacer(Modifier.height(4.dp))
-            Text(item.name, color = MaterialTheme.colorScheme.onBackground, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp)
-            Spacer(Modifier.height(5.dp))
-            Text(listOfNotNull(item.year?.toString(), item.officialRating).joinToString(" · "),
-                color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.height(8.dp))
-            Text("VIEW RECORD  ↗", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 7.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = .4.sp)
-        }
+        Spacer(Modifier.height(8.dp))
+        Text(item.name, color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 2, lineHeight = 16.sp,
+            overflow = TextOverflow.Ellipsis)
+        Text(listOfNotNull(item.year?.toString(), item.type.takeIf { it != "Movie" })
+            .joinToString(" · ").ifBlank { item.year?.toString() ?: " " },
+            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 2.dp))
     }
 }
 
