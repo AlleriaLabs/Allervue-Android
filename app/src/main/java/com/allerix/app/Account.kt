@@ -127,7 +127,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(72.dp))
                 Spacer(Modifier.width(12.dp))
-                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 25.sp,
+                Text("ALLERVUE", color = Red, fontSize = 25.sp,
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             }
             Spacer(Modifier.height(24.dp))
@@ -239,7 +239,7 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
         ) {
             Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(76.dp))
             Spacer(Modifier.height(12.dp))
-            Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 22.sp,
+            Text("ALLERVUE", color = Red, fontSize = 22.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             Spacer(Modifier.height(30.dp))
             Text(if (success) "Password updated" else "Reset password", color = Color.White,
@@ -255,7 +255,7 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
             )
             Spacer(Modifier.height(22.dp))
             if (success) {
-                Text("✓", color = Color(0xFFD8B77E), fontSize = 48.sp)
+                Text("✓", color = Red, fontSize = 48.sp)
                 Button(onClick = onBack, modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Back to sign in") }
             } else if (stage == 0) {
@@ -318,7 +318,7 @@ fun ForgotPasswordScreen(onBack: () -> Unit) {
             }
             if (message.isNotEmpty()) {
                 Spacer(Modifier.height(14.dp))
-                Text(message, color = if (success) Color(0xFFD8B77E) else Grey, fontSize = 13.sp)
+                Text(message, color = if (success) Red else Grey, fontSize = 13.sp)
             }
             Spacer(Modifier.height(18.dp))
             TextButton(onClick = onBack) { Text("Back to sign in", color = Grey) }
@@ -599,7 +599,7 @@ fun RequestShowScreen(back: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("ALLERVUE REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("ALLERVUE REQUESTS", color = Red, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text("Search the catalog and request titles for your library.", color = Grey, fontSize = 13.sp)
                 }
                 Text(if (connected) "CONNECTED" else "NOT CONNECTED",
@@ -640,7 +640,7 @@ fun RequestShowScreen(back: () -> Unit) {
 
                 if (results.isNotEmpty()) {
                     Spacer(Modifier.height(14.dp))
-                    Text("SEARCH RESULTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("SEARCH RESULTS", color = Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     results.forEach { item ->
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp)
@@ -664,7 +664,7 @@ fun RequestShowScreen(back: () -> Unit) {
                                     maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 Spacer(Modifier.height(6.dp))
                                 if (item.requestStatus.isNotBlank()) {
-                                    Text("Already in library or requested · ${item.requestStatus}", color = Color(0xFFD8B77E), fontSize = 10.sp)
+                                    Text("Already in library or requested · ${item.requestStatus}", color = Red, fontSize = 10.sp)
                                 } else {
                                     Button(
                                         enabled = !busy,
@@ -690,7 +690,7 @@ fun RequestShowScreen(back: () -> Unit) {
                 }
                 Spacer(Modifier.height(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("YOUR REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+                    Text("YOUR REQUESTS", color = Red, fontSize = 12.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = {
                         scope.launch { requests = runCatching { SeerrApi.myRequests() }.getOrDefault(requests) }
@@ -734,7 +734,7 @@ fun RequestShowScreen(back: () -> Unit) {
                             val stateColor = when (request.requestStatus) {
                                 "Approved" -> Color(0xFF83C99A)
                                 "Declined" -> Color(0xFFFF8585)
-                                else -> Color(0xFFD8B77E)
+                                else -> Red
                             }
                             Text(
                                 request.requestStatus.uppercase(),
@@ -816,9 +816,9 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
     var saveData by remember { mutableStateOf(prefs.getBoolean("save_data", true)) }
     var dialog by remember { mutableStateOf(0) }
 
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
         ScreenHeader("Playback Settings", back)
-        Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glass(18.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(BrandSurface)) {
             SettingsRow("HD", "Quality", quality.label) { dialog = 1 }
             SettingsRow("🔊", "Audio output", audio.label) { dialog = 2 }
             SettingsRow("⏱", "Playback speed", speedLabel(speed)) { dialog = 3 }
@@ -829,7 +829,7 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Save data on mobile networks", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("Save data on mobile networks", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text("Auto mode lowers quality on mobile data", color = Grey, fontSize = 13.sp)
                 }
                 Switch(
@@ -846,7 +846,7 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Auto Play", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+                    Text("Auto-play next episode", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text("Next episode", color = Grey, fontSize = 13.sp)
                 }
                 Switch(
@@ -953,7 +953,7 @@ fun DiagnosticScreen(back: () -> Unit) {
                     putExtra(Intent.EXTRA_TEXT, log.ifBlank { "No diagnostic log yet." })
                 }
                 ctx.startActivity(Intent.createChooser(send, "Share diagnostic log"))
-            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD8B77E))) { Text("Share", color = Color(0xFF171515)) }
+            }, colors = ButtonDefaults.buttonColors(containerColor = Red)) { Text("Share", color = Color(0xFF171515)) }
         }
         Text(if (log.isBlank()) "No diagnostic entries yet. Play a video, then return and tap Refresh log." else log,
             color = Color(0xFFD5D1CA), fontSize = 11.sp, lineHeight = 15.sp,
