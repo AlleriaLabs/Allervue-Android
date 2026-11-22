@@ -127,7 +127,7 @@ fun SplashScreen() {
         0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "slide"
     )
     Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFD8B77E).copy(alpha = glow), BgDark), radius = 1100f)),
+        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF24D6E8).copy(alpha = glow), BgDark), radius = 1100f)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
