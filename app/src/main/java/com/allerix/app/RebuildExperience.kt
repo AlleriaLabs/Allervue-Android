@@ -162,80 +162,13 @@ private fun RebuildHome(
     onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, onSearch: () -> Unit,
     onSettings: () -> Unit, onLogout: () -> Unit
 ) {
-    val ctx = LocalContext.current
-    var featured by remember { mutableStateOf<Item?>(null) }
-    var resume by remember { mutableStateOf(emptyList<Item>()) }
-    var latest by remember { mutableStateOf(emptyList<Item>()) }
-    var picks by remember { mutableStateOf(emptyList<Item>()) }
-    var busy by remember { mutableStateOf(true) }
-    var error by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) {
-        try {
-            val hero = runCatching { Api.featured() }.getOrDefault(emptyList())
-            featured = hero.firstOrNull()
-            resume = Api.resume().filterNot { it.id in ContinueWatching.hiddenIds(ctx) }
-            latest = Api.trending()
-            busy = false
-            picks = runCatching { Api.personalizedPicks((resume + latest).map { it.id }.toSet()) }.getOrDefault(emptyList())
-        } catch (e: Exception) {
-            if (e.message?.contains("401") == true) onLogout()
-            else error = "Unable to load your library. Check your server connection."
-            busy = false
-        }
-    }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 22.dp)) {
-        item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("ALLERVUE", color = MaterialTheme.colorScheme.onBackground, fontSize = 17.sp, fontWeight = FontWeight.Black, letterSpacing = 2.5.sp)
-                    Text("Your next story starts here", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-                }
-                Text("Search", color = VCyan, modifier = Modifier.clickable(onClick = onSearch).padding(10.dp))
-                Text("Settings", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.clickable(onClick = onSettings).padding(start = 8.dp, end = 2.dp))
-            }
-        }
-        item {
-            val hero = featured
-            if (hero != null) {
-                Box(Modifier.fillMaxWidth().padding(horizontal = 14.dp).height(390.dp).clip(RoundedCornerShape(22.dp))) {
-                    AsyncImage(Api.backdrop(hero), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(
-                        0f to Color(0x22000000), 0.35f to Color(0x33000000), 1f to Color(0xF0090B10)
-                    )))
-                    Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
-                        Text(if (hero.type == "Series") "FEATURED SERIES" else "FEATURED FILM",
-                            color = VCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
-                        Spacer(Modifier.height(8.dp))
-                        Text(hero.name, color = MaterialTheme.colorScheme.onBackground, fontSize = 29.sp, lineHeight = 34.sp, fontWeight = FontWeight.Bold,
-                            maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(7.dp))
-                        Text(listOfNotNull(hero.year?.toString(), hero.officialRating, fmtRuntime(hero.runTimeTicks).ifEmpty { null })
-                            .joinToString("  ·  "), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                        Spacer(Modifier.height(10.dp))
-                        Text(hero.overview.orEmpty(), color = Color(0xFFD5D9DE), fontSize = 12.sp, lineHeight = 17.sp,
-                            maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(15.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Button(onClick = { onPlay(hero) }, colors = ButtonDefaults.buttonColors(containerColor = VCyan, contentColor = MaterialTheme.colorScheme.background),
-                                shape = RoundedCornerShape(11.dp)) { Text("▶  Play", fontWeight = FontWeight.Bold) }
-                            OutlinedButton(onClick = { onOpen(hero) }, shape = RoundedCornerShape(11.dp),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)) { Text("View details") }
-                        }
-                    }
-                }
-            } else if (busy) {
-                Box(Modifier.fillMaxWidth().height(250.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = VCyan)
-                }
-            } else if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(24.dp))
-        }
-        if (resume.isNotEmpty()) item { RebuildShelf("Pick up where you left off", resume, onPlay, "Resume") }
-        if (picks.isNotEmpty()) item { RebuildShelf("Picked for you", picks, onOpen, "Recommended") }
-        val movies = latest.filter { it.type == "Movie" }
-        val shows = latest.filter { it.type == "Series" }
-        if (movies.isNotEmpty()) item { RebuildShelf("Recently added films", movies, onOpen, "Movies") }
-        if (shows.isNotEmpty()) item { RebuildShelf("New series", shows, onOpen, "Series") }
-    }
+    AllervueHome(
+        onOpen = onOpen,
+        onPlay = onPlay,
+        onSearch = onSearch,
+        onSettings = onSettings,
+        onLogout = onLogout
+    )
 }
 
 @Composable
