@@ -74,14 +74,14 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                 null -> when (tab) {
                     NavTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
                     NavTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })
-                    NavTab.SHOWS -> RebuildCatalog("Series", "Series", onOpen, { stack.add(Nav.Search) })
+                    NavTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
                     NavTab.LIST -> RebuildSaved(onOpen, onPlay)
                     NavTab.DOWNLOADS -> RebuildDownloads(onPlay)
                 }
-                is Nav.Grid -> GridScreen(top.item, onOpen, back)
+                is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
                 is Nav.Detail -> RebuildDetail(top.item, onOpen, onPlay, back)
                 Nav.Search -> RebuildSearch(onOpen, back)
-                Nav.Settings -> SettingsMenuScreen(
+                Nav.Settings -> RebuildSettingsScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) },
                     onClient = { stack.add(Nav.ClientSettings) },
                     onPlayback = { stack.add(Nav.PlaybackSettings) },
@@ -513,5 +513,86 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                 }
             }
         }
+    }
+}
+
+
+@Composable
+private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -> Unit) {
+    var children by remember(folder.id) { mutableStateOf(emptyList<Item>()) }
+    var loading by remember(folder.id) { mutableStateOf(true) }
+    LaunchedEffect(folder.id) {
+        children = runCatching { Api.children(folder.id) }.getOrDefault(emptyList())
+        loading = false
+    }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("‹", color = VText, fontSize = 29.sp, modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
+            Column {
+                Text(folder.name, color = VText, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text("LIBRARY COLLECTION", color = VMuted, fontSize = 9.sp, letterSpacing = 1.5.sp)
+            }
+        }
+        if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
+        else LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            items(children.size, key = { children[it].id }) { index ->
+                val item = children[index]
+                RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+@Composable
+private fun RebuildSettingsScreen(
+    back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit,
+    onPlayback: () -> Unit, onDiagnostics: () -> Unit, onSignOut: () -> Unit,
+    onWeb: (String, String) -> Unit
+) {
+    val ctx = LocalContext.current
+    Column(Modifier.fillMaxSize().background(VBg)) {
+        RebuildHeader("Settings", "Your Allervue experience")
+        LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp)) {
+            item { RebuildSectionLabel("ACCOUNT & SERVER") }
+            item { RebuildSettingRow("Server and account", "Connection, profile and sign-in", onClient) }
+            item { RebuildSettingRow("Request a title", "Ask your library administrator to add media", onRequest) }
+            item { RebuildSectionLabel("PLAYBACK") }
+            item { RebuildSettingRow("Playback preferences", "Quality, audio, subtitles and behavior", onPlayback) }
+            item { RebuildSettingRow("Player engine", "Auto selection with Media3 and libmpv fallback") {
+                ctx.getSharedPreferences("player", android.content.Context.MODE_PRIVATE)
+                    .edit().putString("playback_engine", "AUTO").apply()
+            } }
+            item { RebuildSectionLabel("SUPPORT") }
+            item { RebuildSettingRow("Diagnostics", "Connection checks and playback logs", onDiagnostics) }
+            item { RebuildSettingRow("Allervue website", "Product information and updates") {
+                onWeb("https://www.alleriafilmotheque.fyi", "Allervue")
+            } }
+            item { Spacer(Modifier.height(16.dp)) }
+            item {
+                Text("Sign out", color = Color(0xFFFF8D8D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(VSurface)
+                        .clickable(onClick = onSignOut).padding(17.dp))
+            }
+            item {
+                Text("ALLERVUE  ·  1.4.0", color = VMuted, fontSize = 10.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RebuildSettingRow(title: String, description: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(13.dp))
+        .background(VSurface).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 15.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = VText, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(3.dp))
+            Text(description, color = VMuted, fontSize = 11.sp)
+        }
+        Text("›", color = VCyan, fontSize = 24.sp)
     }
 }
