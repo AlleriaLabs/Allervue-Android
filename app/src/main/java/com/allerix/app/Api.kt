@@ -178,15 +178,15 @@ object Api {
         json.decodeFromString<ItemsResult>(call("GET", "/Users/$userId/Views")).items
 
     suspend fun resume(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview")).items
+        call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview,ImageTags,BackdropImageTags,ParentBackdropItemId")).items
 
     /** Random movies/series that have backdrops, for the home carousel. */
     suspend fun featured(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&imageTypes=Backdrop&sortBy=Random&limit=7&fields=Overview,Genres")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&imageTypes=Backdrop&sortBy=Random&limit=7&fields=Overview,Genres,ImageTags,BackdropImageTags,ParentBackdropItemId")
     ).items
 
     suspend fun trending(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=DateCreated&sortOrder=Descending&limit=20&fields=Overview,Genres")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=DateCreated&sortOrder=Descending&limit=20&fields=Overview,Genres,ImageTags,BackdropImageTags,ParentBackdropItemId")
     ).items
 
     suspend fun suggestions(): List<Item> = json.decodeFromString<ItemsResult>(
@@ -198,7 +198,7 @@ object Api {
      * All ranking runs locally in the app; no viewing history is sent to a third-party AI service.
      */
     suspend fun personalizedPicks(excludeIds: Set<String> = emptySet()): List<Item> {
-        val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData"
+        val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData,ImageTags,BackdropImageTags,ParentBackdropItemId"
         return coroutineScope {
             val historyTask = async {
                 runCatching {
@@ -313,25 +313,45 @@ object Api {
     }
 
     // ---- images ----
-    fun poster(i: Item): String =
-        if (i.type == "Episode" && i.seriesId != null) "$base/Items/${i.seriesId}/Images/Primary?maxHeight=500&quality=90"
-        else "$base/Items/${i.id}/Images/Primary?maxHeight=500&quality=90"
-    fun heroImage(i: Item): String =
-        if (i.type == "Episode" && i.seriesId != null) "$base/Items/${i.seriesId}/Images/Primary?maxHeight=900&quality=90"
-        else "$base/Items/${i.id}/Images/Primary?maxHeight=900&quality=90"
-    fun landscape(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> "$base/Items/${i.id}/Images/Backdrop?maxWidth=600&quality=85"
-        i.imageTags?.containsKey("Thumb") == true -> "$base/Items/${i.id}/Images/Thumb?maxWidth=600"
-        else -> "$base/Items/${i.id}/Images/Primary?maxWidth=600"
+    // Coil does not inherit the authenticated OkHttp headers used by Api.call().
+    // Jellyfin image requests therefore need the API token in the URL.
+    private fun authenticatedImage(path: String): String =
+        base + path + (if (token.isNotBlank()) (if (path.contains("?")) "&" else "?") + "api_key=$token" else "")
+
+    fun poster(i: Item): String {
+        val imageId = if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id
+        val imageType = when {
+            i.imageTags?.containsKey("Primary") == true -> "Primary"
+            i.imageTags?.containsKey("Thumb") == true -> "Thumb"
+            !i.backdropTags.isNullOrEmpty() -> "Backdrop"
+            else -> "Primary"
+        }
+        return authenticatedImage("/Items/$imageId/Images/$imageType?maxHeight=500&quality=90")
     }
+
+    fun heroImage(i: Item): String =
+        authenticatedImage("/Items/${if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id}/Images/Primary?maxHeight=900&quality=90")
+
+    fun landscape(i: Item): String = when {
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop?maxWidth=600&quality=85")
+        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=600")
+        i.imageTags?.containsKey("Primary") == true -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=600")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=600")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=600")
+    }
+
     /** Tiny image; upscaled + blurred in the UI for the home-page background. */
-    fun blurBg(i: Item): String =
-        if (!i.backdropTags.isNullOrEmpty()) "$base/Items/${i.id}/Images/Backdrop?maxWidth=96&quality=40"
-        else "$base/Items/${i.id}/Images/Primary?maxWidth=96&quality=40"
+    fun blurBg(i: Item): String = when {
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop?maxWidth=96&quality=40")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=96&quality=40")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=96&quality=40")
+    }
+
     fun backdrop(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> "$base/Items/${i.id}/Images/Backdrop?maxWidth=1280&quality=85"
-        !i.parentBackdropItemId.isNullOrEmpty() -> "$base/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=1280&quality=85"
-        else -> "$base/Items/${i.id}/Images/Primary?maxWidth=1280"
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop?maxWidth=1280&quality=85")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=1280&quality=85")
+        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=1280&quality=85")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=1280")
     }
 
     // ---- playback ----
