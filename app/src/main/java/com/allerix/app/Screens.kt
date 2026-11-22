@@ -747,6 +747,7 @@ fun DownloadsTab(onSettings: () -> Unit) {
     val ctx = LocalContext.current
     var recs by remember { mutableStateOf(Downloads.list(ctx)) }
     var states by remember { mutableStateOf<Map<String, DlState>>(emptyMap()) }
+    var filter by remember { mutableStateOf("All") }
     LaunchedEffect(Unit) {
         if (Downloads.ensureCovers(ctx)) recs = Downloads.list(ctx)
     }
@@ -756,20 +757,71 @@ fun DownloadsTab(onSettings: () -> Unit) {
             delay(1000)
         }
     }
+    val activeCount = recs.count { states[it.id]?.status in listOf(
+        android.app.DownloadManager.STATUS_PENDING, android.app.DownloadManager.STATUS_RUNNING
+    ) }
+    val completeCount = recs.count { states[it.id]?.status == android.app.DownloadManager.STATUS_SUCCESSFUL }
+    val failedCount = recs.count { states[it.id]?.status == android.app.DownloadManager.STATUS_FAILED }
+    val visible = remember(recs, states, filter) {
+        recs.filter { rec ->
+            val status = states[rec.id]?.status
+            when (filter) {
+                "Active" -> status == android.app.DownloadManager.STATUS_PENDING || status == android.app.DownloadManager.STATUS_RUNNING
+                "Completed" -> status == android.app.DownloadManager.STATUS_SUCCESSFUL
+                "Failed" -> status == android.app.DownloadManager.STATUS_FAILED
+                else -> true
+            }
+        }
+    }
     AppBackground {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 22.dp)) {
             item { TabHeader("Downloads", null, onSettings) }
             item {
-                Text(
-                    "Downloads", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 6.dp)
-                )
-                if (recs.isEmpty()) Text(
-                    "Nothing downloaded yet. Open a movie or episode and tap the download icon.",
-                    color = Grey, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Your library, offline", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                            Text("${recs.size} saved titles on this device", color = Dim, fontSize = 12.sp)
+                        }
+                        Text("$activeCount ACTIVE", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("All", "Active", "Completed", "Failed").forEach { item ->
+                            FilterChip(
+                                selected = filter == item, onClick = { filter = item },
+                                label = { Text(item) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Red.copy(alpha = 0.22f),
+                                    selectedLabelColor = Color.White, labelColor = Grey
+                                )
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Active" to activeCount, "Completed" to completeCount, "Failed" to failedCount).forEach { (label, count) ->
+                            Column(
+                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                    .background(BrandSurface).padding(12.dp)
+                            ) {
+                                Text(count.toString(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Text(label, color = Dim, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
             }
-            items(recs, key = { it.id }) { rec ->
+            if (visible.isEmpty()) {
+                item {
+                    Text(
+                        if (recs.isEmpty()) "Nothing downloaded yet. Open a movie or episode and tap the download icon."
+                        else "No $filter downloads.",
+                        color = Grey, fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp)
+                    )
+                }
+            }
+            items(visible, key = { it.id }) { rec ->
                 val st = states[rec.id] ?: DlState(-1, 0L, 0L)
                 DownloadRow(
                     rec, st,
