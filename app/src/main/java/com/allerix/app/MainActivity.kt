@@ -58,12 +58,7 @@ class MainActivity : FragmentActivity() {
         Api.load(this)
         SeerrApi.load(this)
         setContent {
-            MaterialTheme(
-                colorScheme = darkColorScheme(
-                    primary = Color(0xFF65D6D0), background = Color(0xFF090B10), surface = Color(0xFF141923),
-                    onBackground = Color.White, onSurface = Color.White
-                )
-            ) { Surface(color = Color(0xFF090B10)) { App() } }
+            AllervueTheme { Surface(color = MaterialTheme.colorScheme.background) { App() } }
         }
     }
 }
