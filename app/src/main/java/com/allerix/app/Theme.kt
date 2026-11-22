@@ -85,7 +85,7 @@ fun MyListButton(item: Item, modifier: Modifier = Modifier) {
         },
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(10.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28231B), contentColor = BrandIvory),
+        colors = ButtonDefaults.buttonColors(containerColor = BrandSurface, contentColor = BrandIvory),
         border = BorderStroke(1.dp, BrandGold.copy(alpha = 0.32f))
     ) {
         SmallIcon(if (fav) R.drawable.ic_check else R.drawable.ic_add, size = 18)
