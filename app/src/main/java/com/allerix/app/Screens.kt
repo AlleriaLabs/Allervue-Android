@@ -180,7 +180,7 @@ fun HomeScreen(
 
 @Composable
 fun HeroCarousel(heroes: List<Item>, pager: PagerState, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
-    Box(Modifier.fillMaxWidth().height(500.dp)) {
+    Box(Modifier.fillMaxWidth().height(468.dp)) {
         if (heroes.isNotEmpty()) HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
             HeroPage(heroes[page], onPlay, onOpen)
         }
@@ -245,8 +245,8 @@ fun MediaRow(
 ) {
     Column(Modifier.padding(top = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (onSeeAll != null) Text("See all ›", color = Grey, fontSize = 13.sp, modifier = Modifier.clickable { onSeeAll() })
+            Text(title, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (onSeeAll != null) Text("See all  ›", color = Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onSeeAll() })
         }
         Spacer(Modifier.height(10.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -266,7 +266,7 @@ fun MediaCard(
     Column(modifier.clickable(onClick = onClick)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
-                .clip(RoundedCornerShape(10.dp)).background(Color(0xFF1F1F23))
+                .clip(RoundedCornerShape(12.dp)).background(Color(0xFF172130))
         ) {
             AsyncImage(
                 if (landscape) Api.landscape(item) else Api.poster(item), item.name,
@@ -300,7 +300,7 @@ fun MediaCard(
         val caption = if (item.type == "Episode" && item.seriesName != null)
             "${item.seriesName} · S${item.parentIndex ?: 0}:E${item.index ?: 0}" else item.name
         Text(
-            caption, color = Grey, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            caption, color = Color(0xFFE0E7F0), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp)
         )
     }
@@ -901,7 +901,7 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
     AppBackground {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
-                Box(Modifier.fillMaxWidth().height(280.dp).background(Color(0xFF111111))) {
+                Box(Modifier.fillMaxWidth().height(300.dp).background(Color(0xFF111923))) {
                     AsyncImage(Api.backdrop(cur), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     Box(
                         Modifier.fillMaxSize().background(
@@ -915,7 +915,7 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
             }
             item {
                 Column(Modifier.padding(horizontal = 16.dp)) {
-                    Text(cur.seriesName ?: cur.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(cur.seriesName ?: cur.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
                     if (cur.seriesName != null) Text(cur.name, color = Grey, fontSize = 15.sp)
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
