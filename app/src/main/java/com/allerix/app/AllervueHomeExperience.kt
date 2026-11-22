@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import kotlinx.coroutines.delay
 
 private val AAccent = AllervueDesign.Cyan
 private val AHot = Color(0xFFFF4D86)
@@ -109,7 +110,21 @@ internal fun AllervueHome(
         (listOfNotNull(featured) + resume + recent + picks).distinctBy { it.id }
     }
     val centerItem = selected ?: featured ?: allItems.firstOrNull()
-    val orbitItems = allItems.filter { it.id != centerItem?.id }.take(5)
+    val orbitItems = allItems.filter { it.id != centerItem?.id }
+    var orbitContentStep by remember { mutableIntStateOf(0) }
+    LaunchedEffect(orbitItems.map { it.id }) {
+        orbitContentStep = 0
+        while (orbitItems.size > 1) {
+            delay(3_000)
+            orbitContentStep = (orbitContentStep + 1) % orbitItems.size
+        }
+    }
+    val visibleOrbitItems = remember(orbitItems, orbitContentStep) {
+        if (orbitItems.isEmpty()) emptyList()
+        else List(minOf(5, orbitItems.size)) { index ->
+            orbitItems[(index + orbitContentStep) % orbitItems.size]
+        }
+    }
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
     Column(
@@ -168,7 +183,7 @@ internal fun AllervueHome(
                 val outerRadiusY = h * .30f
                 val innerRadiusX = w * .27f
                 val innerRadiusY = h * .22f
-                orbitItems.forEachIndexed { index, item ->
+                visibleOrbitItems.forEachIndexed { index, item ->
                     val angle = Math.toRadians(
                         (-90.0 + index * (360.0 / orbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
                     )
