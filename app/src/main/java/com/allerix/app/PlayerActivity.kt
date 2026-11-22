@@ -97,10 +97,6 @@ class PlayerActivity : ComponentActivity() {
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
-    private lateinit var mpvView: AllervueMpvView
-    private var mpvActive = false
-    private var mpvAttempted = false
-    private var mpvResolveInProgress = false
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var spinner: ProgressBar
@@ -169,20 +165,9 @@ class PlayerActivity : ComponentActivity() {
     private var audioOnly = false
     private var loopOne = false
     private var autoPlayNext = true
-    private var playbackEngine = "AUTO"
     private var speed = 1f
     private var nowTag = ""
     private var startupStartedAt = 0L
-    private val stalledPlaybackFallback = Runnable {
-        if (::player.isInitialized && player.playWhenReady &&
-            player.playbackState == Player.STATE_BUFFERING &&
-            (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
-            plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
-            DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; trying libmpv original-stream playback")
-            fallbackMpv()
-        }
-    }
-
     private enum class Mode { NONE, SEEK, BRIGHT, VOLUME }
     private var mode = Mode.NONE
     private var startPos = 0L
@@ -209,7 +194,7 @@ class PlayerActivity : ComponentActivity() {
     }
     private val subTick = object : Runnable {
         override fun run() {
-            if (mpvActive) subText.visibility = View.GONE else updateSubtitle()
+
             handler.postDelayed(this, 100)
         }
     }
@@ -230,7 +215,6 @@ class PlayerActivity : ComponentActivity() {
             .getOrDefault(AudioMode.ORIGINAL)
         decoder = runCatching { DecoderMode.valueOf(prefs.getString("decoder", "HW") ?: "HW") }
             .getOrDefault(DecoderMode.HW)
-        playbackEngine = prefs.getString("playback_engine", "AUTO") ?: "AUTO"
         speed = prefs.getFloat("speed", 1f)
         autoPlayNext = prefs.getBoolean("autoplay", true)
         subPos = prefs.getFloat("sub_pos", 0.12f)
@@ -254,7 +238,6 @@ class PlayerActivity : ComponentActivity() {
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
-        mpvView = AllervueMpvView(this).apply { visibility = View.GONE }
         buildUi()
         DiagnosticLog.record(this, "PlayerActivity: UI built")
         setupGestures()
@@ -333,7 +316,6 @@ class PlayerActivity : ComponentActivity() {
 
     private fun changeDecoder(mode: DecoderMode) {
         if (mode == decoder) return
-        if (mpvActive) { showHud("Decoder selection is managed by libmpv"); return }
         decoder = mode
         prefs.edit().putString("decoder", mode.name).apply()
         val pos = player.currentPosition
@@ -595,7 +577,6 @@ class PlayerActivity : ComponentActivity() {
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(playerView, FrameLayout.LayoutParams(-1, -1))
-            addView(mpvView, FrameLayout.LayoutParams(-1, -1))
             addView(subText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
             addView(controls, FrameLayout.LayoutParams(-1, -1))
@@ -634,29 +615,12 @@ class PlayerActivity : ComponentActivity() {
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
         act(lockAction) { toggleLock() }
-        act(engineAction) { showPlaybackEngineSheet() }
         act(qualityAction) { showQualitySheet() }
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
         act(speedAction) { showSpeedSheet() }
         act(moreAction) { showMoreSheet() }
         lockOverlay.setOnClickListener { toggleLock() }
-    }
-
-    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
-        listOf("AUTO" to "Auto (recommended)", "MEDIA3" to "Media3", "MPV" to "libmpv").forEach { (value, label) ->
-            box.addView(sheetRow(label, if (playbackEngine == value) "Selected" else "") {
-                if (playbackEngine != value) {
-                    playbackEngine = value
-                    prefs.edit().putString("playback_engine", value).apply()
-                    mpvAttempted = false
-                    dlg.dismiss()
-                    switchTo(itemId)
-                    showHud("Engine · $label", 2200)
-                } else dlg.dismiss()
-            })
-        }
-        box.addView(noteText("Auto starts with Media3 and can fall back to libmpv when the stream or decoder needs it."))
     }
 
     private fun showMoreSheet() = sheet("More playback tools") { box, dlg ->
@@ -1185,14 +1149,11 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun updateProgress() {
-        val dur = if (mpvActive) mpvView.durationMs() else player.duration
         val pos = playbackPositionMs()
         if (dur > 0) seek.max = dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        seek.secondaryProgress = if (mpvActive) seek.progress else player.bufferedPosition.toInt().coerceAtLeast(0)
         curTime.text = fmt(pos)
         durTime.text = if (dur > 0) fmt(dur) else "--:--"
-        if (mpvActive) playBtn.setImageResource(if (mpvView.isPlaying()) R.drawable.ic_pause else R.drawable.ic_play)
 
     }
 
@@ -1280,18 +1241,7 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onPlaybackStateChanged(state: Int) {
                 spinner.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
-                if (state == Player.STATE_BUFFERING) {
-                    if (player.playWhenReady &&
-                        (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
-                        plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
-                        handler.removeCallbacks(stalledPlaybackFallback)
-                        handler.postDelayed(stalledPlaybackFallback, 20_000)
-                    }
-                } else {
-                    handler.removeCallbacks(stalledPlaybackFallback)
-                }
                 if (state == Player.STATE_READY) {
-                    if (playbackEngine == "MPV" && !mpvAttempted && offlinePath == null) { fallbackMpv(); return }
                     if (player.playWhenReady) hasPlayedOnce = true
                     updateProgress()
                     if (startupStartedAt > 0L) {
@@ -1311,18 +1261,9 @@ class PlayerActivity : ComponentActivity() {
                 val http = generateSequence<Throwable>(error) { it.cause }
                     .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
                                 val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
-                val serverFailure = http != null && http.responseCode in 500..599
-                val decoderFailure = error.errorCode in 4001..4005
                 if (directPlayFailure) {
-                    when {
-                        serverFailure -> DiagnosticLog.record(this@PlayerActivity,
-                            "Jellyfin direct stream returned HTTP ${http?.responseCode}; trying libmpv before H.264 fallback")
-                        decoderFailure -> DiagnosticLog.record(this@PlayerActivity,
-                            "ExoPlayer decoder failed; switching to libmpv on the original stream")
-                        else -> DiagnosticLog.record(this@PlayerActivity,
-                            "ExoPlayer direct-play failed; attempting libmpv original-stream fallback")
-                    }
-                    fallbackMpv()
+                    DiagnosticLog.record(this@PlayerActivity, "ExoPlayer direct-play failed; attempting Jellyfin H.264 fallback")
+                    fallbackTranscode()
                     return
                 }
                 val detail = http?.let { " [HTTP ${it.responseCode} ${it.dataSpec.uri.lastPathSegment}]" } ?: "";
@@ -1456,13 +1397,12 @@ class PlayerActivity : ComponentActivity() {
 
     private fun switchTo(newId: String) {
         report("stop")
-        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
         defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
-        autoRetried = false; mpvAttempted = false; hasPlayedOnce = false; plan = null
+
 
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
@@ -1482,10 +1422,8 @@ class PlayerActivity : ComponentActivity() {
     private fun applyPlayback() {
         if (sourceId.isEmpty()) return
         val pos = playbackPositionMs()
-        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
 
-        mpvAttempted = false; autoRetried = false
-        if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
+
         showHud("Switching to ${quality.label} · Audio: ${audioMode.label}…", 2500)
         lifecycleScope.launch {
             val mi = buildMediaItem()
@@ -1639,7 +1577,6 @@ class PlayerActivity : ComponentActivity() {
                 }
                 when (mode) {
                     Mode.SEEK -> {
-                        val dur = (if (mpvActive) mpvView.durationMs() else player.duration).coerceAtLeast(0L)
                         seekTarget = (startPos + (e2.x - e1.x) * 120_000f / playerView.width).toLong().coerceIn(0L, dur)
                         val sign = if (seekTarget >= startPos) "+" else "-"
                         showHud("${fmt(seekTarget)}  ($sign${fmt(abs(seekTarget - startPos))})", 1500)
@@ -1673,17 +1610,9 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun seekBy(ms: Long) {
-        val duration = if (mpvActive) mpvView.durationMs() else player.duration
         seekPlaybackTo((playbackPositionMs() + ms).coerceIn(0L, duration.coerceAtLeast(0L)))
     }
 
-    private fun playbackPositionMs(): Long = if (mpvActive) mpvView.positionMs() else player.currentPosition
-    private fun isPlaybackPlaying(): Boolean = if (mpvActive) mpvView.isPlaying() else player.isPlaying
-    private fun seekPlaybackTo(positionMs: Long) { if (mpvActive) mpvView.seekTo(positionMs) else player.seekTo(positionMs) }
-    private fun pausePlayback() { if (mpvActive) mpvView.pausePlayback() else player.pause() }
-    private fun resumePlayback() { if (mpvActive) mpvView.resumePlayback() else player.play() }
-    private fun togglePlayback() { if (mpvActive) mpvView.togglePlayback() else if (player.isPlaying) player.pause() else player.play() }
-    private fun setPlaybackSpeed(value: Float) { if (mpvActive) mpvView.setSpeed(value) else player.setPlaybackSpeed(value) }
 
     private fun showHud(text: String, hideAfter: Long = 800) {
         hud.text = text; hud.visibility = View.VISIBLE
@@ -1722,14 +1651,9 @@ class PlayerActivity : ComponentActivity() {
                 "what it can't, and it eases off on mobile data, low battery or heat."))
     }
 
-    private fun fallbackMpv() {
-        fallbackTranscode()
-    }
-
     private fun fallbackTranscode() {
         if (autoRetried || offlinePath != null) return
         autoRetried = true
-        handler.removeCallbacks(stalledPlaybackFallback)
         val resumeAt = playbackPositionMs().coerceAtLeast(0L)
         DiagnosticLog.record(this, "ExoPlayer playback failed; retrying through Jellyfin server-side H.264 1080p transcode")
         startServerTranscodeFallback(resumeAt)
@@ -1837,7 +1761,6 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        handler.removeCallbacks(stalledPlaybackFallback)
 
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
@@ -1854,7 +1777,6 @@ class PlayerActivity : ComponentActivity() {
         }
         try { enhancer?.release() } catch (e: Exception) { }
         player.release()
-        if (::mpvView.isInitialized) mpvView.release()
         super.onDestroy()
     }
 }
