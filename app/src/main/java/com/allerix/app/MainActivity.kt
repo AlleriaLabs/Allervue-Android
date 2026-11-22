@@ -127,7 +127,7 @@ fun SplashScreen() {
         0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "slide"
     )
     Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFFD8B77E).copy(alpha = glow), BgDark), radius = 1100f)),
+        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF65D6D0).copy(alpha = glow), BgDark), radius = 1100f)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -145,7 +145,7 @@ fun SplashScreen() {
             Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).width(120.dp).height(3.dp)
                 .clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))
         ) {
-            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Color(0xFFD8B77E)))
+            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Color(0xFF65D6D0)))
         }
     }
 }
