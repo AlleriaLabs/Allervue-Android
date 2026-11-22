@@ -33,7 +33,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), DISCOVER("Discover", R.drawable.ic_nav_movie), SAVED("Saved", R.drawable.ic_nav_star), DOWNLOADS("Downloads", R.drawable.ic_nav_download) }
+private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), MOVIES("Movies", R.drawable.ic_nav_movie), SHOWS("TV Shows", R.drawable.ic_nav_tv), SAVED("My List", R.drawable.ic_nav_star), DOWNLOADS("Downloads", R.drawable.ic_nav_download) }
 private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 private val VCyan = AllervueDesign.Cyan
 private val VGold = AllervueDesign.Gold
@@ -69,7 +69,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
             when (top) {
                 null -> when (tab) {
                     RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
-                    RebuildTab.DISCOVER -> RebuildDiscover(onOpen, { stack.add(Nav.Search) })
+                    RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })\n                    RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
                     RebuildTab.SAVED -> RebuildSaved(onOpen, onPlay)
                     RebuildTab.DOWNLOADS -> RebuildDownloads()
                 }
