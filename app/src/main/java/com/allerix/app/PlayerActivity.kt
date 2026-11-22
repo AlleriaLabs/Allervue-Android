@@ -502,7 +502,7 @@ class PlayerActivity : ComponentActivity() {
         val qualityAction = dockAction(R.drawable.ic_tune, "Quality")
         val subtitlesAction = dockAction(R.drawable.ic_subtitles, "Subs")
         val audioAction = dockAction(R.drawable.ic_music, "Audio")
-        val speedAction = dockAction(R.drawable.ic_schedule, speedText(speed))
+        val speedAction = dockAction(R.drawable.ic_schedule, "Speed")
         speedLabel = speedAction.getChildAt(1) as TextView
         val moreAction = dockAction(R.drawable.ic_settings, "More")
 
