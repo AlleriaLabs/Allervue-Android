@@ -757,9 +757,11 @@ fun DownloadsTab(onSettings: () -> Unit) {
             delay(1000)
         }
     }
-    val activeCount = recs.count { states[it.id]?.status in listOf(
-        android.app.DownloadManager.STATUS_PENDING, android.app.DownloadManager.STATUS_RUNNING
-    ) }
+    val activeCount = recs.count { rec ->
+        val status = states[rec.id]?.status
+        status == android.app.DownloadManager.STATUS_PENDING ||
+            status == android.app.DownloadManager.STATUS_RUNNING
+    }
     val completeCount = recs.count { states[it.id]?.status == android.app.DownloadManager.STATUS_SUCCESSFUL }
     val failedCount = recs.count { states[it.id]?.status == android.app.DownloadManager.STATUS_FAILED }
     val visible = remember(recs, states, filter) {
