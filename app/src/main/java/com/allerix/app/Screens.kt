@@ -170,7 +170,7 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(34.dp))
-            Text("ALLERVUE", color = Color(0xFFD9B77D), fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp, modifier = Modifier.padding(start = 8.dp))
+            Text("ALLERVUE", color = Red, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp, modifier = Modifier.padding(start = 8.dp))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { SmallIcon(R.drawable.ic_search) }
             IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
@@ -180,7 +180,7 @@ fun HomeScreen(
 
 @Composable
 fun HeroCarousel(heroes: List<Item>, pager: PagerState, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
-    Box(Modifier.fillMaxWidth().height(500.dp)) {
+    Box(Modifier.fillMaxWidth().height(468.dp)) {
         if (heroes.isNotEmpty()) HorizontalPager(state = pager, modifier = Modifier.fillMaxSize()) { page ->
             HeroPage(heroes[page], onPlay, onOpen)
         }
@@ -207,13 +207,13 @@ fun HeroPage(hero: Item, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
         )
         Column(Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 26.dp)) {
             Text(
-                "FEATURED", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
-                modifier = Modifier.background(Color(0x44FFFFFF), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+                "FEATURED", color = BrandInk, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+                modifier = Modifier.background(Red, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                (hero.seriesName ?: hero.name).uppercase(), color = Color.White, fontSize = 30.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = 4.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
+                (hero.seriesName ?: hero.name), color = Color.White, fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
             )
             val genres = hero.genres?.take(3)?.joinToString("   •   ").orEmpty()
             if (genres.isNotEmpty()) Text(genres, color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
@@ -225,9 +225,9 @@ fun HeroPage(hero: Item, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = { onPlay(hero) }, modifier = Modifier.height(46.dp), shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF24D6E8), contentColor = Color(0xFF08111B))
+                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = BrandInk)
                 ) {
-                    SmallIcon(R.drawable.ic_play, Color(0xFF08111B), 20)
+                    SmallIcon(R.drawable.ic_play, BrandInk, 20)
                     Spacer(Modifier.width(6.dp))
                     Text("Play", fontWeight = FontWeight.Bold)
                 }
@@ -245,8 +245,8 @@ fun MediaRow(
 ) {
     Column(Modifier.padding(top = 20.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (onSeeAll != null) Text("See all ›", color = Grey, fontSize = 13.sp, modifier = Modifier.clickable { onSeeAll() })
+            Text(title, color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            if (onSeeAll != null) Text("See all  ›", color = Red, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable { onSeeAll() })
         }
         Spacer(Modifier.height(10.dp))
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -266,7 +266,7 @@ fun MediaCard(
     Column(modifier.clickable(onClick = onClick)) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
-                .clip(RoundedCornerShape(10.dp)).background(Color(0xFF1F1F23))
+                .clip(RoundedCornerShape(12.dp)).background(Color(0xFF172130))
         ) {
             AsyncImage(
                 if (landscape) Api.landscape(item) else Api.poster(item), item.name,
@@ -300,7 +300,7 @@ fun MediaCard(
         val caption = if (item.type == "Episode" && item.seriesName != null)
             "${item.seriesName} · S${item.parentIndex ?: 0}:E${item.index ?: 0}" else item.name
         Text(
-            caption, color = Grey, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            caption, color = Color(0xFFE0E7F0), fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 4.dp)
         )
     }
@@ -747,6 +747,7 @@ fun DownloadsTab(onSettings: () -> Unit) {
     val ctx = LocalContext.current
     var recs by remember { mutableStateOf(Downloads.list(ctx)) }
     var states by remember { mutableStateOf<Map<String, DlState>>(emptyMap()) }
+    var filter by remember { mutableStateOf("All") }
     LaunchedEffect(Unit) {
         if (Downloads.ensureCovers(ctx)) recs = Downloads.list(ctx)
     }
@@ -756,20 +757,73 @@ fun DownloadsTab(onSettings: () -> Unit) {
             delay(1000)
         }
     }
+    val activeCount = recs.count { rec ->
+        val status = states[rec.id]?.status
+        status == android.app.DownloadManager.STATUS_PENDING ||
+            status == android.app.DownloadManager.STATUS_RUNNING
+    }
+    val completeCount = recs.count { states[it.id]?.status == android.app.DownloadManager.STATUS_SUCCESSFUL }
+    val failedCount = recs.count { states[it.id]?.status == android.app.DownloadManager.STATUS_FAILED }
+    val visible = remember(recs, states, filter) {
+        recs.filter { rec ->
+            val status = states[rec.id]?.status
+            when (filter) {
+                "Active" -> status == android.app.DownloadManager.STATUS_PENDING || status == android.app.DownloadManager.STATUS_RUNNING
+                "Completed" -> status == android.app.DownloadManager.STATUS_SUCCESSFUL
+                "Failed" -> status == android.app.DownloadManager.STATUS_FAILED
+                else -> true
+            }
+        }
+    }
     AppBackground {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 22.dp)) {
             item { TabHeader("Downloads", null, onSettings) }
             item {
-                Text(
-                    "Downloads", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(start = 16.dp, top = 22.dp, bottom = 6.dp)
-                )
-                if (recs.isEmpty()) Text(
-                    "Nothing downloaded yet. Open a movie or episode and tap the download icon.",
-                    color = Grey, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                )
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Your library, offline", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                            Text("${recs.size} saved titles on this device", color = Dim, fontSize = 12.sp)
+                        }
+                        Text("$activeCount ACTIVE", color = Red, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("All", "Active", "Completed", "Failed").forEach { item ->
+                            FilterChip(
+                                selected = filter == item, onClick = { filter = item },
+                                label = { Text(item) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Red.copy(alpha = 0.22f),
+                                    selectedLabelColor = Color.White, labelColor = Grey
+                                )
+                            )
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("Active" to activeCount, "Completed" to completeCount, "Failed" to failedCount).forEach { (label, count) ->
+                            Column(
+                                Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                                    .background(BrandSurface).padding(12.dp)
+                            ) {
+                                Text(count.toString(), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                                Text(label, color = Dim, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
             }
-            items(recs, key = { it.id }) { rec ->
+            if (visible.isEmpty()) {
+                item {
+                    Text(
+                        if (recs.isEmpty()) "Nothing downloaded yet. Open a movie or episode and tap the download icon."
+                        else "No $filter downloads.",
+                        color = Grey, fontSize = 14.sp,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp)
+                    )
+                }
+            }
+            items(visible, key = { it.id }) { rec ->
                 val st = states[rec.id] ?: DlState(-1, 0L, 0L)
                 DownloadRow(
                     rec, st,
@@ -901,7 +955,7 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
     AppBackground {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
-                Box(Modifier.fillMaxWidth().height(280.dp).background(Color(0xFF111111))) {
+                Box(Modifier.fillMaxWidth().height(300.dp).background(Color(0xFF111923))) {
                     AsyncImage(Api.backdrop(cur), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                     Box(
                         Modifier.fillMaxSize().background(
@@ -915,7 +969,7 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
             }
             item {
                 Column(Modifier.padding(horizontal = 16.dp)) {
-                    Text(cur.seriesName ?: cur.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                    Text(cur.seriesName ?: cur.name, color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.ExtraBold)
                     if (cur.seriesName != null) Text(cur.name, color = Grey, fontSize = 15.sp)
                     Spacer(Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
