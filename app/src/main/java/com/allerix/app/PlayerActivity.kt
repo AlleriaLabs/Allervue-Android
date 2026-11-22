@@ -93,7 +93,7 @@ import kotlin.math.log10
  */
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
-    private val accent = 0xFFD8B77E.toInt()
+    private val accent = 0xFF24D6E8.toInt()
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
@@ -384,7 +384,7 @@ class PlayerActivity : ComponentActivity() {
 
     /** 10-second skip button: a clean solid charcoal disc, with no glass treatment. */
     private fun skipButton(forward: Boolean): FrameLayout = FrameLayout(this).apply {
-        background = circleBg(0xFF202024.toInt())
+        background = circleBg(0xFF171E2D.toInt())
         setPadding(dp(10), dp(10), dp(10), dp(10))
         addView(ImageView(context).apply {
             setImageResource(R.drawable.ic_replay); setColorFilter(Color.WHITE)
@@ -410,12 +410,12 @@ class PlayerActivity : ComponentActivity() {
             }
             elevation = dp(2).toFloat()
             addView(ImageView(context).apply {
-                setImageResource(res); setColorFilter(0xFFD8B77E.toInt())
+                setImageResource(res); setColorFilter(0xFF24D6E8.toInt())
                 setPadding(dp(12), dp(12), dp(12), dp(12))
             }, FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER))
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
         addView(TextView(context).apply {
-            text = label; setTextColor(0xFFE4E4E8.toInt()); textSize = 10f
+            text = label; setTextColor(0xFFDCE5F2.toInt()); textSize = 10f
             gravity = Gravity.CENTER; maxLines = 1; setPadding(0, dp(5), 0, 0)
         })
     }
@@ -442,7 +442,7 @@ class PlayerActivity : ComponentActivity() {
         val backBtn = glassIcon(R.drawable.ic_back, 30, 7)
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF4EFE5.toInt()); textSize = 15f
+            setTextColor(0xFFF2F6FC.toInt()); textSize = 15f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
             maxLines = 1; maxWidth = dp(240); ellipsize = TextUtils.TruncateAt.END
         }
@@ -528,7 +528,7 @@ class PlayerActivity : ComponentActivity() {
         }
         playBtn = icon(R.drawable.ic_pause, 68, 18).apply {
             background = circleBg(0xFFD8B77E.toInt())
-            setColorFilter(0xFF101013.toInt())
+            setColorFilter(0xFF080B12.toInt())
             elevation = dp(5).toFloat()
         }
         val fwdBtn = skipButton(true).apply {
@@ -566,7 +566,7 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
         }
         durTime = TextView(this).apply {
-            text = "--:--"; setTextColor(0xFFAAA69E.toInt()); textSize = 10f
+            text = "--:--"; setTextColor(0xFF98A6BC.toInt()); textSize = 10f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
             gravity = Gravity.CENTER_VERTICAL
         }
@@ -632,7 +632,7 @@ class PlayerActivity : ComponentActivity() {
             setTextColor(Color.WHITE); textSize = 15f
             setPadding(dp(20), dp(12), dp(20), dp(12))
             background = GradientDrawable().apply {
-                setColor(0xFF17171B.toInt()); cornerRadius = dp(10).toFloat()
+                setColor(0xFF121A29.toInt()); cornerRadius = dp(10).toFloat()
             }
             visibility = View.GONE
         }
