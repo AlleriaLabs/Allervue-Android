@@ -484,12 +484,12 @@ private fun RebuildSearch(onOpen: (Item) -> Unit, back: () -> Unit) {
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = VCyan)
         if (results.isEmpty() && query.isBlank()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Find something worth watching.", color = VMuted)
-        } else LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        } else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(results.size, key = { results[it].id }) { index ->
                 val item = results[index]
-                RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
+                AllervueCatalogCard(item, index + 1, onClick = { onOpen(item) })
             }
         }
     }
@@ -638,12 +638,12 @@ private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -
             }
         }
         if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
-        else LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(children.size, key = { children[it].id }) { index ->
                 val item = children[index]
-                RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
+                AllervueCatalogCard(item, index + 1, onClick = { onOpen(item) })
             }
         }
     }
