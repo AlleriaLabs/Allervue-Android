@@ -1,11 +1,12 @@
 package com.allerix.app
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -23,7 +26,9 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 
 private val AAccent = AllervueDesign.Cyan
-private val AGold = AllervueDesign.Gold
+private val AHot = Color(0xFFFF4D86)
+private val AInk = Color(0xFF100E20)
+private val APanel = Color(0xFF17152C)
 
 @Composable
 internal fun AllervueHome(
@@ -38,6 +43,7 @@ internal fun AllervueHome(
     var resume by remember { mutableStateOf(emptyList<Item>()) }
     var recent by remember { mutableStateOf(emptyList<Item>()) }
     var picks by remember { mutableStateOf(emptyList<Item>()) }
+    var selected by remember { mutableStateOf<Item?>(null) }
     var loading by remember { mutableStateOf(true) }
     var failure by remember { mutableStateOf(false) }
 
@@ -51,6 +57,7 @@ internal fun AllervueHome(
             picks = runCatching {
                 Api.personalizedPicks((resume + recent).map { it.id }.toSet())
             }.getOrDefault(emptyList())
+            selected = featured ?: resume.firstOrNull() ?: recent.firstOrNull() ?: picks.firstOrNull()
             if (featured == null && resume.isEmpty() && recent.isEmpty() && picks.isEmpty()) failure = true
         } catch (error: Exception) {
             if (error.message?.contains("401") == true) onLogout() else failure = true
@@ -59,223 +66,160 @@ internal fun AllervueHome(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 30.dp),
-        verticalArrangement = Arrangement.spacedBy(0.dp)
+    val allItems = remember(featured, resume, recent, picks) {
+        (listOfNotNull(featured) + resume + recent + picks).distinctBy { it.id }
+    }
+    val centerItem = selected ?: featured ?: allItems.firstOrNull()
+    val orbitItems = allItems.filter { it.id != centerItem?.id }.take(5)
+    val related = allItems.filter { it.id != centerItem?.id }.take(3)
+
+    Column(
+        Modifier.fillMaxSize()
+            .background(Brush.verticalGradient(listOf(Color(0xFF32191F), Color(0xFF17152D), Color(0xFF071F27))))
     ) {
-        item {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            Canvas(Modifier.fillMaxSize()) {
+                val cx = size.width * .5f
+                val cy = size.height * .55f
+                val radius = size.width * .43f
+                val dash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 8.dp.toPx()), 0f)
+                drawCircle(Color.White.copy(alpha = .11f), radius, androidx.compose.ui.geometry.Offset(cx, cy), style = Stroke(1.dp.toPx(), pathEffect = dash))
+                drawCircle(Color.White.copy(alpha = .15f), radius * .66f, androidx.compose.ui.geometry.Offset(cx, cy), style = Stroke(1.dp.toPx(), pathEffect = dash))
+                drawCircle(Color(0xFFEF6C8B).copy(alpha = .10f), radius * .98f, androidx.compose.ui.geometry.Offset(cx, cy), style = Stroke(18.dp.toPx()))
+            }
+
             Row(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+                Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(34.dp).clip(RoundedCornerShape(11.dp))
-                            .background(Brush.linearGradient(listOf(AAccent, AllervueDesign.Violet))),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("A", color = Color(0xFF071014), fontSize = 21.sp, fontWeight = FontWeight.Black)
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text("Allervue", color = MaterialTheme.colorScheme.onBackground, fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold, letterSpacing = (-.4).sp)
-                        Text("Great stories. Anytime.", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 10.sp)
-                    }
-                }
-                AHomeHeaderAction("⌕", "Search", onSearch)
-                Spacer(Modifier.width(8.dp))
-                AHomeHeaderAction("⋯", "Settings", onSettings)
-            }
-        }
-
-        item {
-            val item = featured
-            if (item != null) {
+                Text("allervue.", color = Color(0xFFF8F3FF), fontSize = 29.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.2).sp, modifier = Modifier.weight(1f))
                 Box(
-                    Modifier.fillMaxWidth().padding(horizontal = 14.dp)
-                        .height(430.dp).clip(RoundedCornerShape(24.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                ) {
-                    AsyncImage(
-                        Api.backdrop(item), null, Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(
-                                0f to Color(0x1106090D),
-                                .28f to Color(0x2206090D),
-                                .58f to Color(0xB906090D),
-                                1f to Color(0xF506090D)
-                            )
-                        )
-                    )
+                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
+                        .clickable(onClick = onSettings),
+                    contentAlignment = Alignment.Center
+                ) { Text("⌕", color = Color.White, fontSize = 28.sp) }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
+                        .clickable(onClick = onSettings),
+                    contentAlignment = Alignment.Center
+                ) { Text("♙", color = Color.White, fontSize = 23.sp) }
+            }
+
+            Text("DISCOVER", Modifier.align(Alignment.TopCenter).padding(top = 86.dp), color = Color.White.copy(alpha = .48f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+            Text("GENTLE", Modifier.align(Alignment.CenterStart).padding(start = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("INTENSE", Modifier.align(Alignment.CenterEnd).padding(end = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+            Text("LATE NIGHT", Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp), color = Color.White.copy(alpha = .42f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
+
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val w = maxWidth
+                val h = maxHeight
+                val nodeSize = (w * .22f).coerceIn(76.dp, 104.dp)
+                val centerSize = (w * .48f).coerceIn(172.dp, 224.dp)
+                val positions = listOf(
+                    .10f to .30f, .69f to .22f, .73f to .62f, .08f to .75f, .50f to .83f
+                )
+                orbitItems.forEachIndexed { index, item ->
+                    val (x, y) = positions[index]
                     Column(
-                        Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                            .padding(start = 22.dp, end = 22.dp, bottom = 22.dp)
+                        Modifier.offset(x = w * x, y = h * y).width(nodeSize + 24.dp)
+                            .clickable { selected = item },
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.width(25.dp).height(3.dp).clip(RoundedCornerShape(2.dp))
-                                .background(Brush.horizontalGradient(listOf(AAccent, AllervueDesign.Violet))))
-                            Spacer(Modifier.width(8.dp))
-                            Text("FEATURED FOR YOU", color = Color.White, fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        Text(item.name, color = Color.White, fontSize = 30.sp, lineHeight = 34.sp,
-                            fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            listOfNotNull(item.year?.toString(), item.officialRating, item.type).joinToString("  •  "),
-                            color = Color(0xFFE1E4E8), fontSize = 12.sp
+                        AsyncImage(
+                            model = Api.poster(item), contentDescription = item.name,
+                            modifier = Modifier.size(nodeSize).clip(CircleShape)
+                                .background(Color(0xFF25213A)),
+                            contentScale = ContentScale.Crop
                         )
-                        if (!item.overview.isNullOrBlank()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(item.overview.orEmpty(), color = Color(0xFFD0D5DC), fontSize = 12.sp,
-                                lineHeight = 17.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
+                    }
+                }
+
+                if (centerItem != null) {
+                    Box(
+                        Modifier.offset(x = (w - centerSize) / 2, y = h * .40f)
+                            .size(centerSize).clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(Color(0xFF7C3F88), Color(0xFFFF704D), Color(0xFF211238))))
+                            .clickable { onOpen(centerItem) }
+                    ) {
+                        AsyncImage(
+                            model = Api.backdrop(centerItem), contentDescription = null,
+                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                        )
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x220A0712), Color(0xC90A0712)))))
+                        Box(Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+                            Text(centerItem.name.uppercase(), color = Color.White, fontSize = 19.sp, lineHeight = 22.sp,
+                                fontWeight = FontWeight.ExtraBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                maxLines = 3, overflow = TextOverflow.Ellipsis)
                         }
-                        Spacer(Modifier.height(17.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Button(
-                                onClick = { onPlay(item) },
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color.White, contentColor = Color(0xFF10151B)
-                                ),
-                                contentPadding = PaddingValues(horizontal = 21.dp, vertical = 11.dp)
-                            ) {
-                                Text("▶  Play", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            }
-                            OutlinedButton(
-                                onClick = { onOpen(item) },
-                                shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0x99FFFFFF)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 11.dp)
-                            ) {
-                                Text("More info", fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                            }
+                        Box(Modifier.fillMaxSize().clip(CircleShape).background(Color.Transparent).then(Modifier))
+                    }
+                    Box(
+                        Modifier.align(Alignment.Center).offset(y = h * .40f).size(centerSize)
+                    ) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            drawCircle(Color.White.copy(alpha = .55f), style = Stroke(1.5.dp.toPx()))
+                            drawCircle(Color(0xFFFF5C87).copy(alpha = .55f), style = Stroke(5.dp.toPx()))
+                        }
+                    }
+                } else if (loading) {
+                    CircularProgressIndicator(Modifier.align(Alignment.Center), color = AAccent)
+                } else if (failure) {
+                    Text("Your library isn't available", Modifier.align(Alignment.Center), color = Color.White)
+                }
+            }
+        }
+
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(Brush.verticalGradient(listOf(Color(0xFF19162F), APanel)))
+                .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(centerItem?.name ?: if (loading) "Finding your next story" else "Your library",
+                        color = Color(0xFFF7F3FF), fontSize = 28.sp, lineHeight = 32.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-.8).sp,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val meta = centerItem?.let {
+                        listOfNotNull(it.type, it.year?.toString(), it.officialRating).joinToString(" · ")
+                    } ?: "Explore your Jellyfin library"
+                    Text(meta, color = Color(0xFFB7B2C7), fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp), maxLines = 1)
+                }
+                Box(
+                    Modifier.size(66.dp).clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
+                        .clickable { centerItem?.let(onPlay) },
+                    contentAlignment = Alignment.Center
+                ) { Text("▶", color = Color(0xFF170D1B), fontSize = 25.sp) }
+            }
+            if (!centerItem?.overview.isNullOrBlank()) {
+                Text(centerItem?.overview.orEmpty(), color = Color(0xFFC7C2D3), fontSize = 12.sp,
+                    lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 8.dp))
+            }
+            if (related.isNotEmpty()) {
+                LazyRow(
+                    Modifier.padding(top = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(related, key = { it.id }) { item ->
+                        Row(
+                            Modifier.clip(CircleShape).background(Color(0xFF29263F))
+                                .clickable { selected = item }
+                                .padding(horizontal = 13.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(AHot))
+                            Spacer(Modifier.width(8.dp))
+                            Text(item.name, color = Color(0xFFF1EDFA), fontSize = 12.sp, maxLines = 1,
+                                overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
-            } else if (loading) {
-                Box(Modifier.fillMaxWidth().height(330.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = AAccent, strokeWidth = 2.dp)
-                }
-            } else if (failure) {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 44.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Your library isn't available", color = MaterialTheme.colorScheme.onBackground,
-                        fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    Text("Check your server connection and try again.", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                }
             }
         }
-
-        if (resume.isNotEmpty()) {
-            item { AHomeSectionTitle("Continue watching", "Pick up where you left off") }
-            item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(resume.take(10), key = { "continue-${it.id}" }) { entry ->
-                        AContinueCard(entry) { onPlay(entry) }
-                    }
-                }
-            }
-        }
-
-        if (recent.isNotEmpty()) {
-            item { AHomeSectionTitle("Recently added", "Fresh from your library") }
-            item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(recent.take(14), key = { "recent-${it.id}" }) { entry ->
-                        APosterCard(entry) { onOpen(entry) }
-                    }
-                }
-            }
-        }
-
-        if (picks.isNotEmpty()) {
-            item { AHomeSectionTitle("Picked for you", "More stories worth discovering") }
-            item {
-                LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(picks.take(14), key = { "pick-${it.id}" }) { entry ->
-                        APosterCard(entry) { onOpen(entry) }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AHomeHeaderAction(symbol: String, description: String, onClick: () -> Unit) {
-    Column(
-        Modifier.size(42.dp).clip(RoundedCornerShape(13.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant).clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
-    ) {
-        Text(symbol, color = MaterialTheme.colorScheme.onBackground, fontSize = 23.sp, lineHeight = 23.sp)
-    }
-}
-
-@Composable
-private fun AHomeSectionTitle(title: String, subtitle: String) {
-    Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 25.dp, bottom = 13.dp)) {
-        Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 19.sp,
-            fontWeight = FontWeight.Bold, letterSpacing = (-.3).sp)
-        Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
-            modifier = Modifier.padding(top = 3.dp))
-    }
-}
-
-@Composable
-private fun AContinueCard(item: Item, onClick: () -> Unit) {
-    val progress = (item.userData?.playedPercentage?.toFloat()
-        ?: if ((item.runTimeTicks ?: 0L) > 0L)
-            ((item.userData?.positionTicks ?: 0L).toFloat() / item.runTimeTicks!!.toFloat()) * 100f
-        else 0f).coerceIn(0f, 100f)
-    Column(
-        Modifier.width(252.dp).clip(RoundedCornerShape(15.dp))
-            .background(MaterialTheme.colorScheme.surface).clickable(onClick = onClick)
-    ) {
-        Box(Modifier.fillMaxWidth().height(142.dp).background(MaterialTheme.colorScheme.surfaceVariant)) {
-            AsyncImage(Api.landscape(item), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            Box(Modifier.align(Alignment.Center).size(42.dp).clip(RoundedCornerShape(50))
-                .background(Color(0xCC111820)), contentAlignment = Alignment.Center) {
-                Text("▶", color = Color.White, fontSize = 17.sp)
-            }
-            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(3.dp).background(Color(0x66000000))) {
-                Box(Modifier.fillMaxWidth(progress / 100f).fillMaxHeight()
-                    .background(Brush.horizontalGradient(listOf(AAccent, AllervueDesign.Violet))))
-            }
-        }
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
-            Text(item.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${progress.toInt()}% watched", color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontSize = 10.sp, modifier = Modifier.padding(top = 3.dp))
-        }
-    }
-}
-
-@Composable
-private fun APosterCard(item: Item, onClick: () -> Unit) {
-    Column(Modifier.width(132.dp).clickable(onClick = onClick)) {
-        AsyncImage(
-            Api.poster(item), null,
-            Modifier.fillMaxWidth().height(190.dp).clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
-        )
-        Text(item.name, color = MaterialTheme.colorScheme.onBackground, fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp))
-        Text(listOfNotNull(item.year?.toString(), item.type).joinToString("  •  "),
-            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp,
-            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
     }
 }
