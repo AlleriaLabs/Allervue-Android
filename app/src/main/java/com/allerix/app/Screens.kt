@@ -225,9 +225,9 @@ fun HeroPage(hero: Item, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = { onPlay(hero) }, modifier = Modifier.height(46.dp), shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF24D6E8), contentColor = Color(0xFF08111B))
                 ) {
-                    SmallIcon(R.drawable.ic_play, Color.Black, 20)
+                    SmallIcon(R.drawable.ic_play, Color(0xFF08111B), 20)
                     Spacer(Modifier.width(6.dp))
                     Text("Play", fontWeight = FontWeight.Bold)
                 }
