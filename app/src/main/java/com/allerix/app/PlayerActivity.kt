@@ -544,7 +544,7 @@ class PlayerActivity : ComponentActivity() {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            progressTintList = ColorStateList.valueOf(0xFF65D6D0.toInt())
+            progressTintList = ColorStateList.valueOf(0xFFD9B77D.toInt())
             thumbTintList = ColorStateList.valueOf(0xFFE9F7F6.toInt())
             progressBackgroundTintList = ColorStateList.valueOf(0x667F8A98)
             secondaryProgressTintList = ColorStateList.valueOf(0x998F9EAD.toInt())
