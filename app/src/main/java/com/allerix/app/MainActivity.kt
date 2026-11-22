@@ -60,7 +60,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Red, background = BgDark, surface = BgDark,
+                    primary = Color(0xFF24D6E8), secondary = Color(0xFF8B5CF6), tertiary = Color(0xFF647BFF), background = BgDark, surface = BgDark,
                     onBackground = Color.White, onSurface = Color.White
                 )
             ) { Surface(color = BgDark) { App() } }
@@ -213,23 +213,48 @@ fun MainShell(onLogout: () -> Unit) {
                 Nav.Diagnostics -> DiagnosticScreen(back)
             }
         }
-        if (showBar) BottomBar(tab) { selected -> stack.clear(); tab = selected }
-    }
-}
-
-@Composable
+        if (show@Composable
 fun BottomBar(selected: NavTab, onTab: (NavTab) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Color(0xF2101014)).padding(top = 8.dp, bottom = 6.dp)
+        Modifier.fillMaxWidth()
+            .background(Color(0xF20C101A))
+            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        NavTab.values().forEach { t ->
-            val on = t == selected
+        NavTab.values().forEach { tab ->
+            val active = tab == selected
             Column(
-                Modifier.weight(1f).clickable { onTab(t) }.padding(vertical = 2.dp),
+                Modifier.weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (active) Color(0x2224D6E8) else Color.Transparent)
+                    .clickable { onTab(tab) }
+                    .padding(vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                SmallIcon(t.icon, if (on) Red else Dim, 24)
-                Text(t.label, color = if (on) Red else Dim, fontSize = 10.sp)
+                SmallIcon(
+                    tab.icon,
+                    if (active) Color(0xFF24D6E8) else Color(0xFF778399),
+                    22
+                )
+                Spacer(Modifier.height(3.dp))
+                Text(
+                    tab.label,
+                    color = if (active) Color(0xFF24D6E8) else Color(0xFF778399),
+                    fontSize = 10.sp,
+                    fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal
+                )
+                Spacer(Modifier.height(3.dp))
+                Box(
+                    Modifier.width(if (active) 18.dp else 4.dp)
+                        .height(2.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(if (active) Color(0xFF8B5CF6) else Color.Transparent)
+                )
+            }
+        }
+    }
+}
+ = if (on) Red else Dim, fontSize = 10.sp)
             }
         }
     }
