@@ -1149,6 +1149,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun updateProgress() {
         val pos = playbackPositionMs()
+        val dur = duration
         if (dur > 0) seek.max = dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         curTime.text = fmt(pos)
@@ -1576,7 +1577,7 @@ class PlayerActivity : ComponentActivity() {
                 }
                 when (mode) {
                     Mode.SEEK -> {
-                        seekTarget = (startPos + (e2.x - e1.x) * 120_000f / playerView.width).toLong().coerceIn(0L, dur)
+                        seekTarget = (startPos + (e2.x - e1.x) * 120_000f / playerView.width).toLong().coerceIn(0L, duration)
                         val sign = if (seekTarget >= startPos) "+" else "-"
                         showHud("${fmt(seekTarget)}  ($sign${fmt(abs(seekTarget - startPos))})", 1500)
                     }
@@ -1608,8 +1609,31 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private val duration: Long
+        get() = if (::player.isInitialized) player.duration.coerceAtLeast(0L) else 0L
+
+    private fun playbackPositionMs(): Long =
+        if (::player.isInitialized) player.currentPosition.coerceAtLeast(0L) else 0L
+
+    private fun isPlaybackPlaying(): Boolean = ::player.isInitialized && player.isPlaying
+
+    private fun seekPlaybackTo(positionMs: Long) {
+        if (::player.isInitialized) player.seekTo(positionMs.coerceAtLeast(0L))
+    }
+
+    private fun pausePlayback() { if (::player.isInitialized) player.pause() }
+    private fun resumePlayback() { if (::player.isInitialized) player.play() }
+    private fun togglePlayback() {
+        if (!::player.isInitialized) return
+        if (player.isPlaying) player.pause() else player.play()
+    }
+    private fun setPlaybackSpeed(value: Float) {
+        speed = value.coerceIn(0.25f, 3f)
+        if (::player.isInitialized) player.setPlaybackSpeed(speed)
+    }
+
     private fun seekBy(ms: Long) {
-        seekPlaybackTo((playbackPositionMs() + ms).coerceIn(0L, duration.coerceAtLeast(0L)))
+        seekPlaybackTo((playbackPositionMs() + ms).coerceIn(0L, duration))
     }
 
 
