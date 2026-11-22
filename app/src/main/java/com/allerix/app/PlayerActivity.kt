@@ -831,8 +831,10 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, _ ->
-        box.addView(sheetRow("Engine", "Automatic") { showDeviceSheet() })
-        box.addView(noteText("Allervue automatically manages playback on this device using the supported Media3 / ExoPlayer path. Engine selection is handled automatically."))
+        box.addView(sectionLabel("ACTIVE ENGINE"))
+        box.addView(noteText("AUTO  ·  Media3 / ExoPlayer"))
+        box.addView(sectionLabel("HOW IT WORKS"))
+        box.addView(noteText("Allervue selects the supported playback path automatically. Hardware decoding is preferred; the player can fall back to a compatible decoder when needed. There is no manual engine switch on this build."))
     }
 
     private fun showMoreSheet() = sheet("More controls") { box, _ ->
