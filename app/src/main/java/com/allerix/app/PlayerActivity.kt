@@ -506,15 +506,13 @@ class PlayerActivity : ComponentActivity() {
             }
 
         val lockAction = featureAction(R.drawable.ic_lock, "Lock")
-        val qualityAction = featureAction(R.drawable.ic_tune, "Quality")
-        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subs")
+        val engineAction = featureAction(R.drawable.ic_tune, "Engine")
+        val qualityAction = featureAction(R.drawable.ic_tune, qualityText())
+        val subtitlesAction = featureAction(R.drawable.ic_subtitles, "Subtitles")
         val audioAction = featureAction(R.drawable.ic_music, "Audio")
-        val audioOutputAction = featureAction(R.drawable.ic_volume, "Output")
-        val aspectAction = featureAction(R.drawable.ic_aspect, "Aspect")
         val speedAction = featureAction(R.drawable.ic_schedule, speedText(speed))
         speedLabel = speedAction.getChildAt(1) as TextView
-        val qualityLabel = qualityAction.getChildAt(1) as TextView
-        qualityLabel.text = "Quality"
+        val moreAction = featureAction(R.drawable.ic_more_horiz, "More")
 
         prevEpisodeBtn = episodeNavButton("‹|").apply {
             textSize = 17f; background = null; setPadding(0, 0, 0, 0)
@@ -600,16 +598,15 @@ class PlayerActivity : ComponentActivity() {
             addView(durTime, LinearLayout.LayoutParams(-2, dp(28)))
         }
 
-        // Full-width control row: each action gets an equal slot from the left edge
-        // to the right edge, using the previously unused horizontal space.
+        // Seven equal-width actions, matching the approved player mockup.
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             weightSum = 7f
-            setPadding(0, dp(3), 0, dp(10))
+            setPadding(dp(4), dp(4), dp(4), dp(12))
             background = null
             clipToPadding = false
-            listOf(lockAction, qualityAction, subtitlesAction, audioAction, audioOutputAction, aspectAction, speedAction).forEach { v ->
+            listOf(lockAction, engineAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { v ->
                 v.minimumWidth = 0
                 addView(v, LinearLayout.LayoutParams(0, dp(62), 1f))
             }
@@ -703,12 +700,12 @@ class PlayerActivity : ComponentActivity() {
         act(prevEpisodeBtn) { if (hasPrev) switchTo(siblings[siblingIndex - 1].id) }
         act(nextEpisodeBtn) { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
         act(lockAction) { toggleLock() }
+        act(engineAction) { showPlaybackEngineSheet() }
         act(qualityAction) { showQualitySheet() }
         act(subtitlesAction) { showSubtitleSheet() }
         act(audioAction) { showAudioSheet() }
         act(speedAction) { showSpeedSheet() }
-        act(audioOutputAction) { showAudioOutputSheet() }
-        act(aspectAction) { cycleAspect() }
+        act(moreAction) { showMoreSheet() }
         lockOverlay.setOnClickListener { toggleLock() }
     }
 
@@ -831,6 +828,31 @@ class PlayerActivity : ComponentActivity() {
         val serverStream = f.id?.toIntOrNull()?.let { id -> streams.firstOrNull { it.index == id } }
             ?: streams.getOrNull(i)
         return languageName(serverStream?.language ?: f.language)
+    }
+
+    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
+        val all = PlaybackEngine.values()
+        box.addView(radioGroup(200, all.map { it.label + "  ·  " + it.description }, playbackEngine.ordinal) { i ->
+            val selected = all[i]
+            playbackEngine = selected
+            prefs.edit().putString("playback_engine", selected.name).apply()
+            dlg.dismiss()
+            when (selected) {
+                PlaybackEngine.AUTO -> showHud("Automatic playback enabled")
+                PlaybackEngine.EXOPLAYER -> showHud("ExoPlayer selected")
+                PlaybackEngine.VLC -> launchVlc(player.currentPosition, plan?.url)
+            }
+        })
+        box.addView(noteText("Auto uses ExoPlayer first and switches to VLC if the Android decoder fails. Switching to VLC restarts at the current position."))
+    }
+
+    private fun showMoreSheet() = sheet("More controls") { box, _ ->
+        box.addView(sheetRow("Volume", volumePercent().toString() + "%") { showVolumeSheet() })
+        box.addView(sheetRow("Aspect ratio", aspectName()) { cycleAspect() })
+        box.addView(sheetRow("Decoder", decoder.label) { showDecoderSheet() })
+        box.addView(sheetRow("Subtitle sync", delayText()) { showSubtitleSyncSheet() })
+        box.addView(sheetRow("Playback device", Build.MANUFACTURER + " " + Build.MODEL) { showDeviceSheet() })
+        box.addView(sheetRow("Take screenshot", "Save current frame") { takeScreenshot() })
     }
 
     private fun showAudioSheet() = sheet("Audio") { box, _ ->
