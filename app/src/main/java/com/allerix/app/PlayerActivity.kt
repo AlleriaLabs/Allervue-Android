@@ -93,7 +93,7 @@ import kotlin.math.log10
  */
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
-    private val accent = 0xFFD8B77E.toInt()
+    private val accent = 0xFF65D6D0.toInt()
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
@@ -405,12 +405,10 @@ class PlayerActivity : ComponentActivity() {
         addView(FrameLayout(context).apply {
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(0x22222228)
-                setStroke(dp(1), 0x22FFFFFF)
+                setColor(0xFF18232C.toInt())
             }
-            elevation = dp(2).toFloat()
             addView(ImageView(context).apply {
-                setImageResource(res); setColorFilter(0xFFD8B77E.toInt())
+                setImageResource(res); setColorFilter(0xFF65D6D0.toInt())
                 setPadding(dp(12), dp(12), dp(12), dp(12))
             }, FrameLayout.LayoutParams(dp(46), dp(46), Gravity.CENTER))
         }, LinearLayout.LayoutParams(dp(48), dp(48)))
@@ -587,7 +585,7 @@ class PlayerActivity : ComponentActivity() {
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
         hud = TextView(this).apply {
             setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(18), dp(11), dp(18), dp(11))
-            background = GradientDrawable().apply { setColor(0xFF17212B.toInt()); cornerRadius = dp(12).toFloat() }
+            background = GradientDrawable().apply { setColor(0xFF1A2731.toInt()); cornerRadius = dp(12).toFloat() }
             visibility = View.GONE
         }
         spinner = ProgressBar(this).apply {
@@ -724,7 +722,7 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(14), dp(20), dp(22))
             background = GradientDrawable().apply {
-                setColor(0xFF151D27.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(0xFF111923.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
             }
         }
         val head = LinearLayout(this).apply {
