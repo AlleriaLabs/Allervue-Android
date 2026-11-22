@@ -65,7 +65,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val signOut: () -> Unit = { stack.clear(); onLogout() }
     val settings: () -> Unit = { stack.add(Nav.Settings) }
     BackHandler(enabled = stack.isNotEmpty()) { back() }
-    BackHandler(enabled = stack.isEmpty() && tab != RebuildTab.HOME) { tab = NavTab.HOME }
+    BackHandler(enabled = stack.isEmpty() && tab != RebuildTab.HOME) { tab = RebuildTab.HOME }
 
     val top = stack.lastOrNull()
     val showNav = top == null || top is Nav.Detail || top is Nav.Grid
@@ -260,14 +260,7 @@ private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = 
 private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
     var type by remember { mutableStateOf("Movie") }
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Discover", color = VText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                Text("Explore your Jellyfin library", color = VMuted, fontSize = 12.sp)
-            }
-            Text("Search", color = VCyan, modifier = Modifier.clickable(onClick = onSearch).padding(10.dp))
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 7.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Movie" to "Films", "Series" to "TV Shows").forEach { (value, label) ->
                 val active = type == value
                 Text(label, color = if (active) VBg else VMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
@@ -275,12 +268,12 @@ private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
                         .clickable { type = value }.padding(horizontal = 16.dp, vertical = 9.dp))
             }
         }
-        RebuildCatalog(if (type == "Movie") "Films" else "TV Shows", type, onOpen, onSearch)
+        RebuildCatalog(if (type == "Movie") "Films" else "TV Shows", type, onOpen, onSearch, Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit) {
+private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit, modifier: Modifier = Modifier) {
     var entries by remember(type) { mutableStateOf(emptyList<Item>()) }
     var loading by remember(type) { mutableStateOf(true) }
     var filter by remember(type) { mutableStateOf("All") }
@@ -295,7 +288,7 @@ private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, 
         "Recently added" -> entries.sortedByDescending { it.year ?: 0 }
         else -> entries
     }
-    Column(Modifier.fillMaxSize()) {
+    Column(modifier.fillMaxSize()) {
         RebuildHeader(title, "${filtered.size} titles in your library", onSearch)
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("All", "Unwatched", "Watched", "Recently added").forEach { label ->
