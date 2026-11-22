@@ -101,12 +101,6 @@ class PlayerActivity : ComponentActivity() {
     private var mpvActive = false
     private var mpvAttempted = false
     private var mpvResolveInProgress = false
-    private var localOptimizedActive = false
-    private var autoLocalCopyAttempted = false
-    private var autoLocalOptimizationAttempted = false
-    private var sourceVideoHeight = 0
-    private var sourceVideoCodec: String? = null
-    private val localOptimizer by lazy { LocalVideoOptimizer(this) }
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var spinner: ProgressBar
@@ -183,7 +177,7 @@ class PlayerActivity : ComponentActivity() {
         if (::player.isInitialized && player.playWhenReady &&
             player.playbackState == Player.STATE_BUFFERING &&
             (quality == Quality.AUTO || quality == Quality.ORIGINAL) &&
-            plan?.transcoding != true && offlinePath == null && !localOptimizedActive && !mpvAttempted) {
+            plan?.transcoding != true && offlinePath == null && !mpvAttempted) {
             DiagnosticLog.record(this, "Playback remained buffering for 20s in $quality; trying libmpv original-stream playback")
             fallbackMpv()
         }
@@ -867,248 +861,6 @@ class PlayerActivity : ComponentActivity() {
         })
     }
 
-    /** Shows the real FFmpegKit startup failure, including nested native/linker causes. */
-    private fun showLocalOptimizerFailure(error: Throwable) {
-        val writer = java.io.StringWriter()
-        error.printStackTrace(java.io.PrintWriter(writer))
-        val details = buildString {
-            append("Exception: ").append(error.javaClass.name).append('\n')
-            var cause = error.cause
-            var depth = 0
-            while (cause != null && cause !== error && depth < 8) {
-                append("Caused by: ").append(cause.javaClass.name)
-                cause.message?.takeIf { it.isNotBlank() }?.let { append(": ").append(it) }
-                append('\n')
-                cause = cause.cause
-                depth++
-            }
-            append('\n').append(writer.toString())
-        }
-        DiagnosticLog.record(this, "LOCAL_OPTIMIZER diagnostic details shown to user", error)
-        val body = TextView(this).apply {
-            text = details
-            textSize = 12f
-            setTextIsSelectable(true)
-            setPadding(dp(20), dp(12), dp(20), dp(12))
-        }
-        val scroll = ScrollView(this).apply { addView(body) }
-        android.app.AlertDialog.Builder(this)
-            .setTitle("Local conversion failed")
-            .setView(scroll)
-            .setPositiveButton("Copy details") { _, _ ->
-                val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Allervue FFmpeg diagnostics", details))
-                showHud("Error details copied", 2000)
-            }
-            .setNegativeButton("Close", null)
-            .show()
-    }
-
-    private fun startFastLocalCopy() {
-        if (localOptimizer.isRunning()) {
-            showHud("A local video task is already running. Please wait for it to finish.", 3500)
-            DiagnosticLog.record(this, "LOCAL_COPY ignored: LocalVideoOptimizer already running")
-            return
-        }
-        if (offlinePath != null) {
-            showHud("This title is already stored locally", 2500)
-            return
-        }
-        if (sourceId.isBlank()) {
-            showHud("Wait for Jellyfin video details to load", 2500)
-            return
-        }
-        val outputDir = File(cacheDir, "local-copies")
-        if (!outputDir.exists() && !outputDir.mkdirs()) {
-            showHud("Couldn't prepare local copy cache", 3000)
-            return
-        }
-        val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_original.mkv")
-        val resumeAt = playbackPositionMs().coerceAtLeast(0L)
-        if ((!output.exists() || output.length() <= 0L) && outputDir.usableSpace < 1_500L * 1024L * 1024L) {
-            showHud("Not enough free storage for local copy", 3500)
-            return
-        }
-        if (output.exists() && output.length() > 0L) {
-            playFastLocalCopy(output, resumeAt)
-            return
-        }
-        handler.removeCallbacks(stalledPlaybackFallback)
-        if (mpvActive) {
-            mpvView.pausePlayback()
-            mpvActive = false
-            mpvView.visibility = View.GONE
-            playerView.visibility = View.VISIBLE
-        }
-        player.pause()
-        showHud("Copying original streams · no re-encoding…", 5000)
-        DiagnosticLog.record(this, "LOCAL_COPY started mode=stream-copy container=matroska")
-        try {
-            localOptimizer.startFastCopy(Api.streamUrl(itemId, sourceId), output, object : LocalVideoOptimizer.Callback {
-                override fun onProgress(framesProcessed: Int, speed: Double) {
-                    showHud("Fast local copy · $framesProcessed frames", 1100)
-                }
-                override fun onCompleted(outputFile: File) {
-                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_COPY completed bytes=${outputFile.length()}")
-                    playFastLocalCopy(outputFile, resumeAt)
-                }
-                override fun onError(error: Throwable) {
-                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_COPY failed: ${error.message}", error)
-                    showLocalOptimizerFailure(error)
-                    player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
-                    player.prepare()
-                    player.playWhenReady = true
-                }
-            })
-        } catch (error: Throwable) {
-            DiagnosticLog.record(this, "LOCAL_COPY could not start: ${error.message}", error)
-            showLocalOptimizerFailure(error)
-            player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
-            player.prepare()
-            player.playWhenReady = true
-        }
-    }
-
-    private fun playFastLocalCopy(file: File, resumeAt: Long) {
-        val localUrl = Uri.fromFile(file).toString()
-        handler.removeCallbacks(stalledPlaybackFallback)
-        player.pause()
-        player.stop()
-        playerView.visibility = View.GONE
-        mpvView.visibility = View.VISIBLE
-        mpvActive = true
-        localOptimizedActive = false
-        plan = PlaybackPlan(localUrl, false, false, sessionId, "Local original · stream copy")
-        updateTopPlaybackInfo()
-        mpvView.play(localUrl, resumeAt)
-        spinner.visibility = View.GONE
-        handler.postDelayed({ if (mpvActive) updateProgress() }, 1200)
-        showHud("Playing original-quality local copy", 2500)
-        DiagnosticLog.record(this, "LOCAL_COPY playback started file=${file.name} resume=${resumeAt}ms")
-    }
-
-    private fun startLocalOptimization(automaticFallback: Boolean = false, resumePositionMs: Long? = null) {
-        if (offlinePath != null || sourceId.isBlank() || sourceVideoHeight <= 1080) {
-            if (automaticFallback) {
-                DiagnosticLog.record(this, "AUTO_LOCAL_OPTIMIZER skipped: offline, missing source, or source already <=1080p")
-                startServerTranscodeFallback(resumePositionMs ?: playbackPositionMs().coerceAtLeast(0L))
-            } else {
-                showHud(if (sourceVideoHeight <= 1080) "This video is already 1080p or lower" else "Local optimization is unavailable", 2500)
-            }
-            return
-        }
-        val outputDir = File(cacheDir, "local-optimized")
-        if (!outputDir.exists() && !outputDir.mkdirs()) {
-            if (automaticFallback) startServerTranscodeFallback(resumePositionMs ?: playbackPositionMs().coerceAtLeast(0L))
-            else showHud("Couldn't prepare local video cache", 3000)
-            return
-        }
-        val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_1080p.mp4")
-        val resumeAt = (resumePositionMs ?: playbackPositionMs()).coerceAtLeast(0L)
-        if ((!output.exists() || output.length() <= 0L) &&
-            outputDir.usableSpace < 1_500L * 1024L * 1024L) {
-            if (automaticFallback) startServerTranscodeFallback(resumeAt)
-            else showHud("Not enough free storage for local conversion", 3500)
-            return
-        }
-        handler.removeCallbacks(stalledPlaybackFallback)
-        if (mpvActive) {
-            mpvView.pausePlayback()
-            mpvActive = false
-            mpvView.visibility = View.GONE
-            playerView.visibility = View.VISIBLE
-        }
-        player.pause()
-        localOptimizedActive = false
-
-        fun playOptimized(file: File) {
-            localOptimizedActive = true
-            plan = PlaybackPlan(Uri.fromFile(file).toString(), false, false, sessionId, "Local optimized 1080p")
-            updateTopPlaybackInfo()
-            player.setMediaItem(MediaItem.fromUri(Uri.fromFile(file)), resumeAt)
-            player.prepare()
-            player.playWhenReady = true
-            report("progress")
-            showHud(if (automaticFallback) "Automatic recovery · local 1080p" else "Playing local 1080p copy", 2500)
-            DiagnosticLog.record(this, "LOCAL_OPTIMIZER playback started file=${file.name} resume=${resumeAt}ms automatic=$automaticFallback")
-            if (automaticFallback) {
-                handler.postDelayed({
-                    if (localOptimizedActive && player.playWhenReady &&
-                        (player.currentPosition < resumeAt + 500L || player.playbackState == Player.STATE_IDLE)) {
-                        DiagnosticLog.record(this, "AUTO_LOCAL_OPTIMIZER playback did not advance; using Jellyfin H.264 transcode")
-                        localOptimizedActive = false
-                        startServerTranscodeFallback(resumeAt)
-                    }
-                }, 18_000)
-            }
-        }
-
-        if (output.exists() && output.length() > 0L) {
-            playOptimized(output)
-            return
-        }
-
-        showHud("Preparing local 1080p conversion…", 5000)
-        DiagnosticLog.record(this, "LOCAL_OPTIMIZER started input=Jellyfin direct stream output=1080p H.264")
-        try {
-            val sourceAudioCodec = audioStreams.firstOrNull()?.codec
-            localOptimizer.start(Api.streamUrl(itemId, sourceId), output, sourceVideoCodec, sourceAudioCodec, object : LocalVideoOptimizer.Callback {
-                override fun onProgress(framesProcessed: Int, speed: Double) {
-                    val speedLabel = if (speed > 0.0) String.format(Locale.US, "%.2fx", speed) else "working"
-                    showHud("Local conversion · $framesProcessed frames · $speedLabel", 1100)
-                }
-
-                override fun onFallbackToSoftware() {
-                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_OPTIMIZER hardware HEVC decode failed; retrying with software decoder")
-                    showHud("Hardware HEVC decode unsupported · retrying software", 2500)
-                }
-
-                override fun onCompleted(outputFile: File) {
-                    DiagnosticLog.record(this@PlayerActivity,
-                        "LOCAL_OPTIMIZER completed bytes=${outputFile.length()} file=${outputFile.name}")
-                    playOptimized(outputFile)
-                }
-
-                override fun onError(error: Throwable) {
-                    localOptimizedActive = false
-                    DiagnosticLog.record(this@PlayerActivity, "LOCAL_OPTIMIZER failed: ${error.message}", error)
-                    if (automaticFallback) {
-                        showHud("On-device conversion unavailable · switching to server fallback", 3500)
-                        startServerTranscodeFallback(resumeAt)
-                    } else {
-                        showLocalOptimizerFailure(error)
-                        player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
-                        player.prepare()
-                        player.playWhenReady = true
-                    }
-                }
-            })
-        } catch (error: Throwable) {
-            localOptimizedActive = false
-            DiagnosticLog.record(this, "LOCAL_OPTIMIZER could not start: ${error.message}", error)
-            if (automaticFallback) {
-                showHud("On-device conversion unavailable · switching to server fallback", 3500)
-                startServerTranscodeFallback(resumeAt)
-            } else {
-                showLocalOptimizerFailure(error)
-                player.setMediaItem(MediaItem.fromUri(Api.streamUrl(itemId, sourceId)), resumeAt)
-                player.prepare()
-                player.playWhenReady = true
-            }
-        }
-    }
-
-    private fun startAutomaticLocalOptimization(resumeAt: Long) {
-        if (autoLocalOptimizationAttempted) {
-            startServerTranscodeFallback(resumeAt)
-            return
-        }
-        autoLocalOptimizationAttempted = true
-        DiagnosticLog.record(this, "AUTO_LOCAL_OPTIMIZER started after original-stream local-copy fallback")
-        showHud("Trying automatic on-device 1080p recovery…", 4000)
-        startLocalOptimization(automaticFallback = true, resumePositionMs = resumeAt)
-    }
-
     private fun showAudioOutputSheet() = sheet("Audio output") { box, dlg ->
         val all = AudioMode.values()
         box.addView(radioGroup(100, all.map { it.label }, audioMode.ordinal) { i ->
@@ -1558,13 +1310,7 @@ class PlayerActivity : ComponentActivity() {
                 DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
                 val http = generateSequence<Throwable>(error) { it.cause }
                     .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
-                if (localOptimizedActive && autoLocalOptimizationAttempted && plan?.transcoding != true) {
-                    localOptimizedActive = false
-                    DiagnosticLog.record(this@PlayerActivity, "AUTO_LOCAL_OPTIMIZER playback error; escalating to Jellyfin H.264 transcode")
-                    startServerTranscodeFallback(playbackPositionMs().coerceAtLeast(0L))
-                    return
-                }
-                val directPlayFailure = plan?.transcoding != true && offlinePath == null && !localOptimizedActive && !autoRetried
+                                val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
                 val serverFailure = http != null && http.responseCode in 500..599
                 val decoderFailure = error.errorCode in 4001..4005
                 if (directPlayFailure) {
@@ -1654,8 +1400,7 @@ class PlayerActivity : ComponentActivity() {
             subTitle.text = nowPlayingText(true)
             val video = src.streams.firstOrNull { it.type == "Video" }
             val h = video?.height ?: 0
-            sourceVideoHeight = h
-            sourceVideoCodec = video?.codec
+
             val range = video?.videoRange.orEmpty()
             val hdrContent = range.contains("HDR", true) || range.contains("HLG", true) || range.contains("DOVI", true)
             if (hdrContent && Build.VERSION.SDK_INT >= 26 && Device.supportsHdr(this@PlayerActivity)) {
@@ -1717,8 +1462,8 @@ class PlayerActivity : ComponentActivity() {
         defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
-        autoRetried = false; autoLocalCopyAttempted = false; autoLocalOptimizationAttempted = false; mpvAttempted = false; hasPlayedOnce = false; plan = null
-        localOptimizedActive = false
+        autoRetried = false; mpvAttempted = false; hasPlayedOnce = false; plan = null
+
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
@@ -1729,7 +1474,7 @@ class PlayerActivity : ComponentActivity() {
     private fun applyChoice(nq: Quality, na: AudioMode) {
         if (nq == quality && na == audioMode) return
         quality = nq; audioMode = na
-        localOptimizedActive = false
+
         prefs.edit().putString("quality", quality.name).putString("audio", audioMode.name).apply()
         applyPlayback()
     }
@@ -1738,8 +1483,8 @@ class PlayerActivity : ComponentActivity() {
         if (sourceId.isEmpty()) return
         val pos = playbackPositionMs()
         if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
-        localOptimizedActive = false
-        mpvAttempted = false; autoRetried = false; autoLocalCopyAttempted = false; autoLocalOptimizationAttempted = false
+
+        mpvAttempted = false; autoRetried = false
         if (mpvActive) { mpvView.pausePlayback(); mpvActive = false; mpvView.visibility = View.GONE; playerView.visibility = View.VISIBLE }
         showHud("Switching to ${quality.label} · Audio: ${audioMode.label}…", 2500)
         lifecycleScope.launch {
@@ -1957,7 +1702,7 @@ class PlayerActivity : ComponentActivity() {
         val phone = "${Build.MANUFACTURER} ${Build.MODEL}".trim()
         val mode = when {
             offlinePath != null -> "Offline playback"
-            localOptimizedActive -> "Local optimized · 1080p"
+
             plan?.transcoding == true -> "Transcoding"
             plan != null -> "Direct play"
             else -> "Auto playback"
@@ -1978,128 +1723,16 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun fallbackMpv() {
-        if (mpvAttempted || offlinePath != null || localOptimizedActive || playbackEngine == "MEDIA3") return
-        if (sourceId.isBlank()) {
-            if (mpvResolveInProgress) return
-            mpvResolveInProgress = true
-            showHud("Preparing libmpv fallback…", 2500)
-            lifecycleScope.launch {
-                try {
-                    val resolved = Api.item(itemId).mediaSources?.firstOrNull()?.id
-                        ?: error("Jellyfin returned no media source for libmpv")
-                    sourceId = resolved
-                    mpvResolveInProgress = false
-                    DiagnosticLog.record(this@PlayerActivity, "Resolved media source ID before libmpv fallback")
-                    fallbackMpv()
-                } catch (e: Exception) {
-                    mpvResolveInProgress = false
-                    DiagnosticLog.record(this@PlayerActivity, "Could not resolve media source for libmpv: ${e.message}", e)
-                    fallbackTranscode()
-                }
-            }
-            return
-        }
-        mpvAttempted = true
-        handler.removeCallbacks(stalledPlaybackFallback)
-        val pos = playbackPositionMs()
-        try {
-            player.pause()
-            player.stop()
-            playerView.visibility = View.GONE
-            mpvView.visibility = View.VISIBLE
-            mpvActive = true
-            val url = Api.streamUrl(itemId, sourceId)
-            plan = PlaybackPlan(url, false, false, sessionId, "Direct play · libmpv")
-            updateTopPlaybackInfo()
-            mpvView.play(url, pos)
-            spinner.visibility = View.GONE
-            handler.postDelayed({ if (mpvActive) updateProgress() }, 1500)
-            showHud("Trying libmpv · Original stream", 2500)
-            DiagnosticLog.record(this, "libmpv fallback started: original Jellyfin stream at ${pos}ms")
-            handler.postDelayed({
-                if (mpvActive && (mpvView.positionMs() < pos + 500L)) {
-                    DiagnosticLog.record(this, "libmpv did not advance after startup window; falling back to H.264 transcode")
-                    fallbackTranscode()
-                }
-            }, 18_000)
-        } catch (e: Exception) {
-            DiagnosticLog.record(this, "libmpv fallback failed: ${e.message}", e)
-            mpvActive = false
-            mpvView.visibility = View.GONE
-            playerView.visibility = View.VISIBLE
-            fallbackTranscode()
-        }
+        fallbackTranscode()
     }
 
     private fun fallbackTranscode() {
         if (autoRetried || offlinePath != null) return
         autoRetried = true
         handler.removeCallbacks(stalledPlaybackFallback)
-        val pos = playbackPositionMs().coerceAtLeast(0L)
-        if (mpvActive) {
-            mpvView.pausePlayback()
-            mpvActive = false
-            mpvView.visibility = View.GONE
-            playerView.visibility = View.VISIBLE
-        }
-
-        // Only attempt a local stream-copy after both normal playback and the
-        // original-stream libmpv fallback have failed. Never copy every title.
-        if (!autoLocalCopyAttempted && sourceId.isNotBlank()) {
-            autoLocalCopyAttempted = true
-            val outputDir = File(cacheDir, "local-copies")
-            val output = File(outputDir, "${itemId}_${sourceId.hashCode()}_original.mkv")
-            if (output.exists() && output.length() > 0L) {
-                playFastLocalCopy(output, pos)
-                monitorAutomaticLocalCopyPlayback(pos)
-                return
-            }
-            if ((outputDir.exists() || outputDir.mkdirs()) &&
-                outputDir.usableSpace >= 1_500L * 1024L * 1024L) {
-                showHud("Trying automatic local copy…", 4000)
-                DiagnosticLog.record(this, "AUTO_LOCAL_COPY started after direct/libmpv playback failure")
-                try {
-                    localOptimizer.startFastCopy(Api.streamUrl(itemId, sourceId), output,
-                        object : LocalVideoOptimizer.Callback {
-                            override fun onProgress(framesProcessed: Int, speed: Double) {
-                                showHud("Preparing local copy · $framesProcessed frames", 1200)
-                            }
-                            override fun onCompleted(outputFile: File) {
-                                DiagnosticLog.record(this@PlayerActivity, "AUTO_LOCAL_COPY completed bytes=${outputFile.length()}")
-                                playFastLocalCopy(outputFile, pos)
-                                monitorAutomaticLocalCopyPlayback(pos)
-                            }
-                            override fun onError(error: Throwable) {
-                                DiagnosticLog.record(this@PlayerActivity, "AUTO_LOCAL_COPY failed; trying on-device 1080p recovery", error)
-                                startAutomaticLocalOptimization(pos)
-                            }
-                        })
-                    return
-                } catch (error: Throwable) {
-                    DiagnosticLog.record(this, "AUTO_LOCAL_COPY could not start; using server transcode", error)
-                }
-            } else {
-                DiagnosticLog.record(this, "AUTO_LOCAL_COPY skipped: insufficient storage or cache unavailable")
-            }
-        }
-        startAutomaticLocalOptimization(pos)
-    }
-
-    private fun monitorAutomaticLocalCopyPlayback(resumeAt: Long) {
-        handler.postDelayed({
-            if (!mpvActive) return@postDelayed
-            val current = mpvView.positionMs()
-            if (current < resumeAt + 500L) {
-                DiagnosticLog.record(this, "AUTO_LOCAL_COPY playback did not advance; falling back to Jellyfin H.264 transcode")
-                mpvView.pausePlayback()
-                mpvActive = false
-                mpvView.visibility = View.GONE
-                playerView.visibility = View.VISIBLE
-                startAutomaticLocalOptimization(resumeAt)
-            } else {
-                DiagnosticLog.record(this, "AUTO_LOCAL_COPY playback verified position=${current}ms")
-            }
-        }, 18_000)
+        val resumeAt = playbackPositionMs().coerceAtLeast(0L)
+        DiagnosticLog.record(this, "ExoPlayer playback failed; retrying through Jellyfin server-side H.264 1080p transcode")
+        startServerTranscodeFallback(resumeAt)
     }
 
     private fun startServerTranscodeFallback(pos: Long) {
@@ -2205,7 +1838,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         handler.removeCallbacks(stalledPlaybackFallback)
-        localOptimizer.cancel()
+
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {
