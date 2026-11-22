@@ -321,14 +321,46 @@ private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, 
         else if (filtered.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Nothing here yet", color = VMuted)
         } else LazyVerticalGrid(
-            columns = GridCells.Fixed(3), modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(16.dp)
+            columns = GridCells.Fixed(2), modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(filtered.size, key = { filtered[it].id }) { index ->
                 val item = filtered[index]
-                RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
+                AllervueCatalogCard(item, index + 1, onClick = { onOpen(item) })
             }
+        }
+    }
+}
+
+@Composable
+private fun AllervueCatalogCard(item: Item, number: Int, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(VSurface)
+            .clickable(onClick = onClick).padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box {
+            AsyncImage(Api.poster(item), null,
+                Modifier.width(76.dp).height(112.dp).clip(RoundedCornerShape(7.dp)).background(VSurface2),
+                contentScale = ContentScale.Crop)
+            Text(number.toString().padStart(2, '0'), color = VCyan, fontSize = 8.sp,
+                fontWeight = FontWeight.Black,
+                modifier = Modifier.align(Alignment.BottomStart).background(VBg.copy(alpha = .92f))
+                    .padding(horizontal = 5.dp, vertical = 3.dp))
+        }
+        Column(Modifier.weight(1f).padding(start = 10.dp, end = 2.dp)) {
+            Text(item.type.uppercase(), color = VCyan, fontSize = 8.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = .8.sp)
+            Spacer(Modifier.height(4.dp))
+            Text(item.name, color = VText, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 3, overflow = TextOverflow.Ellipsis, lineHeight = 15.sp)
+            Spacer(Modifier.height(5.dp))
+            Text(listOfNotNull(item.year?.toString(), item.officialRating).joinToString(" · "),
+                color = VMuted, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.height(8.dp))
+            Text("VIEW RECORD  ↗", color = VMuted, fontSize = 7.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = .4.sp)
         }
     }
 }
@@ -357,12 +389,12 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
         if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
         else if (visible.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(if (savedItems.isEmpty()) "Save a title to find it here." else "No " + filter.lowercase() + " saved yet.", color = VMuted)
-        } else LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        } else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(visible.size, key = { visible[it].id }) { index ->
                 val item = visible[index]
-                RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
+                AllervueCatalogCard(item, index + 1, onClick = { onOpen(item) })
             }
         }
     }
