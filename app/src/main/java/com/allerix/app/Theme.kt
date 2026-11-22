@@ -19,28 +19,28 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-val Red = Color(0xFF24D6E8)
-val BrandGold = Color(0xFF24D6E8)
-val BrandGoldBright = Color(0xFF8B5CF6)
-val BrandInk = Color(0xFF080B12)
-val BrandSurface = Color(0xFF151A28)
+val Red = Color(0xFF35D0D0)
+val BrandGold = Color(0xFF35D0D0)
+val BrandGoldBright = Color(0xFF9B8CFF)
+val BrandInk = Color(0xFF0B1018)
+val BrandSurface = Color(0xFF151D29)
 val BrandIvory = Color(0xFFF4EFE5)
-val BgDark = Color(0xFF080B12)
-val Grey = Color(0xFFB8C1D1)
-val Dim = Color(0xFF778399)
-val GlassColor = Color(0xE6151A28)
-val GlassBorder = Color(0x3324D6E8)
+val BgDark = Color(0xFF090D14)
+val Grey = Color(0xFFB3B3B3)
+val Dim = Color(0xFF8A8A90)
+val GlassColor = Color(0xFF151D29)
+val GlassBorder = Color.Transparent
 
 fun Modifier.glass(radius: Dp = 16.dp): Modifier {
     val shape = RoundedCornerShape(radius)
-    return this.clip(shape).background(GlassColor).border(1.dp, GlassBorder, shape)
+    return this.clip(shape).background(GlassColor)
 }
 
 @Composable
 fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier.fillMaxSize().background(
-            Brush.verticalGradient(0f to Color(0xFF111B32), 0.28f to Color(0xFF0C1221), 0.72f to BgDark, 1f to BgDark)
+            Brush.verticalGradient(0f to Color(0xFF101B29), 0.28f to Color(0xFF0D1420), 0.72f to BgDark, 1f to BgDark)
         ),
         content = content
     )
@@ -85,7 +85,7 @@ fun MyListButton(item: Item, modifier: Modifier = Modifier) {
         },
         modifier = modifier.height(46.dp),
         shape = RoundedCornerShape(10.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = BrandSurface, contentColor = BrandIvory),
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28231B), contentColor = BrandIvory),
         border = BorderStroke(1.dp, BrandGold.copy(alpha = 0.32f))
     ) {
         SmallIcon(if (fav) R.drawable.ic_check else R.drawable.ic_add, size = 18)
