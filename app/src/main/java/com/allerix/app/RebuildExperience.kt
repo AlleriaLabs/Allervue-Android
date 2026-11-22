@@ -347,7 +347,7 @@ private fun RebuildDownloads() {
             delay(1000)
         }
     }
-    val active = records.filter { states[it.id]?.status in listOf(DownloadManager.STATUS_PENDING, DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED) }
+    val active = records.filter { rec -> states[rec.id]?.status?.let { status -> status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PAUSED } == true }
     val complete = records.filter { states[it.id]?.status == DownloadManager.STATUS_SUCCESSFUL }
     Column(Modifier.fillMaxSize()) {
         RebuildHeader("Downloads", "${records.size} offline titles")
@@ -386,7 +386,7 @@ private fun RebuildDownloadRow(rec: DownloadRec, state: DlState?, onDelete: () -
                 DownloadManager.STATUS_SUCCESSFUL -> "Ready offline"
                 DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PENDING -> "Downloading · $pct%"
                 DownloadManager.STATUS_PAUSED -> "Paused"
-                DownloadManager.STATUS_FAILED -> "Failed · ${Downloads.reasonText(state.reason)}"
+                DownloadManager.STATUS_FAILED -> "Failed · ${Downloads.reasonText(state?.reason ?: 0)}"
                 else -> "Checking file"
             }, color = VMuted, fontSize = 11.sp)
             if (state?.status == DownloadManager.STATUS_RUNNING || state?.status == DownloadManager.STATUS_PENDING) {
