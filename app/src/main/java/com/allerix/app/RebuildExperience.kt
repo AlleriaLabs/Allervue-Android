@@ -221,7 +221,7 @@ private fun RebuildHome(
 }
 
 @Composable
-private fun RebuildShelf(title: String, items: List<Item>, onItem: (Item) -> Unit, kicker: String) {
+private fun RebuildShelf(title: String, entries: List<Item>, onItem: (Item) -> Unit, kicker: String) {
     Column(Modifier.fillMaxWidth().padding(top = 23.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -233,7 +233,7 @@ private fun RebuildShelf(title: String, items: List<Item>, onItem: (Item) -> Uni
         androidx.compose.foundation.lazy.LazyRow(
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) { items(items, key = { it.id }) { item -> RebuildPoster(item, onClick = { onItem(item) }) } }
+        ) { items(entries, key = { it.id }) { item -> RebuildPoster(item, onClick = { onItem(item) }) } }
     }
 }
 
@@ -300,19 +300,19 @@ private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, 
 
 @Composable
 private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
-    var items by remember { mutableStateOf(emptyList<Item>()) }
+    var savedItems by remember { mutableStateOf(emptyList<Item>()) }
     var loading by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) { items = runCatching { Api.favorites() }.getOrDefault(emptyList()); loading = false }
+    LaunchedEffect(Unit) { savedItems = runCatching { Api.favorites() }.getOrDefault(emptyList()); loading = false }
     Column(Modifier.fillMaxSize()) {
         RebuildHeader("My List", "Your saved films and series")
         if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
-        else if (items.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        else if (savedItems.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Save a title to find it here.", color = VMuted)
         } else LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(items.size, key = { items[it].id }) { index ->
-                val item = items[index]
+            items(savedItems.size, key = { savedItems[it].id }) { index ->
+                val item = savedItems[index]
                 RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
             }
         }
