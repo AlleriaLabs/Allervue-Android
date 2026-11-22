@@ -396,7 +396,7 @@ class PlayerActivity : ComponentActivity() {
         }, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
     }
 
-    /** Icon with a small label underneath; one entry in the bottom glass card. */
+    /** Icon with a small label underneath; one entry in the bottom control dock. */
     /** Individual floating action: no shared toolbar slab or glass panel. */
     private fun action(res: Int, label: String): LinearLayout = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
@@ -748,7 +748,7 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(14), dp(20), dp(22))
             background = GradientDrawable().apply {
-                setColor(0xD9141418.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
+                setColor(0xFF141922.toInt()); cornerRadii = floatArrayOf(r, r, r, r, 0f, 0f, 0f, 0f)
             }
         }
         val head = LinearLayout(this).apply {
