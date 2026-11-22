@@ -60,10 +60,10 @@ class MainActivity : FragmentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Red, background = BgDark, surface = BgDark,
+                    primary = Color(0xFF65D6D0), background = Color(0xFF090B10), surface = Color(0xFF141923),
                     onBackground = Color.White, onSurface = Color.White
                 )
-            ) { Surface(color = BgDark) { App() } }
+            ) { Surface(color = Color(0xFF090B10)) { App() } }
         }
     }
 }
@@ -86,7 +86,7 @@ fun App() {
     if (splash) {
         SplashScreen()
     } else if (loggedIn) {
-        MainShell(onLogout = { Api.logout(ctx); loggedIn = false })
+        RebuildMainShell(onLogout = { Api.logout(ctx); loggedIn = false })
     } else if (forgotPassword) {
         ForgotPasswordScreen(onBack = { forgotPassword = false })
     } else if (loginSettings) {
