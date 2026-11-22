@@ -33,15 +33,15 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val VBg = Color(0xFF090B10)
+private val VBg = AllervueDesign.DarkBackground
 private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), DISCOVER("Discover", R.drawable.ic_nav_movie), SAVED("Saved", R.drawable.ic_nav_star), DOWNLOADS("Downloads", R.drawable.ic_nav_download) }
 private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
-private val VSurface = Color(0xFF141923)
-private val VSurface2 = Color(0xFF1C2430)
-private val VText = Color(0xFFF4F5F7)
-private val VMuted = Color(0xFF929BA9)
-private val VCyan = Color(0xFF65D6D0)
-private val VGold = Color(0xFFD9B77D)
+private val VSurface = AllervueDesign.DarkSurface
+private val VSurface2 = AllervueDesign.DarkSurfaceElevated
+private val VText = AllervueDesign.DarkText
+private val VMuted = AllervueDesign.DarkMuted
+private val VCyan = AllervueDesign.Cyan
+private val VGold = AllervueDesign.Gold
 
 @Composable
 fun RebuildMainShell(onLogout: () -> Unit) {
