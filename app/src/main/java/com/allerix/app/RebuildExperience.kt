@@ -134,13 +134,23 @@ private fun RebuildBottomNav(selected: RebuildTab, onSelect: (RebuildTab) -> Uni
 
 @Composable
 private fun RebuildHeader(title: String, subtitle: String? = null, action: (() -> Unit)? = null, actionText: String = "Search") {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, fontWeight = FontWeight.Bold)
-            if (!subtitle.isNullOrBlank()) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
+    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 13.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("ALLERVUE  /  MODULE", color = VCyan, fontSize = 8.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, modifier = Modifier.weight(1f))
+            if (action != null) Text(actionText.uppercase() + "  ↗", color = VCyan, fontSize = 9.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = .8.sp,
+                modifier = Modifier.clip(RoundedCornerShape(7.dp)).clickable(onClick = action)
+                    .padding(horizontal = 9.dp, vertical = 7.dp))
         }
-        if (action != null) Text(actionText, color = VCyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(onClick = action).padding(10.dp))
+        Spacer(Modifier.height(5.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(title, color = MaterialTheme.colorScheme.onBackground, fontSize = 27.sp,
+                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Box(Modifier.padding(bottom = 7.dp).width(38.dp).height(2.dp).background(VCyan))
+        }
+        if (!subtitle.isNullOrBlank()) Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 10.sp, letterSpacing = .3.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 
