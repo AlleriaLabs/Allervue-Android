@@ -69,7 +69,8 @@ fun RebuildMainShell(onLogout: () -> Unit) {
             when (top) {
                 null -> when (tab) {
                     RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
-                    RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })\n                    RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
+                    RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })
+                    RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
                     RebuildTab.SAVED -> RebuildSaved(onOpen, onPlay)
                     RebuildTab.DOWNLOADS -> RebuildDownloads()
                 }
