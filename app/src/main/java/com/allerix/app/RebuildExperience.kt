@@ -327,17 +327,31 @@ private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, 
 private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
     var savedItems by remember { mutableStateOf(emptyList<Item>()) }
     var loading by remember { mutableStateOf(true) }
+    var filter by remember { mutableStateOf("All") }
     LaunchedEffect(Unit) { savedItems = runCatching { Api.favorites() }.getOrDefault(emptyList()); loading = false }
+    val visible = when (filter) {
+        "Films" -> savedItems.filter { it.type == "Movie" }
+        "Series" -> savedItems.filter { it.type == "Series" }
+        else -> savedItems
+    }
     Column(Modifier.fillMaxSize()) {
-        RebuildHeader("My List", "Your saved films and series")
+        RebuildHeader("My List", savedItems.size.toString() + " saved titles")
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("All", "Films", "Series").forEach { label ->
+                val active = filter == label
+                Text(label, color = if (active) VBg else VMuted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(CircleShape).background(if (active) VCyan else VSurface)
+                        .clickable { filter = label }.padding(horizontal = 15.dp, vertical = 9.dp))
+            }
+        }
         if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
-        else if (savedItems.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Save a title to find it here.", color = VMuted)
+        else if (visible.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(if (savedItems.isEmpty()) "Save a title to find it here." else "No " + filter.lowercase() + " saved yet.", color = VMuted)
         } else LazyVerticalGrid(GridCells.Fixed(3), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(savedItems.size, key = { savedItems[it].id }) { index ->
-                val item = savedItems[index]
+            items(visible.size, key = { visible[it].id }) { index ->
+                val item = visible[index]
                 RebuildPoster(item, onClick = { onOpen(item) }, modifier = Modifier.fillMaxWidth())
             }
         }
