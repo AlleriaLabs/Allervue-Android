@@ -127,7 +127,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(72.dp))
                 Spacer(Modifier.width(12.dp))
-                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 25.sp,
+                Text("ALLERVUE", color = Color(0xFF24D6E8), fontSize = 25.sp,
                     fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             }
             Spacer(Modifier.height(24.dp))
