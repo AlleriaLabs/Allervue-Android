@@ -474,7 +474,6 @@ class PlayerActivity : ComponentActivity() {
             }
 
         val lockAction = dockAction(R.drawable.ic_lock, "Lock")
-        val engineAction = dockAction(R.drawable.ic_settings, "Engine")
         val qualityAction = dockAction(R.drawable.ic_tune, "Quality")
         val subtitlesAction = dockAction(R.drawable.ic_subtitles, "Subs")
         val audioAction = dockAction(R.drawable.ic_music, "Audio")
@@ -541,7 +540,7 @@ class PlayerActivity : ComponentActivity() {
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; weightSum = 7f
             setPadding(dp(3), dp(3), dp(3), dp(7)); background = null; clipToPadding = false
-            listOf(lockAction, engineAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { view ->
+            listOf(lockAction, qualityAction, subtitlesAction, audioAction, speedAction, moreAction).forEach { view ->
                 view.minimumWidth = 0
                 addView(view, LinearLayout.LayoutParams(0, dp(54), 1f))
             }
