@@ -1,6 +1,12 @@
 package com.allerix.app
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,12 +32,34 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
 
 private val AAccent = AllervueDesign.Cyan
 private val AHot = Color(0xFFFF4D86)
 private val AInk = Color(0xFF100E20)
 private val APanel = Color(0xFF17152C)
+
+@Composable
+private fun HomeArtwork(
+    model: String,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
+    val painter = rememberAsyncImagePainter(model = model)
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Image(painter = painter, contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(), contentScale = contentScale)
+        if (painter.state is AsyncImagePainter.State.Error) {
+            Box(Modifier.fillMaxSize().background(
+                Brush.linearGradient(listOf(Color(0xFF392746), Color(0xFF172D3B), Color(0xFF202039)))
+            ), contentAlignment = Alignment.Center) {
+                Text("✦", color = Color.White.copy(alpha = .72f), fontSize = 25.sp)
+            }
+        }
+    }
+}
 
 @Composable
 internal fun AllervueHome(
@@ -50,6 +78,13 @@ internal fun AllervueHome(
     var loading by remember { mutableStateOf(true) }
     var failure by remember { mutableStateOf(false) }
     val orbitRotation = remember { mutableFloatStateOf(0f) }
+    val orbitMotion = rememberInfiniteTransition(label = "home-orbit-motion")
+    val automaticRotation by orbitMotion.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(durationMillis = 52000, easing = LinearEasing)),
+        label = "home-orbit-rotation"
+    )
 
     LaunchedEffect(Unit) {
         try {
@@ -135,7 +170,7 @@ internal fun AllervueHome(
                 val innerRadiusY = h * .22f
                 orbitItems.forEachIndexed { index, item ->
                     val angle = Math.toRadians(
-                        (-90.0 + index * (360.0 / orbitItems.size.coerceAtLeast(1)) + orbitRotation.floatValue).toDouble()
+                        (-90.0 + index * (360.0 / orbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
                     )
                     val inner = index % 2 == 1
                     val radiusX = if (inner) innerRadiusX else outerRadiusX
@@ -149,8 +184,9 @@ internal fun AllervueHome(
                             .clickable { selected = item },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        AsyncImage(
-                            model = Api.poster(item), contentDescription = item.name,
+                        HomeArtwork(
+                            model = Api.poster(item),
+                            contentDescription = item.name,
                             modifier = Modifier.size(nodeSize).clip(CircleShape)
                                 .background(Color(0xFF25213A)),
                             contentScale = ContentScale.Crop
@@ -168,9 +204,11 @@ internal fun AllervueHome(
                             .border(1.5.dp, Color.White.copy(alpha = .62f), CircleShape)
                             .clickable { onOpen(centerItem) }
                     ) {
-                        AsyncImage(
-                            model = Api.backdrop(centerItem), contentDescription = null,
-                            modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
+                        HomeArtwork(
+                            model = Api.backdrop(centerItem),
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x220A0712), Color(0xC90A0712)))))
                         Box(Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
