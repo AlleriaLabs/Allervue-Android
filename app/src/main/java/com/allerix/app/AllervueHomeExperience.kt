@@ -1,6 +1,7 @@
 package com.allerix.app
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -19,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,6 +49,7 @@ internal fun AllervueHome(
     var selected by remember { mutableStateOf<Item?>(null) }
     var loading by remember { mutableStateOf(true) }
     var failure by remember { mutableStateOf(false) }
+    val orbitRotation = remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) {
         try {
@@ -112,18 +115,37 @@ internal fun AllervueHome(
             Text("INTENSE", Modifier.align(Alignment.CenterEnd).padding(end = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Text("LATE NIGHT", Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp), color = Color.White.copy(alpha = .42f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
 
-            BoxWithConstraints(Modifier.fillMaxSize()) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        orbitRotation.floatValue = (orbitRotation.floatValue + dragAmount.x / 3.2f) % 360f
+                    }
+                }
+            ) {
                 val w = maxWidth
                 val h = maxHeight
-                val nodeSize = (w * .22f).coerceIn(76.dp, 104.dp)
-                val centerSize = (w * .48f).coerceIn(172.dp, 224.dp)
-                val positions = listOf(
-                    .10f to .30f, .69f to .22f, .73f to .62f, .08f to .75f, .50f to .83f
-                )
+                val nodeSize = (w * .20f).coerceIn(72.dp, 96.dp)
+                val centerSize = (w * .46f).coerceIn(164.dp, 216.dp)
+                val orbitCenterX = w * .5f
+                val orbitCenterY = h * .51f
+                val outerRadiusX = w * .37f
+                val outerRadiusY = h * .30f
+                val innerRadiusX = w * .27f
+                val innerRadiusY = h * .22f
                 orbitItems.forEachIndexed { index, item ->
-                    val (x, y) = positions[index]
+                    val angle = Math.toRadians(
+                        (-90.0 + index * (360.0 / orbitItems.size.coerceAtLeast(1)) + orbitRotation.floatValue).toDouble()
+                    )
+                    val inner = index % 2 == 1
+                    val radiusX = if (inner) innerRadiusX else outerRadiusX
+                    val radiusY = if (inner) innerRadiusY else outerRadiusY
+                    val rawX = orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
+                    val rawY = orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
+                    val x = rawX.coerceIn(0.dp, (w - nodeSize - 8.dp).coerceAtLeast(0.dp))
+                    val y = rawY.coerceIn(104.dp, (h - nodeSize - 30.dp).coerceAtLeast(104.dp))
                     Column(
-                        Modifier.offset(x = w * x, y = h * y).width(nodeSize + 24.dp)
+                        Modifier.offset(x = x, y = y).width(nodeSize + 16.dp)
                             .clickable { selected = item },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -133,8 +155,8 @@ internal fun AllervueHome(
                                 .background(Color(0xFF25213A)),
                             contentScale = ContentScale.Crop
                         )
-                        Text(item.name, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 5.dp))
+                        Text(item.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
 
