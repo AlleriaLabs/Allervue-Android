@@ -207,13 +207,13 @@ fun HeroPage(hero: Item, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
         )
         Column(Modifier.align(Alignment.BottomStart).padding(start = 20.dp, end = 20.dp, bottom = 26.dp)) {
             Text(
-                "FEATURED", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
-                modifier = Modifier.background(Color(0x44FFFFFF), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+                "FEATURED", color = BrandInk, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp,
+                modifier = Modifier.background(Red, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                (hero.seriesName ?: hero.name).uppercase(), color = Color.White, fontSize = 30.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = 4.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
+                (hero.seriesName ?: hero.name), color = Color.White, fontSize = 32.sp,
+                fontWeight = FontWeight.ExtraBold, letterSpacing = 0.2.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
             )
             val genres = hero.genres?.take(3)?.joinToString("   •   ").orEmpty()
             if (genres.isNotEmpty()) Text(genres, color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
@@ -225,9 +225,9 @@ fun HeroPage(hero: Item, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = { onPlay(hero) }, modifier = Modifier.height(46.dp), shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black)
+                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = BrandInk)
                 ) {
-                    SmallIcon(R.drawable.ic_play, Color.Black, 20)
+                    SmallIcon(R.drawable.ic_play, BrandInk, 20)
                     Spacer(Modifier.width(6.dp))
                     Text("Play", fontWeight = FontWeight.Bold)
                 }
