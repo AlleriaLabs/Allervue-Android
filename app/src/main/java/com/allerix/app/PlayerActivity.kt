@@ -511,7 +511,7 @@ class PlayerActivity : ComponentActivity() {
         prevEpisodeBtn = episodeNavButton("‹|").apply { textSize = 17f; background = null; setPadding(0, 0, 0, 0) }
         nextEpisodeBtn = episodeNavButton("|›").apply { textSize = 17f; background = null; setPadding(0, 0, 0, 0) }
         val rewBtn = skipButton(false).apply {
-            background = null; setColorFilter(0xFFE7EBF0.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = null; setPadding(dp(10), dp(10), dp(10), dp(10))
         }
         playBtn = icon(R.drawable.ic_pause, 66, 18).apply {
             background = GradientDrawable().apply { setColor(0xFF65D6D0.toInt()); cornerRadius = dp(24).toFloat() }
