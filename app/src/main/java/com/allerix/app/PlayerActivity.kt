@@ -518,7 +518,7 @@ class PlayerActivity : ComponentActivity() {
             setColorFilter(0xFF071014.toInt()); elevation = dp(2).toFloat()
         }
         val fwdBtn = skipButton(true).apply {
-            background = null; setColorFilter(0xFFE7EBF0.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
+            background = null; (getChildAt(0) as? ImageView)?.setColorFilter(0xFFE7EBF0.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
         }
         val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER; setPadding(0, dp(8), 0, dp(8))
