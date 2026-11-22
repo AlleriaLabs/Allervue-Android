@@ -478,7 +478,8 @@ fun ClientSettingsScreen(
     Column(Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
         ScreenHeader("Client settings", back)
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Text("SERVER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BrandSurface).padding(16.dp)) {
+            Text("SERVER", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 url, { url = it; status = "" }, label = { Text("Server URL") }, singleLine = true,
@@ -518,11 +519,13 @@ fun ClientSettingsScreen(
             Text("Changing the server signs you out so you can log in to the new one.",
                 color = Color(0xFF777777), fontSize = 12.sp)
 
+            }
             if (loggedIn) {
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = Color(0xFF333333))
                 Spacer(Modifier.height(16.dp))
-                Text("CHANGE PASSWORD", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BrandSurface).padding(16.dp)) {
+                Text("CHANGE PASSWORD", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(cur, { cur = it }, label = { Text("Current password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), colors = colors, modifier = Modifier.fillMaxWidth())
@@ -558,6 +561,7 @@ fun ClientSettingsScreen(
                     }
                 ) { Text("Change password", fontWeight = FontWeight.Bold) }
                 if (pwStatus.isNotEmpty()) Text(pwStatus, color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                }
             }
 
             if (loggedIn && Api.JFA_URL.isNotEmpty()) {
@@ -566,10 +570,11 @@ fun ClientSettingsScreen(
             Spacer(Modifier.height(20.dp))
             HorizontalDivider(color = Color(0xFF333333))
             Spacer(Modifier.height(16.dp))
-            Text("PLAYER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("Set default video quality and audio output in Settings, Playback settings. " +
-                "You can also change them from the More menu inside the player.",
-                color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(BrandSurface).padding(16.dp)) {
+                Text("PLAYER", color = Red, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+                Text("Set default video quality and audio output in Playback settings. You can also change them while watching.",
+                    color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+            }
             Spacer(Modifier.height(24.dp))
         }
     }
