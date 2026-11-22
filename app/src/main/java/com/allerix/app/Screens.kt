@@ -170,7 +170,7 @@ fun HomeScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(34.dp))
-            Text("ALLERVUE", color = Color(0xFFD9B77D), fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp, modifier = Modifier.padding(start = 8.dp))
+            Text("ALLERVUE", color = Red, fontSize = 15.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.2.sp, modifier = Modifier.padding(start = 8.dp))
             Spacer(Modifier.weight(1f))
             IconButton(onClick = onSearch) { SmallIcon(R.drawable.ic_search) }
             IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
