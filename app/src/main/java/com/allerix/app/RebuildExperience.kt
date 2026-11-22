@@ -106,22 +106,32 @@ fun RebuildMainShell(onLogout: () -> Unit) {
 @Composable
 private fun RebuildBottomNav(selected: RebuildTab, onSelect: (RebuildTab) -> Unit) {
     Row(
-        Modifier.fillMaxWidth().background(Color(0xFF10151D))
-            .padding(start = 8.dp, end = 8.dp, top = 9.dp, bottom = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
+        Modifier.fillMaxWidth().background(Color(0xFF0D1118))
+            .padding(start = 9.dp, end = 9.dp, top = 0.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        RebuildTab.values().forEach { destination ->
+        RebuildTab.values().forEachIndexed { index, destination ->
             val active = destination == selected
             Column(
-                Modifier.weight(1f).clip(RoundedCornerShape(13.dp))
-                    .background(if (active) Color(0xFF26343C) else Color.Transparent)
-                    .clickable { onSelect(destination) }.padding(vertical = 7.dp),
+                Modifier.weight(1f).clickable { onSelect(destination) },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                SmallIcon(destination.icon, if (active) VCyan else VMuted, 21)
-                Spacer(Modifier.height(4.dp))
-                Text(destination.label, color = if (active) VText else VMuted, fontSize = 10.sp,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal)
+                Box(
+                    Modifier.fillMaxWidth().height(2.dp)
+                        .background(if (active) VCyan else Color.Transparent)
+                )
+                Row(
+                    Modifier.padding(top = 8.dp, bottom = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                ) {
+                    Text("0${index + 1}", color = if (active) VCyan else Color(0xFF586270),
+                        fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                    SmallIcon(destination.icon, if (active) VCyan else VMuted, 17)
+                }
+                Text(destination.label.uppercase(), color = if (active) VText else VMuted,
+                    fontSize = 8.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    letterSpacing = .7.sp, modifier = Modifier.padding(top = 3.dp, bottom = 2.dp))
             }
         }
     }
