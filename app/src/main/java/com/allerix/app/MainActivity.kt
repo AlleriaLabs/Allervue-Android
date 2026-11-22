@@ -213,7 +213,11 @@ fun MainShell(onLogout: () -> Unit) {
                 Nav.Diagnostics -> DiagnosticScreen(back)
             }
         }
-        if (show@Composable
+        if (showBar) BottomBar(tab) { selected -> stack.clear(); tab = selected }
+    }
+}
+
+@Composable
 fun BottomBar(selected: NavTab, onTab: (NavTab) -> Unit) {
     Row(
         Modifier.fillMaxWidth()
@@ -231,17 +235,13 @@ fun BottomBar(selected: NavTab, onTab: (NavTab) -> Unit) {
                     .padding(vertical = 7.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                SmallIcon(
-                    tab.icon,
-                    if (active) Color(0xFF24D6E8) else Color(0xFF778399),
-                    22
-                )
-                Spacer(Modifier.height(3.dp))
+                SmallIcon(tab.icon, if (active) Color(0xFF24D6E8) else Color(0xFF778399), 22)
                 Text(
                     tab.label,
                     color = if (active) Color(0xFF24D6E8) else Color(0xFF778399),
                     fontSize = 10.sp,
-                    fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal
+                    fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold
+                        else androidx.compose.ui.text.font.FontWeight.Normal
                 )
                 Spacer(Modifier.height(3.dp))
                 Box(
@@ -250,11 +250,6 @@ fun BottomBar(selected: NavTab, onTab: (NavTab) -> Unit) {
                         .clip(RoundedCornerShape(2.dp))
                         .background(if (active) Color(0xFF8B5CF6) else Color.Transparent)
                 )
-            }
-        }
-    }
-}
- = if (on) Red else Dim, fontSize = 10.sp)
             }
         }
     }
