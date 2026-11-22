@@ -34,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 private val VBg = Color(0xFF090B10)
+private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), DISCOVER("Discover", R.drawable.ic_nav_movie), SAVED("Saved", R.drawable.ic_nav_star), DOWNLOADS("Downloads", R.drawable.ic_nav_download) }
 private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 private val VSurface = Color(0xFF141923)
 private val VSurface2 = Color(0xFF1C2430)
@@ -46,7 +47,7 @@ private val VGold = Color(0xFFD9B77D)
 fun RebuildMainShell(onLogout: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var tab by remember { mutableStateOf(NavTab.HOME) }
+    var tab by remember { mutableStateOf(RebuildTab.HOME) }
     val stack = remember { mutableStateListOf<Nav>() }
     val onPlay: (Item) -> Unit = { target ->
         scope.launch {
@@ -64,7 +65,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val signOut: () -> Unit = { stack.clear(); onLogout() }
     val settings: () -> Unit = { stack.add(Nav.Settings) }
     BackHandler(enabled = stack.isNotEmpty()) { back() }
-    BackHandler(enabled = stack.isEmpty() && tab != NavTab.HOME) { tab = NavTab.HOME }
+    BackHandler(enabled = stack.isEmpty() && tab != RebuildTab.HOME) { tab = NavTab.HOME }
 
     val top = stack.lastOrNull()
     val showNav = top == null || top is Nav.Detail || top is Nav.Grid
@@ -72,11 +73,10 @@ fun RebuildMainShell(onLogout: () -> Unit) {
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
-                    NavTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
-                    NavTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })
-                    NavTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
-                    NavTab.LIST -> RebuildSaved(onOpen, onPlay)
-                    NavTab.DOWNLOADS -> RebuildDownloads(onPlay)
+                    RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
+                    RebuildTab.DISCOVER -> RebuildDiscover(onOpen, { stack.add(Nav.Search) })
+                    RebuildTab.SAVED -> RebuildSaved(onOpen, onPlay)
+                    RebuildTab.DOWNLOADS -> RebuildDownloads()
                 }
                 is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
                 is Nav.Detail -> RebuildDetail(top.item, onOpen, onPlay, back)
@@ -104,13 +104,13 @@ fun RebuildMainShell(onLogout: () -> Unit) {
 }
 
 @Composable
-private fun RebuildBottomNav(selected: NavTab, onSelect: (NavTab) -> Unit) {
+private fun RebuildBottomNav(selected: RebuildTab, onSelect: (RebuildTab) -> Unit) {
     Row(
         Modifier.fillMaxWidth().background(Color(0xFF10151D))
             .padding(start = 8.dp, end = 8.dp, top = 9.dp, bottom = 12.dp),
         horizontalArrangement = Arrangement.spacedBy(5.dp)
     ) {
-        NavTab.values().forEach { destination ->
+        RebuildTab.values().forEach { destination ->
             val active = destination == selected
             Column(
                 Modifier.weight(1f).clip(RoundedCornerShape(13.dp))
@@ -228,7 +228,6 @@ private fun RebuildShelf(title: String, entries: List<Item>, onItem: (Item) -> U
                 Text(kicker.uppercase(), color = VCyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.3.sp)
                 Text(title, color = VText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
-            Text("See all", color = VMuted, fontSize = 11.sp)
         }
         androidx.compose.foundation.lazy.LazyRow(
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp),
@@ -253,6 +252,30 @@ private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = 
         Text(item.name, color = VText, fontSize = 12.sp, fontWeight = FontWeight.Medium, maxLines = 2, lineHeight = 15.sp,
             overflow = TextOverflow.Ellipsis)
         Text(item.year?.toString() ?: item.type, color = VMuted, fontSize = 10.sp)
+    }
+}
+
+
+@Composable
+private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
+    var type by remember { mutableStateOf("Movie") }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Discover", color = VText, fontSize = 25.sp, fontWeight = FontWeight.Bold)
+                Text("Explore your Jellyfin library", color = VMuted, fontSize = 12.sp)
+            }
+            Text("Search", color = VCyan, modifier = Modifier.clickable(onClick = onSearch).padding(10.dp))
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Movie" to "Films", "Series" to "TV Shows").forEach { (value, label) ->
+                val active = type == value
+                Text(label, color = if (active) VBg else VMuted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.clip(CircleShape).background(if (active) VCyan else VSurface)
+                        .clickable { type = value }.padding(horizontal = 16.dp, vertical = 9.dp))
+            }
+        }
+        RebuildCatalog(if (type == "Movie") "Films" else "TV Shows", type, onOpen, onSearch)
     }
 }
 
@@ -320,7 +343,7 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
 }
 
 @Composable
-private fun RebuildDownloads(onPlay: (Item) -> Unit) {
+private fun RebuildDownloads() {
     val ctx = LocalContext.current
     var records by remember { mutableStateOf(Downloads.list(ctx)) }
     var states by remember { mutableStateOf(emptyMap<String, DlState>()) }
@@ -343,7 +366,7 @@ private fun RebuildDownloads(onPlay: (Item) -> Unit) {
             if (complete.isNotEmpty()) item { RebuildSectionLabel("AVAILABLE OFFLINE") }
             items(complete, key = { it.id }) { rec ->
                 RebuildDownloadRow(rec, states[rec.id], onDelete = { Downloads.remove(ctx, rec) },
-                    onPlay = { ctx.startActivity(Intent(ctx, PlayerActivity::class.java).putExtra("id", rec.id).putExtra("title", rec.title).putExtra("offlinePath", rec.file)) })
+                    onPlay = { ctx.startActivity(Intent(ctx, PlayerActivity::class.java).putExtra("id", rec.id).putExtra("title", rec.title).putExtra("file", rec.file)) })
             }
             val failed = records.filter { states[it.id]?.status == DownloadManager.STATUS_FAILED }
             if (failed.isNotEmpty()) item { RebuildSectionLabel("NEEDS ATTENTION") }
@@ -551,19 +574,18 @@ private fun RebuildSettingsScreen(
     onPlayback: () -> Unit, onDiagnostics: () -> Unit, onSignOut: () -> Unit,
     onWeb: (String, String) -> Unit
 ) {
-    val ctx = LocalContext.current
     Column(Modifier.fillMaxSize().background(VBg)) {
-        RebuildHeader("Settings", "Your Allervue experience")
+        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("‹", color = VText, fontSize = 28.sp, modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
+            Column { Text("Settings", color = VText, fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your Allervue experience", color = VMuted, fontSize = 12.sp) }
+        }
         LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp)) {
             item { RebuildSectionLabel("ACCOUNT & SERVER") }
             item { RebuildSettingRow("Server and account", "Connection, profile and sign-in", onClient) }
             item { RebuildSettingRow("Request a title", "Ask your library administrator to add media", onRequest) }
             item { RebuildSectionLabel("PLAYBACK") }
             item { RebuildSettingRow("Playback preferences", "Quality, audio, subtitles and behavior", onPlayback) }
-            item { RebuildSettingRow("Player engine", "Auto selection with Media3 and libmpv fallback") {
-                ctx.getSharedPreferences("player", android.content.Context.MODE_PRIVATE)
-                    .edit().putString("playback_engine", "AUTO").apply()
-            } }
+            item { RebuildSettingRow("Automatic playback", "The player chooses Media3 or libmpv when needed", onPlayback) }
             item { RebuildSectionLabel("SUPPORT") }
             item { RebuildSettingRow("Diagnostics", "Connection checks and playback logs", onDiagnostics) }
             item { RebuildSettingRow("Allervue website", "Product information and updates") {
