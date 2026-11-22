@@ -60,7 +60,7 @@ class MainActivity : FragmentActivity() {
         setContent {
             MaterialTheme(
                 colorScheme = darkColorScheme(
-                    primary = Color(0xFF24D6E8), secondary = Color(0xFF8B5CF6), tertiary = Color(0xFF647BFF), background = BgDark, surface = BgDark,
+                    primary = Red, background = BgDark, surface = BgDark,
                     onBackground = Color.White, onSurface = Color.White
                 )
             ) { Surface(color = BgDark) { App() } }
@@ -127,7 +127,7 @@ fun SplashScreen() {
         0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "slide"
     )
     Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF24D6E8).copy(alpha = glow), BgDark), radius = 1100f)),
+        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Red.copy(alpha = glow), Color(0xFF6F61D8).copy(alpha = glow * 0.55f), BgDark), radius = 1100f)),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -145,7 +145,7 @@ fun SplashScreen() {
             Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).width(120.dp).height(3.dp)
                 .clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))
         ) {
-            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Color(0xFFD8B77E)))
+            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Red))
         }
     }
 }
@@ -221,34 +221,25 @@ fun MainShell(onLogout: () -> Unit) {
 fun BottomBar(selected: NavTab, onTab: (NavTab) -> Unit) {
     Row(
         Modifier.fillMaxWidth()
-            .background(Color(0xF20C101A))
-            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+            .background(Color(0xFF101722))
+            .padding(start = 8.dp, end = 8.dp, top = 7.dp, bottom = 8.dp)
     ) {
-        NavTab.values().forEach { tab ->
-            val active = tab == selected
+        NavTab.values().forEach { t ->
+            val on = t == selected
             Column(
-                Modifier.weight(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (active) Color(0x2224D6E8) else Color.Transparent)
-                    .clickable { onTab(tab) }
-                    .padding(vertical = 7.dp),
+                Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                    .clickable { onTab(t) }.padding(vertical = 3.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                SmallIcon(tab.icon, if (active) Color(0xFF24D6E8) else Color(0xFF778399), 22)
-                Text(
-                    tab.label,
-                    color = if (active) Color(0xFF24D6E8) else Color(0xFF778399),
-                    fontSize = 10.sp,
-                    fontWeight = if (active) androidx.compose.ui.text.font.FontWeight.SemiBold
-                        else androidx.compose.ui.text.font.FontWeight.Normal
-                )
-                Spacer(Modifier.height(3.dp))
                 Box(
-                    Modifier.width(if (active) 18.dp else 4.dp)
-                        .height(2.dp)
-                        .clip(RoundedCornerShape(2.dp))
-                        .background(if (active) Color(0xFF8B5CF6) else Color.Transparent)
+                    Modifier.width(28.dp).height(3.dp).clip(RoundedCornerShape(2.dp))
+                        .background(if (on) Red else Color.Transparent)
+                )
+                Spacer(Modifier.height(5.dp))
+                SmallIcon(t.icon, if (on) Red else Color(0xFF8793A5), 22)
+                Text(
+                    t.label, color = if (on) Color.White else Color(0xFF8793A5),
+                    fontSize = 10.sp, fontWeight = if (on) androidx.compose.ui.text.font.FontWeight.SemiBold else androidx.compose.ui.text.font.FontWeight.Normal
                 )
             }
         }
