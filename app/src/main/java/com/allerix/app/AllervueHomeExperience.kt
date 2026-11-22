@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -95,7 +96,7 @@ internal fun AllervueHome(
                 Text("allervue.", color = Color(0xFFF8F3FF), fontSize = 29.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.2).sp, modifier = Modifier.weight(1f))
                 Box(
                     Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
-                        .clickable(onClick = onSettings),
+                        .clickable(onClick = onSearch),
                     contentAlignment = Alignment.Center
                 ) { Text("⌕", color = Color.White, fontSize = 28.sp) }
                 Spacer(Modifier.width(10.dp))
@@ -142,6 +143,7 @@ internal fun AllervueHome(
                         Modifier.offset(x = (w - centerSize) / 2, y = h * .40f)
                             .size(centerSize).clip(CircleShape)
                             .background(Brush.linearGradient(listOf(Color(0xFF7C3F88), Color(0xFFFF704D), Color(0xFF211238))))
+                            .border(1.5.dp, Color.White.copy(alpha = .62f), CircleShape)
                             .clickable { onOpen(centerItem) }
                     ) {
                         AsyncImage(
@@ -156,14 +158,7 @@ internal fun AllervueHome(
                         }
                         Box(Modifier.fillMaxSize().clip(CircleShape).background(Color.Transparent).then(Modifier))
                     }
-                    Box(
-                        Modifier.align(Alignment.Center).offset(y = h * .40f).size(centerSize)
-                    ) {
-                        Canvas(Modifier.fillMaxSize()) {
-                            drawCircle(Color.White.copy(alpha = .55f), style = Stroke(1.5.dp.toPx()))
-                            drawCircle(Color(0xFFFF5C87).copy(alpha = .55f), style = Stroke(5.dp.toPx()))
-                        }
-                    }
+
                 } else if (loading) {
                     CircularProgressIndicator(Modifier.align(Alignment.Center), color = AAccent)
                 } else if (failure) {
