@@ -180,10 +180,12 @@ jobs:
           cat > notes.md <<'NOTES'
           Allervue Android release.
 
-          - In-app GitHub release update notifications
-          - Updates install over the existing app when signed with the permanent Allervue release key
-          - Allervue request cards now show movie and TV titles and posters
-          - Player, Jellyfin library, and playback features
+          - Full Allervue interface refresh: Home, Movies, TV, Search, My List, Downloads and Settings
+          - Cinematic player redesign with centered transport controls and a seven-action dock
+          - Playback controls for quality, subtitles, audio, speed, decoder, aspect ratio and subtitle sync
+          - Automatic ExoPlayer to libmpv recovery path, with server-transcode fallback
+          - Jellyfin account, library, favorites, downloads and playback behavior retained
+          - In-app GitHub release update notifications; signed updates install over the existing Allervue app
           
           Install: download Allervue.apk and allow "Install unknown apps" when Android asks.
           NOTES
