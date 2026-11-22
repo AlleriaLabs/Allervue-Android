@@ -319,11 +319,15 @@ object Api {
         base + path + (if (token.isNotBlank()) (if (path.contains("?")) "&" else "?") + "api_key=$token" else "")
 
     fun poster(i: Item): String {
-        val imageId = if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id
+        // Episodes often have no poster of their own; use series artwork in that case.
+        val hasOwnArtwork = i.imageTags?.containsKey("Primary") == true ||
+            i.imageTags?.containsKey("Thumb") == true || !i.backdropTags.isNullOrEmpty()
+        val imageId = if (i.type == "Episode" && !hasOwnArtwork && !i.seriesId.isNullOrBlank()) i.seriesId else i.id
         val imageType = when {
             i.imageTags?.containsKey("Primary") == true -> "Primary"
             i.imageTags?.containsKey("Thumb") == true -> "Thumb"
-            !i.backdropTags.isNullOrEmpty() -> "Backdrop"
+            !i.backdropTags.isNullOrEmpty() -> "Backdrop/0"
+            !i.parentBackdropItemId.isNullOrBlank() -> return authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxHeight=500&quality=90")
             else -> "Primary"
         }
         return authenticatedImage("/Items/$imageId/Images/$imageType?maxHeight=500&quality=90")
@@ -333,23 +337,23 @@ object Api {
         authenticatedImage("/Items/${if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id}/Images/Primary?maxHeight=900&quality=90")
 
     fun landscape(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop?maxWidth=600&quality=85")
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=600&quality=85")
         i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=600")
         i.imageTags?.containsKey("Primary") == true -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=600")
-        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=600")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=600")
         else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=600")
     }
 
     /** Tiny image; upscaled + blurred in the UI for the home-page background. */
     fun blurBg(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop?maxWidth=96&quality=40")
-        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=96&quality=40")
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=96&quality=40")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=96&quality=40")
         else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=96&quality=40")
     }
 
     fun backdrop(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop?maxWidth=1280&quality=85")
-        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=1280&quality=85")
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=1280&quality=85")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=1280&quality=85")
         i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=1280&quality=85")
         else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=1280")
     }
