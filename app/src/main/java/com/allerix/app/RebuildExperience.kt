@@ -150,7 +150,7 @@ private fun RebuildHeader(title: String, subtitle: String? = null, action: (() -
                     .clickable(onClick = action),
                 contentAlignment = Alignment.Center
             ) {
-                if (actionText.equals("Search", true)) SmallIcon(R.drawable.ic_nav_search, VCyan, 20)
+                if (actionText.equals("Search", true)) Text("⌕", color = VCyan, fontSize = 27.sp)
                 else Text("⋯", color = VCyan, fontSize = 22.sp)
             }
         }
@@ -530,39 +530,62 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
     val isShow = base.type == "Series" || base.type == "Season"
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
-            Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.background).padding(horizontal = 18.dp, vertical = 12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("‹", color = MaterialTheme.colorScheme.onBackground, fontSize = 29.sp,
-                        modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("ALLERVUE / TITLE RECORD", color = VCyan, fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                        Text(item.type.uppercase(), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp, letterSpacing = 1.sp)
-                    }
-                    Text("ID  ${item.id.take(6).uppercase()}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 8.sp)
-                }
-                Spacer(Modifier.height(18.dp))
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-                    AsyncImage(Api.poster(item), null,
-                        Modifier.width(126.dp).height(184.dp).clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant), contentScale = ContentScale.Crop)
-                    Column(Modifier.weight(1f).padding(start = 15.dp)) {
-                        Text(item.name, color = MaterialTheme.colorScheme.onBackground, fontSize = 23.sp, lineHeight = 27.sp,
-                            fontWeight = FontWeight.Bold, maxLines = 4, overflow = TextOverflow.Ellipsis)
-                        Spacer(Modifier.height(9.dp))
-                        Text(listOfNotNull(item.year?.toString(), item.officialRating,
-                            fmtRuntime(item.runTimeTicks).ifEmpty { null }).joinToString("  /  "),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Box(Modifier.width(36.dp).height(2.dp).background(VCyan))
-                        Spacer(Modifier.height(10.dp))
-                        Text(item.genres.orEmpty().take(3).joinToString("  ·  "),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, lineHeight = 15.sp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(if (saved) "IN YOUR LIST" else "LIBRARY ENTRY",
-                            color = VCyan, fontSize = 8.sp, fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp)
-                    }
+            Box(
+                Modifier.fillMaxWidth().height(350.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                AsyncImage(
+                    Api.backdrop(item), null,
+                    Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+                Box(
+                    Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(
+                            0f to Color(0x99070A10),
+                            0.36f to Color(0x22070A10),
+                            1f to Color(0xF5090B10)
+                        )
+                    )
+                )
+                Text(
+                    "‹",
+                    color = Color.White,
+                    fontSize = 34.sp,
+                    modifier = Modifier.align(Alignment.TopStart)
+                        .padding(start = 18.dp, top = 12.dp)
+                        .clip(CircleShape)
+                        .clickable(onClick = back)
+                        .padding(horizontal = 10.dp, vertical = 2.dp)
+                )
+                Column(
+                    Modifier.align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 20.dp)
+                ) {
+                    Text(
+                        if (item.type == "Series" || item.type == "Season") "SERIES" else "FILM",
+                        color = VCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp
+                    )
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        item.name,
+                        color = Color.White,
+                        fontSize = 30.sp,
+                        lineHeight = 34.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(7.dp))
+                    Text(
+                        listOfNotNull(item.year?.toString(), item.officialRating,
+                            fmtRuntime(item.runTimeTicks).ifEmpty { null })
+                            .joinToString("  ·  "),
+                        color = Color(0xFFE0E4E9),
+                        fontSize = 12.sp
+                    )
                 }
             }
         }
