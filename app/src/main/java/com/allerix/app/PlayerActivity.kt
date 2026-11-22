@@ -830,20 +830,9 @@ class PlayerActivity : ComponentActivity() {
         return languageName(serverStream?.language ?: f.language)
     }
 
-    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, dlg ->
-        val all = PlaybackEngine.values()
-        box.addView(radioGroup(200, all.map { it.label + "  ·  " + it.description }, playbackEngine.ordinal) { i ->
-            val selected = all[i]
-            playbackEngine = selected
-            prefs.edit().putString("playback_engine", selected.name).apply()
-            dlg.dismiss()
-            when (selected) {
-                PlaybackEngine.AUTO -> showHud("Automatic playback enabled")
-                PlaybackEngine.EXOPLAYER -> showHud("ExoPlayer selected")
-                PlaybackEngine.VLC -> launchVlc(player.currentPosition, plan?.url)
-            }
-        })
-        box.addView(noteText("Auto uses ExoPlayer first and switches to VLC if the Android decoder fails. Switching to VLC restarts at the current position."))
+    private fun showPlaybackEngineSheet() = sheet("Playback engine") { box, _ ->
+        box.addView(sheetRow("Engine", "Automatic") { showDeviceSheet() })
+        box.addView(noteText("Allervue automatically manages playback on this device using the supported Media3 / ExoPlayer path. Engine selection is handled automatically."))
     }
 
     private fun showMoreSheet() = sheet("More controls") { box, _ ->
