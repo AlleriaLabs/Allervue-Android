@@ -19,17 +19,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-val Red = Color(0xFFD8B77E)
-val BrandGold = Color(0xFFD8B77E)
-val BrandGoldBright = Color(0xFFE8CCA0)
-val BrandInk = Color(0xFF101013)
-val BrandSurface = Color(0xFF19191E)
+val Red = Color(0xFF24D6E8)
+val BrandGold = Color(0xFF24D6E8)
+val BrandGoldBright = Color(0xFF8B5CF6)
+val BrandInk = Color(0xFF080B12)
+val BrandSurface = Color(0xFF151A28)
 val BrandIvory = Color(0xFFF4EFE5)
-val BgDark = Color(0xFF0A0A0C)
-val Grey = Color(0xFFB3B3B3)
-val Dim = Color(0xFF8A8A90)
-val GlassColor = Color(0xE619191E)
-val GlassBorder = Color(0x14D8B77E)
+val BgDark = Color(0xFF080B12)
+val Grey = Color(0xFFB8C1D1)
+val Dim = Color(0xFF778399)
+val GlassColor = Color(0xE6151A28)
+val GlassBorder = Color(0x3324D6E8)
 
 fun Modifier.glass(radius: Dp = 16.dp): Modifier {
     val shape = RoundedCornerShape(radius)
@@ -40,7 +40,7 @@ fun Modifier.glass(radius: Dp = 16.dp): Modifier {
 fun AppBackground(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     Box(
         modifier.fillMaxSize().background(
-            Brush.verticalGradient(0f to Color(0xFF211C16), 0.28f to Color(0xFF121216), 0.72f to BgDark, 1f to BgDark)
+            Brush.verticalGradient(0f to Color(0xFF111B32), 0.28f to Color(0xFF0C1221), 0.72f to BgDark, 1f to BgDark)
         ),
         content = content
     )
