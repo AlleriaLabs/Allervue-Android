@@ -831,17 +831,30 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                             val isCurrent = orbitItem.userData?.isPlayed == true ||
                                 (orbitItem.userData?.positionTicks ?: 0L) > 0L
                             Box(
-                                Modifier.offset(x, y).size(42.dp).clip(CircleShape)
-                                    .background(
-                                        if (isCurrent) Brush.linearGradient(listOf(Color(0xFFFF8150), Color(0xFFFF347E)))
-                                        else Brush.linearGradient(listOf(Color(0x662B2037), Color(0x55302748)))
-                                    )
-                                    .border(if (isCurrent) 2.dp else 1.dp,
-                                        if (isCurrent) Color(0xFFFF3982) else Color(0x667F829A), CircleShape)
+                                Modifier.offset(x, y).size(54.dp).clip(CircleShape)
+                                    .background(Color(0xFF171325))
+                                    .border(if (isCurrent) 2.5.dp else 1.5.dp,
+                                        if (isCurrent) Color(0xFFFF3982) else Color(0x889A91AA), CircleShape)
                                     .clickable { onOpen(orbitItem) },
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("${index + 1}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                AsyncImage(
+                                    Api.poster(orbitItem), null,
+                                    Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop
+                                )
+                                Box(
+                                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                        .background(Color(0xCC100D1B)).padding(vertical = 2.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        if (orbitItem.type == "Season") "S${orbitItem.index ?: index + 1}"
+                                        else "E${orbitItem.index ?: index + 1}",
+                                        color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
                             }
                         }
                     }
