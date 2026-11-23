@@ -198,7 +198,7 @@ object Api {
      * All ranking runs locally in the app; no viewing history is sent to a third-party AI service.
      */
     suspend fun personalizedPicks(excludeIds: Set<String> = emptySet()): List<Item> {
-        val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData,ImageTags,BackdropImageTags,ParentBackdropItemId"
+        val fields = "Overview,Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData,ImageTags,BackdropImageTags,ParentBackdropItemId"
         return coroutineScope {
             val historyTask = async {
                 runCatching {
