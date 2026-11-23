@@ -188,9 +188,9 @@ fun MainShell(onLogout: () -> Unit) {
                         },
                         onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, onLogout = signOut
                     )
-                    NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
-                    NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true)
-                    NavTab.ANIME -> LibraryTab("Anime", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true, animeOnly = true)
+                    NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, libraryNames = listOf("Movies", "Kid's Movies"))
+                    NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true, libraryNames = listOf("Series"))
+                    NavTab.ANIME -> LibraryTab("Anime", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true, animeOnly = true, libraryNames = listOf("Anime"))
                     NavTab.LIST -> MyListTab(onOpen, onSettings = openSettings)
                 }
                 is Nav.Grid -> key(top) { GridScreen(top.item, onOpen, back) }
