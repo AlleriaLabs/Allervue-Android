@@ -699,7 +699,7 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHea
                         val progress=item.userData?.playedPercentage?.toFloat()
                             ?: if((item.runTimeTicks?:0L)>0L) ((item.userData?.positionTicks?:0L).toFloat()/item.runTimeTicks!!.toFloat())*100f else 0f
                         if(progress>0f && progress<100f) LinearProgressIndicator(progress={ (progress/100f).coerceIn(0f,1f) },
-                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),color=Color(0xFFFF7895),trackColor=Color(0x66000000))
+                            modifier=Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),color=Color(0xFFFF7895),trackColor=Color(0x66000000))
                     }
                     Text(item.name,color=Color.White,fontSize=12.sp,fontWeight=FontWeight.SemiBold,maxLines=2,lineHeight=15.sp,
                         overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(start=3.dp,top=8.dp))
@@ -841,7 +841,7 @@ private fun CollectionDownloadCard(rec: DownloadRec,state: DlState?,onDelete: ()
                 fontSize=10.sp,modifier=Modifier.padding(top=4.dp),maxLines=2)
             if(state?.status==DownloadManager.STATUS_RUNNING || state?.status==DownloadManager.STATUS_PENDING)
                 LinearProgressIndicator(progress={if(state.total>0L) state.done.toFloat()/state.total else 0f},
-                    Modifier.fillMaxWidth().padding(top=7.dp).height(3.dp),color=Color(0xFF39D6C5),trackColor=Color(0xFF57465E))
+                    modifier=Modifier.fillMaxWidth().padding(top=7.dp).height(3.dp),color=Color(0xFF39D6C5),trackColor=Color(0xFF57465E))
         }
         if(onPlay!=null) Text("PLAY",color=Color(0xFF39D6C5),fontSize=9.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(horizontal=7.dp,vertical=10.dp))
         Text("⋯",color=Color(0xFFBEB2C8),fontSize=20.sp,modifier=Modifier.clickable(onClick=onDelete).padding(start=5.dp,end=2.dp))
