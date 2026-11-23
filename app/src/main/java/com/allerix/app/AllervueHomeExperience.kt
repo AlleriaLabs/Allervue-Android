@@ -198,7 +198,9 @@ internal fun AllervueHome(
                 // Each node gets its own randomized orbital lane and phase.
                 // Keep angular slots separated to prevent circles colliding, while
                 // varying radius and rotation speed so the field never reads as one ellipse.
-                val orbitSlots = remember(visibleOrbitItems.map { it.id }, w, h) {
+                // Slot geometry is tied only to layout dimensions and node count—not movie IDs.
+                // Replacing/shuffling artwork therefore never resets a circle's path or position.
+                val orbitSlots = remember(visibleOrbitItems.size, w, h, nodeSize) {
                     val count = visibleOrbitItems.size.coerceAtLeast(1)
                     List(visibleOrbitItems.size) { slot ->
                         val baseAngle = -90f + slot * (360f / count)
