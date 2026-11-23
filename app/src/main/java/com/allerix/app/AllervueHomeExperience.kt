@@ -119,7 +119,7 @@ internal fun AllervueHome(
         if (centerCandidates.size > 1) {
             var index = centerCandidates.indexOfFirst { it.id == selected?.id }.coerceAtLeast(0)
             while (true) {
-                delay(3_000)
+                delay(8_000)
                 index = (index + 1) % centerCandidates.size
                 selected = centerCandidates[index]
             }
