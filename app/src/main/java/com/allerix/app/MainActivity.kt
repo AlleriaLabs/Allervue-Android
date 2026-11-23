@@ -126,13 +126,15 @@ fun SplashScreen() {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(
-                painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem",
-                Modifier.size(190.dp).scale(logoScale).alpha(logoAlpha)
+            AllervueWordmark(
+                emblemSize = 104.dp,
+                textSize = 60.sp,
+                modifier = Modifier.scale(logoScale).alpha(logoAlpha)
             )
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(24.dp))
             Text(
-                "ALLERVUE\nGREAT STORIES. ANYTIME. ANYWHERE.", color = Grey, fontSize = 14.sp,
+                "SEE IT ALL", color = Color(0xFFB9B4C8), fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold, letterSpacing = 5.sp,
                 textAlign = TextAlign.Center, modifier = Modifier.alpha(tagAlpha)
             )
         }
