@@ -115,31 +115,28 @@ internal fun AllervueHome(
     val centerCandidates = remember(picks, featured, recent, resume) {
         (picks + listOfNotNull(featured) + recent + resume).distinctBy { it.id }
     }
+    var synchronizedCycle by remember { mutableIntStateOf(0) }
     LaunchedEffect(centerCandidates.map { it.id }) {
         if (centerCandidates.size > 1) {
-            var index = centerCandidates.indexOfFirst { it.id == selected?.id }.coerceAtLeast(0)
             while (true) {
                 delay(8_000)
-                index = (index + 1) % centerCandidates.size
-                selected = centerCandidates[index]
+                val currentId = selected?.id
+                val next = centerCandidates
+                    .filterNot { it.id == currentId }
+                    .shuffled()
+                    .firstOrNull()
+                if (next != null) {
+                    selected = next
+                    synchronizedCycle++
+                }
             }
         }
     }
     val centerItem = selected ?: centerCandidates.firstOrNull() ?: allItems.firstOrNull()
-    val orbitItems = allItems.filter { it.id != centerItem?.id }
-    var orbitContentStep by remember { mutableIntStateOf(0) }
-    LaunchedEffect(orbitItems.map { it.id }) {
-        orbitContentStep = 0
-        while (orbitItems.size > 1) {
-            delay(3_000)
-            orbitContentStep = (orbitContentStep + 1) % orbitItems.size
-        }
-    }
-    val visibleOrbitItems = remember(orbitItems, orbitContentStep) {
-        if (orbitItems.isEmpty()) emptyList()
-        else List(minOf(5, orbitItems.size)) { index ->
-            orbitItems[(index + orbitContentStep) % orbitItems.size]
-        }
+    // Every 8-second center change also reshuffles the outer artwork in the same
+    // cycle. Positions remain anchored to a single ellipse; only the titles change.
+    val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
+        allItems.filter { it.id != centerItem?.id }.shuffled().take(5)
     }
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
@@ -198,19 +195,19 @@ internal fun AllervueHome(
                 // Every artwork node follows the same fixed elliptical orbit.
                 // No alternating radii or per-node clamping: those caused circles
                 // to jump between tracks and bunch up at the screen edges.
-                val orbitRadiusX = w * .39f
-                val orbitRadiusY = h * .24f
+                // Keep every node on the same bounded ellipse. Avoid per-node
+                // edge clamping, which collapses multiple nodes onto identical positions.
+                val orbitRadiusX = ((w - nodeSize) / 2 - 10.dp).coerceAtLeast(0.dp)
+                val orbitRadiusY = ((h * .29f) - nodeSize / 2).coerceAtLeast(0.dp)
                 visibleOrbitItems.forEachIndexed { index, item ->
                     val angle = Math.toRadians(
                         (-90.0 + index * (360.0 / visibleOrbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
                     )
-                    val rawX = orbitCenterX + orbitRadiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
-                    val rawY = orbitCenterY + orbitRadiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
-                    val x = rawX.coerceIn(8.dp, (w - nodeSize - 8.dp).coerceAtLeast(8.dp))
-                    val y = rawY.coerceIn(112.dp, (h - nodeSize - 16.dp).coerceAtLeast(112.dp))
+                    val x = orbitCenterX + orbitRadiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
+                    val y = orbitCenterY + orbitRadiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeSize + 16.dp)
-                            .clickable { selected = item },
+                            .clickable { selected = item; synchronizedCycle++ },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         HomeArtwork(
@@ -255,33 +252,39 @@ internal fun AllervueHome(
         }
 
         Column(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+            Modifier.fillMaxWidth().height(238.dp)
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                 .background(Brush.verticalGradient(listOf(Color(0xFF19162F), APanel)))
-                .padding(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 18.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 14.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
+            Row(
+                Modifier.fillMaxWidth().height(78.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
                     Text(centerItem?.name ?: if (loading) "Finding your next story" else "Your library",
-                        color = Color(0xFFF7F3FF), fontSize = 28.sp, lineHeight = 32.sp,
+                        Modifier.height(58.dp).fillMaxWidth(),
+                        color = Color(0xFFF7F3FF), fontSize = 25.sp, lineHeight = 29.sp,
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-.8).sp,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val meta = centerItem?.let {
                         listOfNotNull(it.type, it.year?.toString(), it.officialRating).joinToString(" · ")
                     } ?: "Explore your Jellyfin library"
-                    Text(meta, color = Color(0xFFB7B2C7), fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp), maxLines = 1)
+                    Text(meta, Modifier.height(20.dp).fillMaxWidth(),
+                        color = Color(0xFFB7B2C7), fontSize = 12.sp, maxLines = 1)
                 }
                 Box(
-                    Modifier.size(66.dp).clip(CircleShape)
+                    Modifier.size(62.dp).clip(CircleShape)
                         .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
                         .clickable { centerItem?.let(onPlay) },
                     contentAlignment = Alignment.Center
                 ) { Text("▶", color = Color(0xFF170D1B), fontSize = 25.sp) }
             }
-            if (!centerItem?.overview.isNullOrBlank()) {
-                Text(centerItem?.overview.orEmpty(), color = Color(0xFFC7C2D3), fontSize = 13.sp,
-                    lineHeight = 19.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 10.dp))
-            }
+            // Reserve the synopsis slot even when an item has no description so
+            // the panel geometry never shifts between featured titles.
+            Text(centerItem?.overview.orEmpty(), Modifier.fillMaxWidth().height(82.dp).padding(top = 8.dp),
+                color = Color(0xFFC7C2D3), fontSize = 13.sp, lineHeight = 18.sp,
+                maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
     }
 }
