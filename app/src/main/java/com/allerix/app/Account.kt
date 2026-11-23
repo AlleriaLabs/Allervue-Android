@@ -14,6 +14,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -24,8 +25,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -119,76 +122,164 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
         }
     }
 
-    AppBackground {
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            drawRect(Brush.verticalGradient(
+                listOf(Color(0xFF32191F), Color(0xFF17152D), Color(0xFF071F27))
+            ))
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x66FF665D), Color.Transparent)),
+                radius = size.minDimension * .72f,
+                center = androidx.compose.ui.geometry.Offset(size.width * .08f, size.height * .12f)
+            )
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x559B46E8), Color.Transparent)),
+                radius = size.minDimension * .78f,
+                center = androidx.compose.ui.geometry.Offset(size.width * .94f, size.height * .32f)
+            )
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x3328D5D0), Color.Transparent)),
+                radius = size.minDimension * .62f,
+                center = androidx.compose.ui.geometry.Offset(size.width * .38f, size.height * .98f)
+            )
+        }
+    ) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 90.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp).padding(top = 54.dp, bottom = 112.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             AllervueWordmark(
-                emblemSize = 68.dp,
-                textSize = 40.sp,
-                modifier = Modifier.fillMaxWidth()
+                emblemSize = 64.dp,
+                textSize = 38.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
             )
-            Spacer(Modifier.height(30.dp))
-            Text("Sign In", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                modifier = Modifier.align(Alignment.Start))
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(user, { user = it }, label = { Text("Username") }, singleLine = true,
-                colors = fieldColors, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(pw, { pw = it }, label = { Text("Password") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), colors = fieldColors,
-                modifier = Modifier.fillMaxWidth())
-            if (biometricAvailable && hasBiometricLogin) {
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(
-                    enabled = !busy, onClick = { err = ""; showBiometricPrompt(false) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Red)
-                ) {
-                    Text("◎  Sign in with fingerprint / face", color = Red, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(18.dp))
-            Button(
-                enabled = !busy, modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
-                onClick = {
-                    busy = true; err = ""
-                    scope.launch {
-                        try {
-                            val name = user.trim()
-                            Api.login(ctx, name, pw)
-                            if (biometricAvailable && activity != null) {
-                                pendingCredentials = name to pw
-                                setupBiometric = true
-                            } else onDone()
-                        } catch (e: Exception) {
-                            err = "Couldn't sign in. Check your username and password."
-                        }
-                        busy = false
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "SEE IT ALL",
+                color = Color(0xFFB9B4C8),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 4.sp
+            )
+            Spacer(Modifier.height(34.dp))
+
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0xCC141323))
+                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
+                    .padding(horizontal = 22.dp, vertical = 26.dp)
+            ) {
+                Text("Welcome back", fontSize = 27.sp, fontWeight = FontWeight.Bold,
+                    color = Color.White)
+                Spacer(Modifier.height(6.dp))
+                Text("Sign in to continue watching", fontSize = 14.sp,
+                    color = Color(0xFFAAA8B8))
+                Spacer(Modifier.height(24.dp))
+
+                OutlinedTextField(
+                    user, { user = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(15.dp),
+                    colors = fieldColors.copy(
+                        focusedContainerColor = Color(0xFF201D30),
+                        unfocusedContainerColor = Color(0xFF1A1828)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    pw, { pw = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    shape = RoundedCornerShape(15.dp),
+                    colors = fieldColors.copy(
+                        focusedContainerColor = Color(0xFF201D30),
+                        unfocusedContainerColor = Color(0xFF1A1828)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (biometricAvailable && hasBiometricLogin) {
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedButton(
+                        enabled = !busy, onClick = { err = ""; showBiometricPrompt(false) },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6682))
+                    ) {
+                        Text("Use fingerprint / face", color = Color(0xFFFF8298),
+                            fontWeight = FontWeight.SemiBold)
                     }
                 }
-            ) { Text(if (busy) "Signing in…" else "Sign In", fontWeight = FontWeight.Bold) }
-            TextButton(onClick = onForgot) { Text("Forgot password?", color = Grey) }
-            if (err.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(err, color = Color(0xFFFF6B6B))
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF557D),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF75405A)
+                    ),
+                    onClick = {
+                        busy = true; err = ""
+                        scope.launch {
+                            try {
+                                val name = user.trim()
+                                Api.login(ctx, name, pw)
+                                if (biometricAvailable && activity != null) {
+                                    pendingCredentials = name to pw
+                                    setupBiometric = true
+                                } else onDone()
+                            } catch (e: Exception) {
+                                err = "Couldn't sign in. Check your username and password."
+                            }
+                            busy = false
+                        }
+                    }
+                ) {
+                    Text(if (busy) "Signing in…" else "Sign In",
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                TextButton(
+                    onClick = onForgot,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text("Forgot password?", color = Color(0xFFB9B4C8))
+                }
+                if (err.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(err, color = Color(0xFFFF8298), fontSize = 13.sp)
+                }
             }
+            Spacer(Modifier.height(24.dp))
+            Text(
+                "PRIVATE ACCESS  •  AUTHORIZED MEMBERS ONLY",
+                color = Color(0xFFAAA6B8),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.5.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "By signing in you accept the terms. Personal, non-commercial viewing only. " +
+                    "Copying, recording, sharing accounts or redistributing content is prohibited.",
+                color = Color(0xFF858294), fontSize = 11.sp, lineHeight = 15.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
-        TextButton(onClick = onSettings, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-            Text("⚙", fontSize = 24.sp, color = Grey)
+        TextButton(
+            onClick = onSettings,
+            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                .clip(RoundedCornerShape(14.dp)).background(Color(0x331C1930))
+        ) {
+            Text("⚙", fontSize = 22.sp, color = Color(0xFFD5D0E2))
         }
-        Text(
-            "DISCLAIMER: Allervue is a private service for authorized members only. " +
-                "Content is provided for personal, non-commercial viewing. Copying, recording, " +
-                "sharing your account or redistributing any content is prohibited. " +
-                "By signing in you accept these terms.",
-            color = Color(0xFF8C8C8C), fontSize = 11.sp, lineHeight = 15.sp,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 20.dp)
-        )
     }
 
     if (setupBiometric) {
