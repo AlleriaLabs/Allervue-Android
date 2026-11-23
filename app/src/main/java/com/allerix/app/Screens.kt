@@ -689,36 +689,181 @@ fun SearchScreen(onOpen: (Item) -> Unit, back: () -> Unit) {
     }
 }
 
-// ------------------------------------------------------------------ my list
+// ------------------------------------------------------------------ my collection
 @Composable
 fun MyListTab(onOpen: (Item) -> Unit, onSettings: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var section by remember { mutableStateOf(0) } // 0 = Saved, 1 = Downloads
     var favs by remember { mutableStateOf<List<Item>>(emptyList()) }
+    var recs by remember { mutableStateOf(Downloads.list(ctx)) }
+    var states by remember { mutableStateOf<Map<String, DlState>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
-    LaunchedEffect(Unit) {
-        favs = runCatching { Api.favorites() }.getOrDefault(emptyList()); loading = false
+    val storage = remember {
+        runCatching {
+            val stat = android.os.StatFs(android.os.Environment.getDataDirectory().absolutePath)
+            val total = stat.totalBytes.toDouble()
+            val free = stat.availableBytes.toDouble()
+            (total - free) to total
+        }.getOrDefault(0.0 to 0.0)
     }
+    LaunchedEffect(Unit) {
+        favs = runCatching { Api.favorites() }.getOrDefault(emptyList())
+        Downloads.ensureCovers(ctx)
+        recs = Downloads.list(ctx)
+        loading = false
+    }
+    LaunchedEffect(recs) {
+        while (true) {
+            states = recs.associate { it.id to Downloads.state(ctx, it) }
+            delay(1000)
+        }
+    }
+    val usedGb = storage.first / 1_000_000_000.0
+    val totalGb = storage.second / 1_000_000_000.0
+    val downloadedBytes = states.values.sumOf { it.done.coerceAtLeast(0L) }
+    val downloadedGb = downloadedBytes / 1_000_000_000.0
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 8.dp),
+                Modifier.fillMaxWidth().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("My List", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text("My Collection", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Your saved titles and offline library", color = Color(0xFFB8AEC4), fontSize = 14.sp)
+                }
                 IconButton(onClick = onSettings) { SmallIcon(R.drawable.ic_settings) }
-                Box(Modifier.size(36.dp).clip(CircleShape).background(Red), contentAlignment = Alignment.Center) {
-                    Text(Api.username.take(1).uppercase().ifEmpty { "A" }, color = Color.White, fontWeight = FontWeight.Bold)
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                    .clip(CircleShape).background(Color(0x55352D47)).padding(4.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                listOf("Saved", "Downloads").forEachIndexed { index, label ->
+                    Box(
+                        Modifier.weight(1f).clip(CircleShape)
+                            .background(if (section == index) Color(0xFFFF4F83) else Color.Transparent)
+                            .clickable { section = index }.padding(vertical = 11.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(label, color = if (section == index) Color(0xFF1A0D1B) else Color(0xFFD0C7D8),
+                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                    }
                 }
             }
-            Box(Modifier.fillMaxSize()) {
-                if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
-                else if (favs.isEmpty()) Text(
-                    "Your list is empty. Tap “+ My List” on any title to save it here.",
-                    color = Grey, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                ) else LazyVerticalGrid(
-                    GridCells.Adaptive(110.dp), contentPadding = PaddingValues(12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(favs, key = { it.id }) { MediaCard(it, Modifier.fillMaxWidth()) { onOpen(it) } }
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                if (section == 1) {
+                    item {
+                        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.size(226.dp), contentAlignment = Alignment.Center) {
+                                Canvas(Modifier.fillMaxSize()) {
+                                    val stroke = 13.dp.toPx()
+                                    drawArc(Color(0x553F3452), -90f, 360f, false,
+                                        style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                                    val fraction = if (storage.second > 0) (storage.first / storage.second).toFloat().coerceIn(0f, 1f) else 0f
+                                    drawArc(Brush.sweepGradient(listOf(Color(0xFFFF8050), Color(0xFF7847F5), Color(0xFF22D6D0), Color(0xFFFF3F83), Color(0xFFFF8050))),
+                                        -90f, fraction * 360f, false,
+                                        style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(if (totalGb > 0) "%.1f GB".format(usedGb) else "—",
+                                        color = Color.White, fontSize = 38.sp, fontWeight = FontWeight.ExtraBold)
+                                    Text(if (totalGb > 0) "of %.0f GB used".format(totalGb) else "Storage unavailable",
+                                        color = Color(0xFFB8AEC4), fontSize = 14.sp)
+                                }
+                            }
+                            Text("On this phone", Modifier.fillMaxWidth().padding(top = 20.dp, bottom = 8.dp),
+                                color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Offline downloads", color = Color(0xFFB8AEC4), fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                Text("%.2f GB".format(downloadedGb), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                    if (recs.isEmpty()) item {
+                        Text("No downloads yet. Open a title and choose Download to watch offline.",
+                            color = Color(0xFFB8AEC4), fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
+                    }
+                    items(recs, key = { it.id }) { rec ->
+                        val st = states[rec.id] ?: DlState(-1, 0L, 0L)
+                        val complete = st.status == android.app.DownloadManager.STATUS_SUCCESSFUL
+                        val running = st.status == android.app.DownloadManager.STATUS_RUNNING ||
+                            st.status == android.app.DownloadManager.STATUS_PENDING
+                        val pct = if (st.total > 0L) (st.done * 100L / st.total).toInt().coerceIn(0, 100) else 0
+                        val cover = rec.cover.isNotEmpty() && File(rec.cover).exists()
+                        Row(Modifier.fillMaxWidth().clickable(enabled = complete) {
+                            ctx.startActivity(Intent(ctx, PlayerActivity::class.java).putExtra("id", rec.id)
+                                .putExtra("file", rec.file).putExtra("title", rec.title))
+                        }.padding(horizontal = 20.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            AsyncImage(if (cover) File(rec.cover) else "${Api.base}/Items/${rec.id}/Images/Primary?maxWidth=300",
+                                rec.title, Modifier.size(82.dp).clip(CircleShape).border(2.dp, Color(0x660B0714), CircleShape),
+                                contentScale = ContentScale.Crop)
+                            Column(Modifier.weight(1f).padding(start = 14.dp, end = 8.dp)) {
+                                Text(rec.title, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                val detail = when {
+                                    complete -> "Film · ${fmtSize(st.done)}"
+                                    running -> "Downloading · $pct% · ${fmtSize(st.done)}"
+                                    st.status == android.app.DownloadManager.STATUS_FAILED -> "Download failed"
+                                    else -> "Waiting for download"
+                                }
+                                Text(detail, color = Color(0xFFB8AEC4), fontSize = 13.sp, maxLines = 1)
+                            }
+                            if (complete) {
+                                Box(Modifier.size(46.dp).clip(CircleShape)
+                                    .background(Brush.linearGradient(listOf(Color(0xFFFF8050), Color(0xFFFF3F83)))),
+                                    contentAlignment = Alignment.Center) { SmallIcon(R.drawable.ic_check, Color(0xFF190C18), 22) }
+                            } else {
+                                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                    CircularProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxSize(),
+                                        color = Color(0xFFFF4F83), trackColor = Color(0x553F3452), strokeWidth = 3.dp)
+                                    Text(if (running) "$pct" else "!", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    item {
+                        Text("Saved for later", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp))
+                    }
+                    if (loading) item { Box(Modifier.fillMaxWidth().padding(30.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Red)
+                    } }
+                    else if (favs.isEmpty()) item {
+                        Text("Your saved collection is empty. Save a movie, show, or anime to find it here.",
+                            color = Color(0xFFB8AEC4), fontSize = 14.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    }
+                    items(favs, key = { it.id }) { item ->
+                        Row(Modifier.fillMaxWidth().clickable { onOpen(item) }.padding(horizontal = 20.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            AsyncImage(Api.poster(item), item.name, Modifier.size(82.dp).clip(CircleShape)
+                                .border(2.dp, Color(0x660B0714), CircleShape), contentScale = ContentScale.Crop)
+                            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                                Text(item.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(listOfNotNull(item.year?.toString(), item.type).joinToString(" · "),
+                                    color = Color(0xFFB8AEC4), fontSize = 13.sp)
+                            }
+                            IconButton(onClick = {
+                                scope.launch {
+                                    runCatching { Api.setFavorite(item.id, false) }
+                                    favs = favs.filterNot { it.id == item.id }
+                                }
+                            }) {
+                                Box(Modifier.size(44.dp).clip(CircleShape)
+                                    .background(Brush.linearGradient(listOf(Color(0xFFFF8050), Color(0xFFFF3F83)))),
+                                    contentAlignment = Alignment.Center) {
+                                    SmallIcon(R.drawable.ic_check, Color(0xFF190C18), 21)
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
