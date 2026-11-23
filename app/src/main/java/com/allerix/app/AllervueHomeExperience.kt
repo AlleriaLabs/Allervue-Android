@@ -191,25 +191,25 @@ internal fun AllervueHome(
             ) {
                 val w = maxWidth
                 val h = maxHeight
-                val nodeSize = (w * .20f).coerceIn(72.dp, 96.dp)
+                val nodeSize = (w * .165f).coerceIn(64.dp, 78.dp)
                 val centerSize = (w * .46f).coerceIn(164.dp, 216.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .51f
-                val outerRadiusX = w * .37f
-                val outerRadiusY = h * .30f
-                val innerRadiusX = w * .27f
-                val innerRadiusY = h * .22f
+                val outerRadiusX = w * .43f
+                val outerRadiusY = h * .31f
+                val innerRadiusX = w * .36f
+                val innerRadiusY = h * .26f
                 visibleOrbitItems.forEachIndexed { index, item ->
                     val angle = Math.toRadians(
-                        (-90.0 + index * (360.0 / orbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
+                        (-90.0 + index * (360.0 / visibleOrbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
                     )
                     val inner = index % 2 == 1
                     val radiusX = if (inner) innerRadiusX else outerRadiusX
                     val radiusY = if (inner) innerRadiusY else outerRadiusY
                     val rawX = orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
                     val rawY = orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
-                    val x = rawX.coerceIn(0.dp, (w - nodeSize - 8.dp).coerceAtLeast(0.dp))
-                    val y = rawY.coerceIn(104.dp, (h - nodeSize - 30.dp).coerceAtLeast(104.dp))
+                    val x = rawX.coerceIn(8.dp, (w - nodeSize - 8.dp).coerceAtLeast(8.dp))
+                    val y = rawY.coerceIn(116.dp, (h - nodeSize - 18.dp).coerceAtLeast(116.dp))
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeSize + 16.dp)
                             .clickable { selected = item },
@@ -222,8 +222,6 @@ internal fun AllervueHome(
                                 .background(Color(0xFF25213A)),
                             contentScale = ContentScale.Crop
                         )
-                        Text(item.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
 
@@ -282,29 +280,9 @@ internal fun AllervueHome(
                 ) { Text("▶", color = Color(0xFF170D1B), fontSize = 25.sp) }
             }
             if (!centerItem?.overview.isNullOrBlank()) {
-                Text(centerItem?.overview.orEmpty(), color = Color(0xFFC7C2D3), fontSize = 12.sp,
-                    lineHeight = 17.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp))
-            }
-            if (related.isNotEmpty()) {
-                LazyRow(
-                    Modifier.padding(top = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(related, key = { it.id }) { item ->
-                        Row(
-                            Modifier.clip(CircleShape).background(Color(0xFF29263F))
-                                .clickable { selected = item }
-                                .padding(horizontal = 13.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(AHot))
-                            Spacer(Modifier.width(8.dp))
-                            Text(item.name, color = Color(0xFFF1EDFA), fontSize = 12.sp, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
+                Text(centerItem?.overview.orEmpty(), color = Color(0xFFC7C2D3), fontSize = 13.sp,
+                    lineHeight = 19.sp, maxLines = 4, overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 10.dp))
             }
         }
     }
