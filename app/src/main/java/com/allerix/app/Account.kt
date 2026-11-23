@@ -58,7 +58,9 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = Red, unfocusedBorderColor = Color(0xFF555555),
         cursorColor = Red, focusedLabelColor = Red, unfocusedLabelColor = Grey,
-        focusedTextColor = Color.White, unfocusedTextColor = Color.White
+        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+        focusedContainerColor = Color(0xFF201D30),
+        unfocusedContainerColor = Color(0xFF1A1828)
     )
 
     fun showBiometricPrompt(encrypt: Boolean) {
@@ -184,10 +186,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                     label = { Text("Username") },
                     singleLine = true,
                     shape = RoundedCornerShape(15.dp),
-                    colors = fieldColors.copy(
-                        focusedContainerColor = Color(0xFF201D30),
-                        unfocusedContainerColor = Color(0xFF1A1828)
-                    ),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(14.dp))
@@ -197,10 +196,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     shape = RoundedCornerShape(15.dp),
-                    colors = fieldColors.copy(
-                        focusedContainerColor = Color(0xFF201D30),
-                        unfocusedContainerColor = Color(0xFF1A1828)
-                    ),
+                    colors = fieldColors,
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (biometricAvailable && hasBiometricLogin) {
