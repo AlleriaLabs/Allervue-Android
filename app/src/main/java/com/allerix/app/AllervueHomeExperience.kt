@@ -20,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -158,8 +159,34 @@ internal fun AllervueHome(
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
     Column(
-        Modifier.fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF32191F), Color(0xFF17152D), Color(0xFF071F27))))
+        Modifier.fillMaxSize().drawBehind {
+            drawRect(Brush.verticalGradient(listOf(Color(0xFF32191F), Color(0xFF17152D), Color(0xFF071F27))))
+            // Ambient lighting drifts across the entire Home surface, including
+            // the lower information area. Motion is slow and continuous, never flashing.
+            val phase = Math.toRadians((automaticRotation * .38f).toDouble())
+            val ambientA = androidx.compose.ui.geometry.Offset(
+                size.width * (.5f + kotlin.math.cos(phase).toFloat() * .22f),
+                size.height * (.48f + kotlin.math.sin(phase).toFloat() * .20f)
+            )
+            val ambientB = androidx.compose.ui.geometry.Offset(
+                size.width * (.5f + kotlin.math.cos(phase + 2.5).toFloat() * .30f),
+                size.height * (.55f + kotlin.math.sin(phase + 2.5).toFloat() * .24f)
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color(0xFF42C6D0).copy(alpha = .18f), Color.Transparent),
+                    center = ambientA, radius = size.maxDimension * .72f
+                ),
+                radius = size.maxDimension * .72f, center = ambientA
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    listOf(Color(0xFF9A62B8).copy(alpha = .16f), Color.Transparent),
+                    center = ambientB, radius = size.maxDimension * .66f
+                ),
+                radius = size.maxDimension * .66f, center = ambientB
+            )
+        }
     ) {
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Canvas(Modifier.fillMaxSize()) {
@@ -357,7 +384,7 @@ internal fun AllervueHome(
         Column(
             Modifier.fillMaxWidth().height(254.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF19162F), APanel)))
+                .background(Brush.verticalGradient(listOf(Color(0xF219162F), Color(0xE617152C))))
                 .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 14.dp)
         ) {
             Row(
