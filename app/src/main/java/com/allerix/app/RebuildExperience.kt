@@ -256,16 +256,19 @@ private fun RebuildCatalog(
     LaunchedEffect(type) {
         loading = true
         entries = when (type) {
-            "Anime" -> {
-                val movies = runCatching { Api.byType("Movie") }.getOrDefault(emptyList())
-                val series = runCatching { Api.byType("Series") }.getOrDefault(emptyList())
-                (movies + series).filter { item ->
-                    (item.genres.orEmpty() + item.tags.orEmpty()).any {
-                        it.equals("Anime", ignoreCase = true) || it.contains("Anime", ignoreCase = true)
-                    }
-                }.distinctBy { it.id }
-            }
-            else -> runCatching { Api.byType(type) }.getOrDefault(emptyList())
+            "Movie" -> runCatching {
+                Api.libraryItems(
+                    listOf("Jellyfin Movies Library", "Jellyfin Kid's Movies Library"),
+                    listOf("Movie")
+                )
+            }.getOrDefault(emptyList())
+            "Series" -> runCatching {
+                Api.libraryItems(listOf("Jellyfin Series Library"), listOf("Series"))
+            }.getOrDefault(emptyList())
+            "Anime" -> runCatching {
+                Api.libraryItems(listOf("Jellyfin Anime Library"), listOf("Movie", "Series"))
+            }.getOrDefault(emptyList())
+            else -> emptyList()
         }
         loading = false
     }
