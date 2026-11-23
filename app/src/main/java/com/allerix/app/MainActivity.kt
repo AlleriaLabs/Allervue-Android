@@ -35,8 +35,7 @@ enum class NavTab(val label: String, val icon: Int) {
     HOME("Home", R.drawable.ic_nav_home),
     MOVIES("Movies", R.drawable.ic_nav_movie),
     SHOWS("TV Shows", R.drawable.ic_nav_tv),
-    LIST("My List", R.drawable.ic_nav_star),
-    DOWNLOADS("Downloads", R.drawable.ic_nav_download)
+    LIST("My Collection", R.drawable.ic_nav_star)
 }
 
 sealed class Nav {
@@ -191,7 +190,6 @@ fun MainShell(onLogout: () -> Unit) {
                     NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings)
                     NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true)
                     NavTab.LIST -> MyListTab(onOpen, onSettings = openSettings)
-                    NavTab.DOWNLOADS -> DownloadsTab(openSettings)
                 }
                 is Nav.Grid -> key(top) { GridScreen(top.item, onOpen, back) }
                 is Nav.Detail -> key(top) { DetailScreen(top.item, onOpen, onPlay, back) }
