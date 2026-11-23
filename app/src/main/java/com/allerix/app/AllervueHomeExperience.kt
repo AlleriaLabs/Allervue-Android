@@ -260,7 +260,7 @@ internal fun AllervueHome(
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Fit
-                        }
+                        )
                     }
 
                 } else if (loading) {
