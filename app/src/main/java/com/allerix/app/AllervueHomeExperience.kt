@@ -223,10 +223,11 @@ internal fun AllervueHome(
             ) {
                 val w = maxWidth
                 val h = maxHeight
-                val nodeSize = (w * .165f).coerceIn(64.dp, 78.dp)
+                val nodeSize = (w * .14f).coerceIn(54.dp, 66.dp)
+                val nodeOuterSize = nodeSize + 8.dp
                 val centerSize = (w * .56f).coerceIn(196.dp, 252.dp)
                 val orbitCenterX = w * .5f
-                val orbitCenterY = h * .51f
+                val orbitCenterY = h * .50f
                 // Every artwork node follows the same fixed elliptical orbit.
                 // No alternating radii or per-node clamping: those caused circles
                 // to jump between tracks and bunch up at the screen edges.
@@ -241,9 +242,9 @@ internal fun AllervueHome(
                         val baseAngle = -90f + slot * (360f / count)
                         val phaseJitter = kotlin.random.Random.nextFloat() * 34f - 17f
                         val radiusX = (w * (.25f + kotlin.random.Random.nextFloat() * .18f))
-                            .coerceAtMost((w - nodeSize) / 2 - 6.dp)
+                            .coerceAtMost((w - nodeOuterSize) / 2 - 6.dp)
                         val radiusY = (h * (.13f + kotlin.random.Random.nextFloat() * .20f))
-                            .coerceAtMost((h - nodeSize) / 2 - 12.dp)
+                            .coerceAtMost((h - nodeOuterSize) / 2 - 12.dp)
                         val speed = .65f + kotlin.random.Random.nextFloat() * .7f
                         Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
                     }
@@ -255,17 +256,17 @@ internal fun AllervueHome(
                     )
                     val radiusX = lane.second.x.dp
                     val radiusY = lane.second.y.dp
-                    val x = (orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2)
-                        .coerceIn(6.dp, (w - nodeSize - 6.dp).coerceAtLeast(6.dp))
-                    val y = (orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2)
-                        .coerceIn(112.dp, (h - nodeSize - 10.dp).coerceAtLeast(112.dp))
+                    val x = (orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeOuterSize / 2)
+                        .coerceIn(6.dp, (w - nodeOuterSize - 6.dp).coerceAtLeast(6.dp))
+                    val y = (orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeOuterSize / 2)
+                        .coerceIn(112.dp, (h - nodeOuterSize - 10.dp).coerceAtLeast(112.dp))
                     Column(
-                        Modifier.offset(x = x, y = y).width(nodeSize + 16.dp)
+                        Modifier.offset(x = x, y = y).width(nodeOuterSize)
                             .clickable { selected = item; synchronizedCycle++ },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
-                            Modifier.size(nodeSize + 10.dp).clip(CircleShape)
+                            Modifier.size(nodeOuterSize).clip(CircleShape)
                                 .background(Brush.linearGradient(listOf(Color(0xFF63D8DE), Color(0xFF9B6AB5), Color(0xFFFF7B86))))
                                 .padding(2.dp)
                         ) {
@@ -282,7 +283,10 @@ internal fun AllervueHome(
 
                 if (centerItem != null) {
                     Box(
-                        Modifier.offset(x = (w - centerSize) / 2 - 7.dp, y = h * .34f - 7.dp)
+                        Modifier.offset(
+                            x = orbitCenterX - (centerSize + 14.dp) / 2,
+                            y = orbitCenterY - (centerSize + 14.dp) / 2
+                        )
                             .size(centerSize + 14.dp).clip(CircleShape)
                             .background(Brush.linearGradient(listOf(Color(0xFF74E0E1), Color(0xFFAB75C4), Color(0xFFFF8A8A))))
                             .padding(3.dp)
