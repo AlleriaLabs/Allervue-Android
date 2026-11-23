@@ -1155,6 +1155,18 @@ private fun RebuildSettingsScreen(
 }
 
 @Composable
+private fun RebuildSectionLabel(text: String) {
+    Text(
+        text = text,
+        color = VCyan,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.4.sp,
+        modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 18.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
 private fun RebuildSettingRow(title: String, description: String, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 4.dp).clip(RoundedCornerShape(13.dp))
         .background(MaterialTheme.colorScheme.surface).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 15.dp),
