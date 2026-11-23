@@ -7,7 +7,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -98,6 +98,9 @@ internal fun AllervueHome(
     var loading by remember { mutableStateOf(true) }
     var failure by remember { mutableStateOf(false) }
     val orbitRotation = remember { mutableFloatStateOf(0f) }
+    val orbitZoom = remember { mutableFloatStateOf(1f) }
+    // Start with four visible planets; pinch outward reveals the full six-planet system.
+    val visiblePlanetCount = (6 - (((orbitZoom.floatValue - .72f) / (1.28f - .72f)) * 4f).toInt()).coerceIn(2, 6)
     var deviceHour by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -329,7 +332,7 @@ internal fun AllervueHome(
                         Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
                     }
                 }
-                visibleOrbitItems.forEachIndexed { index, item ->
+                visibleOrbitItems.take(visiblePlanetCount).forEachIndexed { index, item ->
                     val lane = orbitSlots[index]
                     val nodeSize = planetSizes[index % planetSizes.size]
                     val nodeOuterSize = nodeSize + 8.dp
