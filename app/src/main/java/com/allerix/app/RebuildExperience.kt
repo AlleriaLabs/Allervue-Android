@@ -645,13 +645,18 @@ private fun RebuildCollection(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
 @Composable
 private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHeader: Boolean = true) {
     var savedItems by remember { mutableStateOf(emptyList<Item>()) }
+    var animeLibraryIds by remember { mutableStateOf(emptySet<String>()) }
     var loading by remember { mutableStateOf(true) }
     var filter by remember { mutableStateOf("All") }
-    LaunchedEffect(Unit) { savedItems=runCatching { Api.favorites() }.getOrDefault(emptyList()); loading=false }
+    LaunchedEffect(Unit) {
+        savedItems = runCatching { Api.favorites() }.getOrDefault(emptyList())
+        animeLibraryIds = runCatching { Api.views().filter { it.name.equals("Jellyfin Anime Library", true) }.map { it.id }.toSet() }.getOrDefault(emptySet())
+        loading = false
+    }
     val visible = when(filter) {
         "Films" -> savedItems.filter { it.type=="Movie" }
         "Series" -> savedItems.filter { it.type=="Series" }
-        "Anime" -> savedItems.filter { (it.genres.orEmpty()+it.tags.orEmpty()).any { tag -> tag.contains("anime",true) } }
+        "Anime" -> savedItems.filter { it.parentId in animeLibraryIds || (it.genres.orEmpty()+it.tags.orEmpty()).any { tag -> tag.contains("anime",true) } }
         else -> savedItems
     }
     Column(Modifier.fillMaxSize()) {
