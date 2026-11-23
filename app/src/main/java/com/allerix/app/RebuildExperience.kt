@@ -37,6 +37,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.PI
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -773,8 +776,10 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
         item = runCatching { Api.item(base.id) }.getOrDefault(base)
         if (base.type == "Series") {
             seasons = runCatching { Api.children(base.id) }.getOrDefault(emptyList()).filter { it.type == "Season" }
-            if (seasons.isNotEmpty()) episodes = runCatching { Api.children(seasons.first().id) }.getOrDefault(emptyList())
-        } else if (base.type == "Season") episodes = runCatching { Api.children(base.id) }.getOrDefault(emptyList())
+            if (seasons.size == 1) episodes = runCatching { Api.children(seasons.first().id) }.getOrDefault(emptyList())
+        } else if (base.type == "Season") {
+            episodes = runCatching { Api.children(base.id) }.getOrDefault(emptyList())
+        }
         similar = runCatching { Api.similar(base.id) }.getOrDefault(emptyList())
     }
 
@@ -788,6 +793,15 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
     val position = item.userData?.positionTicks ?: 0L
     val progress = if (total > 0L) (position.toFloat() / total).coerceIn(0f, 1f) else 0f
     val remaining = if (total > 0L && position > 0L && position < total) fmtRuntime(total - position) else ""
+    // Orbit nodes represent actual seasons or episodes, never decorative placeholders.
+    // A multi-season series shows seasons; a single-season series shows its episodes.
+    val orbitItems = when {
+        base.type == "Series" && seasons.size > 1 -> seasons
+        base.type == "Series" -> episodes
+        base.type == "Season" -> episodes
+        else -> emptyList()
+    }
+    val showOrbit = orbitItems.size > 1
 
     Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF35151D), Color(0xFF28143A), Color(0xFF0B2028), Color(0xFF080A11))))) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
@@ -799,24 +813,36 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                     Canvas(Modifier.fillMaxSize()) {
                         val cx = size.width / 2f; val cy = size.height / 2f
                         val r = size.minDimension * .405f
-                        drawCircle(Color(0x557F8CA9), r, Offset(cx, cy), style = Stroke(1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 13f))))
-                        drawCircle(Color(0x227F8CA9), r * .76f, Offset(cx, cy), style = Stroke(1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 15f))))
+                        if (showOrbit) {
+                            drawCircle(Color(0x557F8CA9), r, Offset(cx, cy), style = Stroke(1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 13f))))
+                            drawCircle(Color(0x227F8CA9), r * .76f, Offset(cx, cy), style = Stroke(1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 15f))))
+                        }
                         drawArc(Color(0xFFFF477F), -82f, if (progress > 0f) 42f + progress * 30f else 58f, false,
                             Offset(cx-r, cy-r), Size(r*2f, r*2f), style = Stroke(4.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
                         listOf(Offset(size.width*.12f,size.height*.20f),Offset(size.width*.84f,size.height*.16f),
                             Offset(size.width*.91f,size.height*.72f),Offset(size.width*.16f,size.height*.82f),Offset(size.width*.51f,size.height*.07f))
                             .forEach { drawCircle(Color(0x997F9AB4),1.7f,it) }
                     }
-                    val satellites = listOf(Triple(0.dp,(-142).dp,0),Triple(101.dp,(-101).dp,1),Triple(142.dp,0.dp,2),
-                        Triple(101.dp,101.dp,3),Triple(0.dp,142.dp,4),Triple((-101).dp,101.dp,5),Triple((-142).dp,0.dp,6),Triple((-101).dp,(-101).dp,7))
-                    satellites.forEach { (x,y,n) ->
-                        val active = n == 0
-                        val current = n == 1 && progress > 0f
-                        Box(Modifier.offset(x,y).size(if(active)44.dp else 42.dp).clip(CircleShape)
-                            .background(if(active) Brush.linearGradient(listOf(Color(0xFFFF8150),Color(0xFFFF347E))) else Brush.linearGradient(listOf(Color(0x662B2037),Color(0x55302748))))
-                            .border(if(current)2.dp else 1.dp,if(current)Color(0xFFFF3982) else Color(0x667F829A),CircleShape),contentAlignment=Alignment.Center) {
-                            if(current) Box(Modifier.fillMaxSize().padding(4.dp).border(1.dp,Color(0xFFFF3982),CircleShape))
-                            Text("${n+1}",color=if(active)Color(0xFF190C18) else Color.White,fontSize=14.sp,fontWeight=FontWeight.Bold)
+                    if (showOrbit) {
+                        orbitItems.forEachIndexed { index, orbitItem ->
+                            val angle = (index.toDouble() / orbitItems.size.toDouble()) * 2.0 * PI - PI / 2.0
+                            val x = (cos(angle) * 142.0).toFloat().dp
+                            val y = (sin(angle) * 142.0).toFloat().dp
+                            val isCurrent = orbitItem.userData?.played == true ||
+                                (orbitItem.userData?.positionTicks ?: 0L) > 0L
+                            Box(
+                                Modifier.offset(x, y).size(42.dp).clip(CircleShape)
+                                    .background(
+                                        if (isCurrent) Brush.linearGradient(listOf(Color(0xFFFF8150), Color(0xFFFF347E)))
+                                        else Brush.linearGradient(listOf(Color(0x662B2037), Color(0x55302748)))
+                                    )
+                                    .border(if (isCurrent) 2.dp else 1.dp,
+                                        if (isCurrent) Color(0xFFFF3982) else Color(0x667F829A), CircleShape)
+                                    .clickable { onOpen(orbitItem) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("${index + 1}", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                     Box(Modifier.size(204.dp).clip(CircleShape).background(Color(0xFF171325)).border(3.dp,Color(0xAA9A688E),CircleShape)) {
@@ -997,3 +1023,4 @@ private fun RebuildSettingRow(title: String, description: String, onClick: () ->
         Text("›", color = VCyan, fontSize = 24.sp)
     }
 }
+
