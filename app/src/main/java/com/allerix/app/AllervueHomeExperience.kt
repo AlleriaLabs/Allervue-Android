@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 
 private val AAccent = AllervueDesign.Cyan
@@ -48,7 +49,13 @@ private fun HomeArtwork(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop
 ) {
-    val painter = rememberAsyncImagePainter(model = model)
+    val imageRequest = remember(model, context) {
+        ImageRequest.Builder(context)
+            .data(model)
+            .crossfade(550)
+            .build()
+    }
+    val painter = rememberAsyncImagePainter(model = imageRequest)
     Box(modifier, contentAlignment = Alignment.Center) {
         Image(painter = painter, contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(), contentScale = contentScale)
@@ -189,7 +196,7 @@ internal fun AllervueHome(
                 val w = maxWidth
                 val h = maxHeight
                 val nodeSize = (w * .165f).coerceIn(64.dp, 78.dp)
-                val centerSize = (w * .46f).coerceIn(164.dp, 216.dp)
+                val centerSize = (w * .56f).coerceIn(196.dp, 252.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .51f
                 // Every artwork node follows the same fixed elliptical orbit.
@@ -241,9 +248,9 @@ internal fun AllervueHome(
 
                 if (centerItem != null) {
                     Box(
-                        Modifier.offset(x = (w - centerSize) / 2, y = h * .40f)
+                        Modifier.offset(x = (w - centerSize) / 2, y = h * .34f)
                             .size(centerSize).clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(0xFF7C3F88), Color(0xFFFF704D), Color(0xFF211238))))
+                            .background(Color(0xFF100E20))
                             .border(1.5.dp, Color.White.copy(alpha = .62f), CircleShape)
                             .clickable { onOpen(centerItem) }
                     ) {
@@ -251,15 +258,8 @@ internal fun AllervueHome(
                             model = Api.backdrop(centerItem),
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
-                        )
-                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x220A0712), Color(0xC90A0712)))))
-                        Box(Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-                            Text(centerItem.name.uppercase(), color = Color.White, fontSize = 19.sp, lineHeight = 22.sp,
-                                fontWeight = FontWeight.ExtraBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                maxLines = 3, overflow = TextOverflow.Ellipsis)
+                            contentScale = ContentScale.Fit
                         }
-                        Box(Modifier.fillMaxSize().clip(CircleShape).background(Color.Transparent).then(Modifier))
                     }
 
                 } else if (loading) {
@@ -274,7 +274,7 @@ internal fun AllervueHome(
             Modifier.fillMaxWidth().height(238.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                 .background(Brush.verticalGradient(listOf(Color(0xFF19162F), APanel)))
-                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 14.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 14.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth().height(78.dp),
@@ -301,7 +301,7 @@ internal fun AllervueHome(
             }
             // Reserve the synopsis slot even when an item has no description so
             // the panel geometry never shifts between featured titles.
-            Text(centerItem?.overview.orEmpty(), Modifier.fillMaxWidth().height(82.dp).padding(top = 8.dp),
+            Text(centerItem?.overview.orEmpty(), Modifier.fillMaxWidth().height(70.dp).padding(top = 6.dp),
                 color = Color(0xFFC7C2D3), fontSize = 13.sp, lineHeight = 18.sp,
                 maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
