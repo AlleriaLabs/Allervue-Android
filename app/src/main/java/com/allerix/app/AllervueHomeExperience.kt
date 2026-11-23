@@ -49,6 +49,7 @@ private fun HomeArtwork(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop
 ) {
+    val context = LocalContext.current
     val imageRequest = remember(model, context) {
         ImageRequest.Builder(context)
             .data(model)
