@@ -731,8 +731,6 @@ fun MyListTab(onOpen: (Item) -> Unit, onSettings: () -> Unit) {
     val usedBytes = (storage.first - storage.second).coerceAtLeast(0L)
     val usedGb = usedBytes / 1_000_000_000.0
     val totalGb = storage.first / 1_000_000_000.0
-    val downloadedBytes = states.values.sumOf { it.done.coerceAtLeast(0L) }
-    val downloadedGb = downloadedBytes / 1_000_000_000.0
 
     LaunchedEffect(Unit) {
         favs = runCatching { Api.favorites() }.getOrDefault(emptyList())
@@ -897,12 +895,7 @@ fun MyListTab(onOpen: (Item) -> Unit, onSettings: () -> Unit) {
                         Text("On this phone", color = Color.White, fontSize = 21.sp,
                             fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth()
                                 .padding(top = 24.dp, bottom = 12.dp))
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Offline downloads", color = Color(0xFF9296A5), fontSize = 13.sp,
-                                modifier = Modifier.weight(1f))
-                            Text("%.2f GB".format(downloadedGb), color = Color.White,
-                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
+
                     }
                 }
                 if (recs.isEmpty()) {
