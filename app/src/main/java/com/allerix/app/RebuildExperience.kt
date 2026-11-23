@@ -226,50 +226,325 @@ private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
 }
 
 @Composable
-private fun RebuildCatalog(title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit, modifier: Modifier = Modifier) {
+private fun RebuildCatalog(
+    title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
     var entries by remember(type) { mutableStateOf(emptyList<Item>()) }
     var loading by remember(type) { mutableStateOf(true) }
+    var query by remember(type) { mutableStateOf("") }
+    var view by remember(type) { mutableStateOf("Grid") }
     var filter by remember(type) { mutableStateOf("All") }
+    var sortExpanded by remember { mutableStateOf(false) }
+    var sort by remember(type) { mutableStateOf("A–Z") }
+    var genre by remember(type) { mutableStateOf("All") }
+    var genreExpanded by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+
     LaunchedEffect(type) {
         loading = true
-        entries = if (type == "Anime") {
-            val movies = runCatching { Api.byType("Movie") }.getOrDefault(emptyList())
-            val series = runCatching { Api.byType("Series") }.getOrDefault(emptyList())
-            (movies + series).filter { item ->
-                item.genres.orEmpty().any { genre ->
-                    genre.equals("Anime", ignoreCase = true) || genre.contains("Anime", ignoreCase = true)
-                }
-            }.distinctBy { it.id }
-        } else runCatching { Api.byType(type) }.getOrDefault(emptyList())
+        entries = when (type) {
+            "Anime" -> {
+                val movies = runCatching { Api.byType("Movie") }.getOrDefault(emptyList())
+                val series = runCatching { Api.byType("Series") }.getOrDefault(emptyList())
+                (movies + series).filter { item ->
+                    (item.genres.orEmpty() + item.tags.orEmpty()).any {
+                        it.equals("Anime", ignoreCase = true) || it.contains("Anime", ignoreCase = true)
+                    }
+                }.distinctBy { it.id }
+            }
+            else -> runCatching { Api.byType(type) }.getOrDefault(emptyList())
+        }
         loading = false
     }
-    val filtered = when (filter) {
-        "Unwatched" -> entries.filter { it.userData?.isPlayed != true }
-        "Watched" -> entries.filter { it.userData?.isPlayed == true }
-        "Recently added" -> entries.sortedByDescending { it.year ?: 0 }
-        else -> entries
+
+    val genres = remember(entries) {
+        entries.flatMap { it.genres.orEmpty() }.filter { it.isNotBlank() }
+            .distinct().sorted()
     }
-    Column(modifier.fillMaxSize()) {
-        RebuildHeader(title, "${filtered.size} titles in your library", onSearch)
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("All", "Unwatched", "Watched", "Recently added").forEach { label ->
-                val selected = filter == label
-                Text(label, color = if (selected) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
-                    modifier = Modifier.clip(CircleShape).background(if (selected) VCyan else MaterialTheme.colorScheme.surface)
-                        .clickable { filter = label }.padding(horizontal = 13.dp, vertical = 8.dp))
+    val filtered = remember(entries, query, filter, genre, sort, type) {
+        val base = entries.filter { item ->
+            val matchesQuery = query.isBlank() || item.name.contains(query.trim(), ignoreCase = true)
+            val matchesWatched = when (filter) {
+                "Unwatched" -> item.userData?.isPlayed != true
+                "Watched" -> item.userData?.isPlayed == true
+                else -> true
             }
+            val matchesKind = when (filter) {
+                "Series" -> item.type == "Series"
+                "Films" -> item.type == "Movie"
+                else -> true
+            }
+            val matchesGenre = genre == "All" || item.genres.orEmpty().any { it.equals(genre, true) }
+            matchesQuery && matchesWatched && matchesKind && matchesGenre
         }
-        if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
-        else if (filtered.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Nothing here yet", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else LazyVerticalGrid(
-            columns = GridCells.Fixed(2), modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(filtered.size, key = { filtered[it].id }) { index ->
-                val item = filtered[index]
-                AllervueCatalogCard(item, index + 1, onClick = { onOpen(item) })
+        when (sort) {
+            "Z–A" -> base.sortedByDescending { it.name.lowercase() }
+            "Year" -> base.sortedByDescending { it.year ?: 0 }
+            "Recently added" -> base.sortedByDescending { it.year ?: 0 }
+            else -> base.sortedBy { it.name.lowercase() }
+        }
+    }
+    val groups = remember(filtered) {
+        filtered.groupBy { item -> item.name.firstOrNull()?.uppercaseChar()?.toString() ?: "#" }
+            .toSortedMap()
+    }
+    val letters = groups.keys.toList()
+    val gridIndex = { letter: String ->
+        groups.keys.takeWhile { it != letter }.sumOf { 1 + (groups[it]?.size ?: 0) }
+    }
+    val listIndex = gridIndex
+
+    Box(
+        modifier.fillMaxSize().background(
+            Brush.linearGradient(
+                listOf(Color(0xFF351329), Color(0xFF24143A), Color(0xFF071C25), Color(0xFF080A10))
+            )
+        )
+    ) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = query, onValueChange = { query = it },
+                    modifier = Modifier.weight(1f).height(54.dp),
+                    singleLine = true, placeholder = { Text("Search ${entries.size} titles", color = Color(0xFF9B91A2)) },
+                    leadingIcon = { Text("⌕", color = Color.White, fontSize = 25.sp) },
+                    shape = RoundedCornerShape(28.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Color(0xFFB58AB8), unfocusedBorderColor = Color(0x66D6BBD6),
+                        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+                        cursorColor = Color(0xFFFF657D)
+                    )
+                )
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    Modifier.size(48.dp).clip(CircleShape).background(Color(0x44251B31))
+                        .clickable { onSearch() }, contentAlignment = Alignment.Center
+                ) { Text("☷", color = Color.White, fontSize = 25.sp) }
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(78.dp).clip(CircleShape)
+                        .background(Brush.sweepGradient(listOf(Color(0xFFFE4F83), Color(0xFF8B5CFF), Color(0xFFFFB24A), Color(0xFFFE4F83)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(Modifier.size(58.dp).clip(CircleShape).background(Color(0xFFFFE8C6)))
+                }
+                Column(Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text(title, color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("${entries.size} titles", color = Color(0xFFBEB3C6), fontSize = 14.sp)
+                }
+                Box {
+                    Row(
+                        Modifier.clip(CircleShape).background(Color(0x332E253A))
+                            .clickable { sortExpanded = true }
+                            .padding(horizontal = 17.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(sort, color = Color.White, fontSize = 14.sp)
+                        Text(" ⌄", color = Color.White, fontSize = 18.sp)
+                    }
+                    DropdownMenu(expanded = sortExpanded, onDismissRequest = { sortExpanded = false }) {
+                        listOf("A–Z", "Z–A", "Year", "Recently added").forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = { sort = option; sortExpanded = false })
+                        }
+                    }
+                }
+            }
+
+            val filters = when (type) {
+                "Anime" -> listOf("Unwatched", "Series", "Films", "Mood")
+                "Movie" -> listOf("Unwatched", "Films", "Mood")
+                else -> listOf("Unwatched", "Series", "Mood")
+            }
+            Row(
+                Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 2.dp, bottom = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filters.forEach { label ->
+                    val selected = when (label) {
+                        "Mood" -> genre != "All"
+                        else -> filter == label
+                    }
+                    Box {
+                        Box(
+                            Modifier.clip(CircleShape)
+                                .background(if (selected) Brush.horizontalGradient(listOf(Color(0xFFFF794E), Color(0xFFFF397C))) else Brush.horizontalGradient(listOf(Color(0x332D243B), Color(0x332D243B))))
+                                .clickable {
+                                    if (label == "Mood") genreExpanded = true
+                                    else filter = if (filter == label) "All" else label
+                                }
+                                .padding(horizontal = 19.dp, vertical = 12.dp)
+                        ) {
+                            Text(if (label == "Mood" && genre != "All") genre else label,
+                                color = if (selected) Color(0xFF170C16) else Color.White, fontSize = 14.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
+                        }
+                        DropdownMenu(expanded = genreExpanded && label == "Mood", onDismissRequest = { genreExpanded = false }) {
+                            (listOf("All") + genres).forEach { g ->
+                                DropdownMenuItem(text = { Text(g) }, onClick = { genre = g; genreExpanded = false })
+                            }
+                        }
+                    }
+                }
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Showing ${filtered.size} of ${entries.size}", color = Color(0xFFBEB3C6), fontSize = 13.sp)
+                Spacer(Modifier.weight(1f))
+                Text("Clear", color = Color(0xFFFF9A9C), fontSize = 13.sp,
+                    modifier = Modifier.clickable { query = ""; filter = "All"; genre = "All"; sort = "A–Z" })
+            }
+
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                if (loading) {
+                    CircularProgressIndicator(Modifier.align(Alignment.Center), color = Color(0xFFFF5A79))
+                } else if (filtered.isEmpty()) {
+                    Text("No titles match these filters", color = Color(0xFFBEB3C6),
+                        modifier = Modifier.align(Alignment.Center))
+                } else if (view == "Grid") {
+                    LazyVerticalGrid(
+                        state = gridState, columns = GridCells.Fixed(3),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 48.dp, top = 8.dp, bottom = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        groups.forEach { (letter, itemsForLetter) ->
+                            item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }, key = "header-$letter") {
+                                Row(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(34.dp).clip(CircleShape)
+                                        .background(Brush.horizontalGradient(listOf(Color(0xFFFF754D), Color(0xFFFF3E80)))),
+                                        contentAlignment = Alignment.Center) {
+                                        Text(letter, color = Color(0xFF210D19), fontWeight = FontWeight.Bold)
+                                    }
+                                    Text("  ${itemsForLetter.size} titles", color = Color(0xFFBEB3C6), fontSize = 12.sp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Box(Modifier.weight(1f).height(1.dp).background(Color(0x338F7A98)))
+                                }
+                            }
+                            items(itemsForLetter, key = { it.id }) { item ->
+                                Column(Modifier.fillMaxWidth().clickable { onOpen(item) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.fillMaxWidth().aspectRatio(1f).clip(CircleShape)
+                                        .background(Color(0xFF152B3A))) {
+                                        AsyncImage(Api.poster(item), null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                                        val progress = item.userData?.playedPercentage?.toFloat() ?: 0f
+                                        if (progress in 0.1f..99.9f) {
+                                            CircularProgressIndicator(progress = { progress / 100f },
+                                                modifier = Modifier.fillMaxSize().padding(2.dp), color = Color(0xFFFF5A83),
+                                                trackColor = Color.Transparent, strokeWidth = 3.dp)
+                                        }
+                                    }
+                                    Text(item.name, color = Color(0xFFF5F0F8), fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.padding(top = 6.dp))
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        state = listState, modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 18.dp, end = 48.dp, top = 6.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        groups.forEach { (letter, itemsForLetter) ->
+                            item(key = "header-$letter") {
+                                Row(Modifier.fillMaxWidth().padding(top = 5.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(Modifier.size(34.dp).clip(CircleShape)
+                                        .background(Brush.horizontalGradient(listOf(Color(0xFFFF754D), Color(0xFFFF3E80)))),
+                                        contentAlignment = Alignment.Center) {
+                                        Text(letter, color = Color(0xFF210D19), fontWeight = FontWeight.Bold)
+                                    }
+                                    Text("  ${itemsForLetter.size} titles", color = Color(0xFFBEB3C6), fontSize = 12.sp)
+                                    Spacer(Modifier.width(12.dp))
+                                    Box(Modifier.weight(1f).height(1.dp).background(Color(0x338F7A98)))
+                                }
+                            }
+                            items(itemsForLetter, key = { it.id }) { item ->
+                                Row(
+                                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp))
+                                        .clickable { onOpen(item) }.padding(vertical = 7.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(Modifier.size(82.dp).clip(CircleShape).background(Color(0xFF152B3A))) {
+                                        AsyncImage(Api.poster(item), null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                                    }
+                                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                                        Text(item.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(listOfNotNull(if (item.type == "Series") "Series" else "Film",
+                                            item.year?.toString(), if ((item.runTimeTicks ?: 0L) > 0) fmtRuntime(item.runTimeTicks) else null)
+                                            .joinToString(" · "), color = Color(0xFFBEB3C6), fontSize = 12.sp)
+                                    }
+                                    Box(Modifier.size(46.dp).clip(CircleShape)
+                                        .background(Color(0x332E2944)), contentAlignment = Alignment.Center) {
+                                        Text("▶", color = Color.White, fontSize = 17.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (letters.isNotEmpty()) {
+                    Column(
+                        Modifier.align(Alignment.CenterEnd).padding(end = 7.dp)
+                            .clip(CircleShape).background(Color(0x33221D32)).padding(vertical = 7.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        letters.take(26).forEach { letter ->
+                            Text(letter, color = Color(0xFFBDB1C7), fontSize = 9.sp,
+                                modifier = Modifier.clickable {
+                                    scope.launch {
+                                        val index = if (view == "Grid") gridIndex(letter) else listIndex(letter)
+                                        if (view == "Grid") gridState.animateScrollToItem(index)
+                                        else listState.animateScrollToItem(index)
+                                    }
+                                }.padding(vertical = 2.dp, horizontal = 3.dp))
+                        }
+                    }
+                }
+            }
+
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(32.dp)).background(Color(0xE61A1429))
+                    .padding(7.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp)
+            ) {
+                listOf("List", "Grid").forEach { mode ->
+                    val active = view == mode
+                    Box(
+                        Modifier.weight(1f).clip(CircleShape)
+                            .background(if (active) Brush.horizontalGradient(listOf(Color(0xFFFF784F), Color(0xFFFF3D7E))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                            .clickable { view = mode }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(if (mode == "List") "☰  List" else "▦  Grid",
+                            color = if (active) Color(0xFF1C0C19) else Color.White,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
+                    }
+                }
+                Box(
+                    Modifier.weight(1.5f).clip(CircleShape).background(Color(0x332E2944))
+                        .clickable { filtered.randomOrNull()?.let(onOpen) }.padding(vertical = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) { Text("↗  Surprise me", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
     }
