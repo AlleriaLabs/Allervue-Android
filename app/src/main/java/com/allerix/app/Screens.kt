@@ -754,7 +754,35 @@ fun MyListTab(onOpen: (Item) -> Unit, onSettings: () -> Unit) {
         else -> favs.filter { it.type != "Episode" }
     }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF090A0E))) {
+    Box(Modifier.fillMaxSize().background(Color(0xFF080B12))) {
+        Canvas(Modifier.fillMaxSize()) {
+            drawRect(Brush.radialGradient(
+                colors = listOf(Color(0xFF54201F).copy(alpha = 0.78f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.12f, size.height * 0.12f),
+                radius = size.maxDimension * 0.72f
+            ))
+            drawRect(Brush.radialGradient(
+                colors = listOf(Color(0xFF392078).copy(alpha = 0.78f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.98f, size.height * 0.53f),
+                radius = size.maxDimension * 0.64f
+            ))
+            drawRect(Brush.radialGradient(
+                colors = listOf(Color(0xFF003D3D).copy(alpha = 0.62f), Color.Transparent),
+                center = androidx.compose.ui.geometry.Offset(size.width * 0.05f, size.height * 0.82f),
+                radius = size.maxDimension * 0.62f
+            ))
+            val stars = listOf(
+                0.05f to 0.04f, 0.51f to 0.04f, 0.97f to 0.08f, 0.23f to 0.15f,
+                0.69f to 0.15f, 0.05f to 0.28f, 0.98f to 0.29f, 0.23f to 0.39f,
+                0.69f to 0.40f, 0.05f to 0.57f, 0.98f to 0.60f, 0.23f to 0.73f,
+                0.69f to 0.76f, 0.05f to 0.91f, 0.97f to 0.91f
+            )
+            stars.forEachIndexed { index, p ->
+                drawCircle(Color.White.copy(alpha = if (index % 3 == 0) 0.52f else 0.32f),
+                    radius = if (index % 4 == 0) 1.6.dp.toPx() else 1.dp.toPx(),
+                    center = androidx.compose.ui.geometry.Offset(size.width * p.first, size.height * p.second))
+            }
+        }
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             modifier = Modifier.fillMaxSize(),
@@ -764,9 +792,11 @@ fun MyListTab(onOpen: (Item) -> Unit, onSettings: () -> Unit) {
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Column {
-                    Text("My Collection", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium)
-                    Text("Saved titles and offline downloads", color = Color(0xFF9296A5),
-                        fontSize = 14.sp, modifier = Modifier.padding(top = 5.dp, bottom = 24.dp))
+                    Text(if (section == 1) "Downloads" else "My Collection",
+                        color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.Medium)
+                    Text(if (section == 1) "Ready to watch offline" else "Saved titles and offline downloads",
+                        color = Color(0xFFB0A7B8), fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 5.dp, bottom = 24.dp))
                     Row(
                         Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp))
                             .background(Color(0xFF171B27)).padding(4.dp),
@@ -842,15 +872,20 @@ fun MyListTab(onOpen: (Item) -> Unit, onSettings: () -> Unit) {
                         Box(Modifier.size(218.dp), contentAlignment = Alignment.Center) {
                             Canvas(Modifier.fillMaxSize()) {
                                 val stroke = 13.dp.toPx()
-                                drawArc(Color(0xFF252A38), -90f, 360f, false,
-                                    style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                                val fraction = if (storage.first > 0L) (usedBytes.toFloat() / storage.first).coerceIn(0f, 1f) else 0f
-                                drawArc(
-                                    Brush.sweepGradient(listOf(Color(0xFFFF8050), Color(0xFF7847F5),
-                                        Color(0xFF22D6D0), Color(0xFFFF3F83), Color(0xFFFF8050))),
-                                    -90f, fraction * 360f, false,
-                                    style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                                val cap = androidx.compose.ui.graphics.StrokeCap.Round
+                                drawArc(Color(0xFF654B69).copy(alpha = 0.72f), -90f, 360f, false,
+                                    style = Stroke(stroke, cap = cap))
+                                val segments = listOf(
+                                    Color(0xFFFF804E) to 34f,
+                                    Color(0xFF7847F5) to 48f,
+                                    Color(0xFF20D7D0) to 34f,
+                                    Color(0xFFFF3F83) to 24f
                                 )
+                                var angle = -90f
+                                segments.forEach { (color, sweep) ->
+                                    drawArc(color, angle, sweep, false, style = Stroke(stroke, cap = cap))
+                                    angle += sweep + 2.5f
+                                }
                             }
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(if (storage.first > 0L) "%.1f GB".format(usedGb) else "—",
