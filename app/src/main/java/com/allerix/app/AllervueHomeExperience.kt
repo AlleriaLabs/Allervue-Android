@@ -297,7 +297,9 @@ internal fun AllervueHome(
             Text("LATE NIGHT", Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp), color = Color.White.copy(alpha = .42f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
 
             BoxWithConstraints(
-                Modifier.fillMaxSize().pointerInput(Unit) {
+                // Keep the orbit gesture surface below the top action row so it
+                // cannot intercept taps on Search or Settings.
+                Modifier.fillMaxSize().padding(top = 82.dp).pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoomChange, _ ->
                         // Pinch inward (zoom out) reveals more planets; pinch
                         // outward (zoom in) reduces the visible orbit to its core.
