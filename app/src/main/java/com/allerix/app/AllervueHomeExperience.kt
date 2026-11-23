@@ -195,16 +195,33 @@ internal fun AllervueHome(
                 // Every artwork node follows the same fixed elliptical orbit.
                 // No alternating radii or per-node clamping: those caused circles
                 // to jump between tracks and bunch up at the screen edges.
-                // Keep every node on the same bounded ellipse. Avoid per-node
-                // edge clamping, which collapses multiple nodes onto identical positions.
-                val orbitRadiusX = ((w - nodeSize) / 2 - 10.dp).coerceAtLeast(0.dp)
-                val orbitRadiusY = ((h * .29f) - nodeSize / 2).coerceAtLeast(0.dp)
+                // Each node gets its own randomized orbital lane and phase.
+                // Keep angular slots separated to prevent circles colliding, while
+                // varying radius and rotation speed so the field never reads as one ellipse.
+                val orbitSlots = remember(visibleOrbitItems.map { it.id }, w, h) {
+                    val count = visibleOrbitItems.size.coerceAtLeast(1)
+                    List(visibleOrbitItems.size) { slot ->
+                        val baseAngle = -90f + slot * (360f / count)
+                        val phaseJitter = kotlin.random.Random.nextFloat() * 34f - 17f
+                        val radiusX = (w * (.25f + kotlin.random.Random.nextFloat() * .18f))
+                            .coerceAtMost((w - nodeSize) / 2 - 6.dp)
+                        val radiusY = (h * (.13f + kotlin.random.Random.nextFloat() * .20f))
+                            .coerceAtMost((h - nodeSize) / 2 - 12.dp)
+                        val speed = .65f + kotlin.random.Random.nextFloat() * .7f
+                        Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
+                    }
+                }
                 visibleOrbitItems.forEachIndexed { index, item ->
+                    val lane = orbitSlots[index]
                     val angle = Math.toRadians(
-                        (-90.0 + index * (360.0 / visibleOrbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
+                        (lane.first + automaticRotation * lane.third + orbitRotation.floatValue).toDouble()
                     )
-                    val x = orbitCenterX + orbitRadiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
-                    val y = orbitCenterY + orbitRadiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
+                    val radiusX = lane.second.x.dp
+                    val radiusY = lane.second.y.dp
+                    val x = (orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2)
+                        .coerceIn(6.dp, (w - nodeSize - 6.dp).coerceAtLeast(6.dp))
+                    val y = (orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2)
+                        .coerceIn(112.dp, (h - nodeSize - 10.dp).coerceAtLeast(112.dp))
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeSize + 16.dp)
                             .clickable { selected = item; synchronizedCycle++ },
