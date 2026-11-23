@@ -373,6 +373,7 @@ fun LibraryTab(
     var loading by remember(title) { mutableStateOf(true) }
     var allItems by remember(title) { mutableStateOf<List<Item>>(emptyList()) }
     var libraryIds by remember(title) { mutableStateOf<List<String>>(emptyList()) }
+    var libraryLoadError by remember(title) { mutableStateOf<String?>(null) }
     var selectedGenre by remember(title) { mutableStateOf("All") }
     var selectedYear by remember(title) { mutableStateOf("Any") }
     var selectedRating by remember(title) { mutableStateOf("Any") }
@@ -382,19 +383,32 @@ fun LibraryTab(
 
     LaunchedEffect(title, type, libraryNames) {
         loading = true
-        val loaded = runCatching {
+        libraryLoadError = null
+        try {
             if (libraryNames.isEmpty()) {
                 libraryIds = emptyList()
-                Api.byType(type)
+                allItems = Api.byType(type)
             } else {
-                val wanted = libraryNames.map { it.trim().lowercase() }.toSet()
-                val libraries = Api.views().filter { it.name.trim().lowercase() in wanted }
-                libraryIds = libraries.map { it.id }
-                libraries.flatMap { lib -> Api.byType(type, parentId = lib.id) }.distinctBy { it.id }
+                val libraries = Api.views()
+                val byName = libraries.associateBy { it.name.trim().lowercase() }
+                val wanted = libraryNames.map { it.trim().lowercase() }
+                val missing = wanted.filter { it !in byName }
+                if (missing.isNotEmpty()) {
+                    libraryIds = emptyList()
+                    allItems = emptyList()
+                    libraryLoadError = "Jellyfin library not found: " + missing.joinToString() + ". Check the library name in Jellyfin."
+                } else {
+                    val selectedLibraries = wanted.mapNotNull { byName[it] }
+                    libraryIds = selectedLibraries.map { it.id }
+                    allItems = selectedLibraries.flatMap { library -> Api.byType(type, parentId = library.id) }.distinctBy { it.id }
+                }
             }
-        }.getOrDefault(emptyList())
-        allItems = loaded
-        list = loaded
+        } catch (error: Exception) {
+            libraryIds = emptyList()
+            allItems = emptyList()
+            libraryLoadError = error.message?.takeIf { it.isNotBlank() } ?: "Unable to load the selected Jellyfin library. Check your server connection."
+        }
+        list = allItems
         loading = false
     }
     LaunchedEffect(title, type, allItems, libraryIds, selectedGenre, selectedYear, selectedRating, selectedResolution, watchedFilter) {
@@ -447,16 +461,17 @@ fun LibraryTab(
         }
     }
     val showRows = remember(visible, isShows) {
-        if (!isShows) emptyList() else listOf(
-            "Anime" to visible.filter { it.isAnimeSeries() },
-            "TV Series" to visible.filterNot { it.isAnimeSeries() }
-        ).filter { it.second.isNotEmpty() }
+        if (!isShows) emptyList() else if (animeOnly) {
+            listOf("Anime" to visible).filter { it.second.isNotEmpty() }
+        } else {
+            listOf("TV Shows" to visible).filter { it.second.isNotEmpty() }
+        }
     }
 
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TabHeader(title, onSearch, onSettings)
-            if (isShows && !animeOnly) {
+            if (isShows && libraryNames.isEmpty()) {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Anime", "TV Series")) { filter ->
@@ -523,12 +538,11 @@ fun LibraryTab(
             }
             Box(Modifier.fillMaxSize()) {
                 if (loading) CircularProgressIndicator(Modifier.align(Alignment.Center), color = Red)
-                else if (visible.isEmpty()) {
-                    Text(if (isShows && showFilter == "Anime")
-                        "No Anime titles found. Add an Anime genre or tag in Jellyfin to classify shows here."
-                    else if (isShows && showFilter == "TV Series")
-                        "No TV Series found in this category."
-                    else "No titles in this category yet.",
+                else if (libraryLoadError != null) {
+                    Text(libraryLoadError!!, color = Grey,
+                        modifier = Modifier.align(Alignment.Center).padding(28.dp))
+                } else if (visible.isEmpty()) {
+                    Text("No titles in this Jellyfin library yet.",
                         color = Grey, modifier = Modifier.align(Alignment.Center).padding(28.dp))
                 } else if (isShows) {
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
