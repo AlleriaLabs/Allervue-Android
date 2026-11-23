@@ -124,13 +124,12 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 90.dp),
             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(72.dp))
-                Spacer(Modifier.width(12.dp))
-                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 25.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-            }
-            Spacer(Modifier.height(24.dp))
+            AllervueWordmark(
+                emblemSize = 68.dp,
+                textSize = 40.sp,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(30.dp))
             Text("Sign In", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White,
                 modifier = Modifier.align(Alignment.Start))
             Spacer(Modifier.height(16.dp))
