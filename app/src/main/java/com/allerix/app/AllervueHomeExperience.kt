@@ -141,10 +141,10 @@ internal fun AllervueHome(
         }
     }
     val centerItem = selected ?: centerCandidates.firstOrNull() ?: allItems.firstOrNull()
-    // Every 8-second center change also reshuffles the outer artwork in the same
-    // cycle. Positions remain anchored to a single ellipse; only the titles change.
+    // Every 8-second center change also reshuffles six outer artwork nodes in the same
+    // cycle. Their six slot positions stay anchored while only the titles change.
     val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
-        allItems.filter { it.id != centerItem?.id }.shuffled().take(5)
+        allItems.filter { it.id != centerItem?.id }.shuffled().take(6)
     }
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
