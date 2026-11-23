@@ -257,7 +257,11 @@ internal fun AllervueHome(
                 Modifier.align(Alignment.TopStart).fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("allervue.", color = Color(0xFFF8F3FF), fontSize = 29.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = (-1.2).sp, modifier = Modifier.weight(1f))
+                AllervueWordmark(
+                    emblemSize = 38.dp,
+                    textSize = 25.sp,
+                    modifier = Modifier.weight(1f)
+                )
                 Box(
                     Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
                         .clickable(onClick = onSearch),
