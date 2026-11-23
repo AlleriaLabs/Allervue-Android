@@ -99,8 +99,11 @@ internal fun AllervueHome(
     var failure by remember { mutableStateOf(false) }
     val orbitRotation = remember { mutableFloatStateOf(0f) }
     val orbitZoom = remember { mutableFloatStateOf(1f) }
-    // Start with four visible planets; pinch outward reveals the full six-planet system.
-    val visiblePlanetCount = (6 - (((orbitZoom.floatValue - .72f) / (1.28f - .72f)) * 4f).toInt()).coerceIn(2, 6)
+    // Start with the original six planets. Pinch in to reveal up to fifteen;
+    // pinch out returns smoothly to the six-planet base system.
+    val visiblePlanetCount = (
+        6 + (((orbitZoom.floatValue - .72f) / (1.28f - .72f)) * 9f).toInt()
+    ).coerceIn(6, 15)
     var deviceHour by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -167,7 +170,7 @@ internal fun AllervueHome(
     // Every 8-second center change also reshuffles six outer artwork nodes in the same
     // cycle. Their six slot positions stay anchored while only the titles change.
     val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
-        allItems.filter { it.id != centerItem?.id }.shuffled().take(6)
+        allItems.filter { it.id != centerItem?.id }.shuffled().take(15)
     }
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
