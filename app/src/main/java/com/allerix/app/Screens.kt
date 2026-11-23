@@ -366,36 +366,53 @@ private fun LibraryFilterDropdown(
 @Composable
 fun LibraryTab(
     title: String, type: String, onOpen: (Item) -> Unit,
-    onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false, animeOnly: Boolean = false
+    onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false, animeOnly: Boolean = false,
+    libraryNames: List<String> = emptyList()
 ) {
-    var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
-    var loading by remember(type) { mutableStateOf(true) }
-    var allItems by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
-    var selectedGenre by remember(type) { mutableStateOf("All") }
-    var selectedYear by remember(type) { mutableStateOf("Any") }
-    var selectedRating by remember(type) { mutableStateOf("Any") }
-    var selectedResolution by remember(type) { mutableStateOf("Any") }
-    var watchedFilter by remember(type) { mutableStateOf("Any") }
-    var showFilter by remember(type) { mutableStateOf("All") }
+    var list by remember(title) { mutableStateOf<List<Item>>(emptyList()) }
+    var loading by remember(title) { mutableStateOf(true) }
+    var allItems by remember(title) { mutableStateOf<List<Item>>(emptyList()) }
+    var libraryIds by remember(title) { mutableStateOf<List<String>>(emptyList()) }
+    var selectedGenre by remember(title) { mutableStateOf("All") }
+    var selectedYear by remember(title) { mutableStateOf("Any") }
+    var selectedRating by remember(title) { mutableStateOf("Any") }
+    var selectedResolution by remember(title) { mutableStateOf("Any") }
+    var watchedFilter by remember(title) { mutableStateOf("Any") }
+    var showFilter by remember(title) { mutableStateOf("All") }
 
-    LaunchedEffect(type) {
+    LaunchedEffect(title, type, libraryNames) {
         loading = true
-        allItems = runCatching { Api.byType(type) }.getOrDefault(emptyList())
-        list = allItems
+        val loaded = runCatching {
+            if (libraryNames.isEmpty()) {
+                libraryIds = emptyList()
+                Api.byType(type)
+            } else {
+                val wanted = libraryNames.map { it.trim().lowercase() }.toSet()
+                val libraries = Api.views().filter { it.name.trim().lowercase() in wanted }
+                libraryIds = libraries.map { it.id }
+                libraries.flatMap { lib -> Api.byType(type, parentId = lib.id) }.distinctBy { it.id }
+            }
+        }.getOrDefault(emptyList())
+        allItems = loaded
+        list = loaded
         loading = false
     }
-    LaunchedEffect(type, allItems, selectedGenre, selectedYear, selectedRating, selectedResolution, watchedFilter) {
+    LaunchedEffect(title, type, allItems, libraryIds, selectedGenre, selectedYear, selectedRating, selectedResolution, watchedFilter) {
         if (allItems.isNotEmpty()) {
             loading = true
             list = runCatching {
-                Api.byType(
-                    type,
-                    genre = selectedGenre.takeUnless { it == "All" },
-                    year = selectedYear.toIntOrNull(),
-                    minRating = selectedRating.removeSuffix("+").toDoubleOrNull(),
-                    resolution = selectedResolution.takeUnless { it == "Any" },
-                    watched = watchedFilter.takeUnless { it == "Any" }
-                )
+                val ids: List<String?> = if (libraryNames.isEmpty()) listOf(null) else libraryIds
+                ids.flatMap { parent ->
+                    Api.byType(
+                        type,
+                        genre = selectedGenre.takeUnless { it == "All" },
+                        year = selectedYear.toIntOrNull(),
+                        minRating = selectedRating.removeSuffix("+").toDoubleOrNull(),
+                        resolution = selectedResolution.takeUnless { it == "Any" },
+                        watched = watchedFilter.takeUnless { it == "Any" },
+                        parentId = parent
+                    )
+                }.distinctBy { it.id }
             }.getOrDefault(emptyList())
             loading = false
         }
@@ -409,7 +426,7 @@ fun LibraryTab(
     val visible = remember(list, selectedGenre, showFilter, isShows) {
         list.filter { item ->
             val categoryMatch = when {
-                animeOnly -> item.isAnimeSeries()
+                animeOnly -> true
                 !isShows -> true
                 else -> when (showFilter) {
                     "Anime" -> item.isAnimeSeries()
