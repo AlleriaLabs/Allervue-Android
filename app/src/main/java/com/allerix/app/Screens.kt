@@ -366,7 +366,7 @@ private fun LibraryFilterDropdown(
 @Composable
 fun LibraryTab(
     title: String, type: String, onOpen: (Item) -> Unit,
-    onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false
+    onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false, animeOnly: Boolean = false
 ) {
     var list by remember(type) { mutableStateOf<List<Item>>(emptyList()) }
     var loading by remember(type) { mutableStateOf(true) }
@@ -408,10 +408,14 @@ fun LibraryTab(
     val years = remember(allItems) { allItems.mapNotNull { it.year }.distinct().sortedDescending() }
     val visible = remember(list, selectedGenre, showFilter, isShows) {
         list.filter { item ->
-            val categoryMatch = !isShows || when (showFilter) {
-                "Anime" -> item.isAnimeSeries()
-                "TV Series" -> !item.isAnimeSeries()
-                else -> true
+            val categoryMatch = when {
+                animeOnly -> item.isAnimeSeries()
+                !isShows -> true
+                else -> when (showFilter) {
+                    "Anime" -> item.isAnimeSeries()
+                    "TV Series" -> !item.isAnimeSeries()
+                    else -> true
+                }
             }
             val genreMatch = selectedGenre == "All" || item.genres.orEmpty().any {
                 it.equals(selectedGenre, ignoreCase = true)
@@ -435,7 +439,7 @@ fun LibraryTab(
     AppBackground {
         Column(Modifier.fillMaxSize()) {
             TabHeader(title, onSearch, onSettings)
-            if (isShows) {
+            if (isShows && !animeOnly) {
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf("All", "Anime", "TV Series")) { filter ->
