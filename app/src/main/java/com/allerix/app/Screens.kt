@@ -955,7 +955,7 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
                             }
                         }
                         Box(Modifier.size(238.dp).clip(CircleShape).background(Color(0xFF171325))) {
-                            AsyncImage(Api.primary(cur), null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                            AsyncImage(Api.poster(cur), null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                             Box(Modifier.fillMaxSize().background(
                                 Brush.verticalGradient(0f to Color(0x11000000), 0.65f to Color(0x22000000), 1f to Color(0x990A0712))
                             ))
