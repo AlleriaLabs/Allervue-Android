@@ -195,21 +195,19 @@ internal fun AllervueHome(
                 val centerSize = (w * .46f).coerceIn(164.dp, 216.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .51f
-                val outerRadiusX = w * .43f
-                val outerRadiusY = h * .31f
-                val innerRadiusX = w * .36f
-                val innerRadiusY = h * .26f
+                // Every artwork node follows the same fixed elliptical orbit.
+                // No alternating radii or per-node clamping: those caused circles
+                // to jump between tracks and bunch up at the screen edges.
+                val orbitRadiusX = w * .39f
+                val orbitRadiusY = h * .24f
                 visibleOrbitItems.forEachIndexed { index, item ->
                     val angle = Math.toRadians(
                         (-90.0 + index * (360.0 / visibleOrbitItems.size.coerceAtLeast(1)) + automaticRotation + orbitRotation.floatValue).toDouble()
                     )
-                    val inner = index % 2 == 1
-                    val radiusX = if (inner) innerRadiusX else outerRadiusX
-                    val radiusY = if (inner) innerRadiusY else outerRadiusY
-                    val rawX = orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
-                    val rawY = orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
+                    val rawX = orbitCenterX + orbitRadiusX * kotlin.math.cos(angle).toFloat() - nodeSize / 2
+                    val rawY = orbitCenterY + orbitRadiusY * kotlin.math.sin(angle).toFloat() - nodeSize / 2
                     val x = rawX.coerceIn(8.dp, (w - nodeSize - 8.dp).coerceAtLeast(8.dp))
-                    val y = rawY.coerceIn(116.dp, (h - nodeSize - 18.dp).coerceAtLeast(116.dp))
+                    val y = rawY.coerceIn(112.dp, (h - nodeSize - 16.dp).coerceAtLeast(112.dp))
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeSize + 16.dp)
                             .clickable { selected = item },
