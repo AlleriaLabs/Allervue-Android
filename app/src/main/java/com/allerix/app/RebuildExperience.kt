@@ -728,7 +728,11 @@ private fun RebuildDownloads(showHeader: Boolean = true) {
     val totalBytes=stat.totalBytes.coerceAtLeast(1L)
     val freeBytes=stat.availableBytes.coerceAtLeast(0L)
     val usedBytes=(totalBytes-freeBytes).coerceAtLeast(0L)
-    val pctUsed=(usedBytes.toFloat()/totalBytes.toFloat()).coerceIn(0f,1f)
+    val offlineBytes=mediaBytes.coerceAtMost(usedBytes)
+    val otherUsedBytes=(usedBytes-offlineBytes).coerceAtLeast(0L)
+    val otherUsedSweep=otherUsedBytes.toFloat()/totalBytes.toFloat()*360f
+    val offlineSweep=offlineBytes.toFloat()/totalBytes.toFloat()*360f
+    val freeSweep=freeBytes.toFloat()/totalBytes.toFloat()*360f
     Column(Modifier.fillMaxSize()) {
         if(showHeader) Text("Downloads",color=Color.White,fontSize=25.sp,fontWeight=FontWeight.ExtraBold,modifier=Modifier.padding(start=21.dp,top=18.dp))
         LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=8.dp,bottom=26.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
@@ -744,10 +748,10 @@ private fun RebuildDownloads(showHeader: Boolean = true) {
                             Canvas(Modifier.fillMaxSize()) {
                                 val stroke=13.dp.toPx(); val diameter=size.minDimension-stroke
                                 val rect=Offset((size.width-diameter)/2f,(size.height-diameter)/2f)
-                                drawArc(Color(0xFF8B5CF6),-90f,360f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
-                                drawArc(Color(0xFFFFA45B),-90f,pctUsed*360f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
-                                val downloadSweep=(mediaBytes.toFloat()/totalBytes.toFloat()*360f).coerceIn(0f,360f)
-                                if(mediaBytes>0L) drawArc(Color(0xFF39D6C5),-90f,downloadSweep,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                drawArc(Color(0xFF51415E),-90f,360f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                if(otherUsedSweep>0f) drawArc(Color(0xFFFFA45B),-90f,otherUsedSweep,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                if(offlineSweep>0f) drawArc(Color(0xFF39D6C5),-90f+otherUsedSweep,offlineSweep,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                if(freeSweep>0f) drawArc(Color(0xFF8B5CF6),-90f+otherUsedSweep+offlineSweep,freeSweep,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
                                 drawArc(Color(0xFFFF6F91),135f,9f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
                             }
                             Column(horizontalAlignment=Alignment.CenterHorizontally) {
