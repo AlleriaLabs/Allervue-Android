@@ -11,6 +11,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -815,7 +816,7 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                             .background(if(active) Brush.linearGradient(listOf(Color(0xFFFF8150),Color(0xFFFF347E))) else Brush.linearGradient(listOf(Color(0x662B2037),Color(0x55302748))))
                             .border(if(current)2.dp else 1.dp,if(current)Color(0xFFFF3982) else Color(0x667F829A),CircleShape),contentAlignment=Alignment.Center) {
                             if(current) Box(Modifier.fillMaxSize().padding(4.dp).border(1.dp,Color(0xFFFF3982),CircleShape))
-                            Text("\${n+1}",color=if(active)Color(0xFF190C18) else Color.White,fontSize=14.sp,fontWeight=FontWeight.Bold)
+                            Text("${n+1}",color=if(active)Color(0xFF190C18) else Color.White,fontSize=14.sp,fontWeight=FontWeight.Bold)
                         }
                     }
                     Box(Modifier.size(204.dp).clip(CircleShape).background(Color(0xFF171325)).border(3.dp,Color(0xAA9A688E),CircleShape)) {
@@ -823,11 +824,11 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x11000000),.58f to Color(0x22000000),1f to Color(0xAA090713))))
                         CircularProgressIndicator(progress={progress},modifier=Modifier.fillMaxSize().padding(2.dp),color=Color(0xFFFF557E),trackColor=Color(0x668C7A9B),strokeWidth=3.dp)
                     }
-                    if(remaining.isNotEmpty()) Text("\${if(isEpisode) "EPISODE" else "CONTINUE"} · $remaining LEFT",color=Color.White,fontSize=11.sp,fontWeight=FontWeight.SemiBold,
+                    if(remaining.isNotEmpty()) Text("${if(isEpisode) "EPISODE" else "CONTINUE"} · $remaining LEFT",color=Color.White,fontSize=11.sp,fontWeight=FontWeight.SemiBold,
                         modifier=Modifier.align(Alignment.CenterEnd).offset(x=18.dp,y=(-45).dp).clip(CircleShape).background(Color(0x884A3B5B)).border(1.dp,Color(0x55FFFFFF),CircleShape).padding(horizontal=12.dp,vertical=8.dp))
                     IconButton(onClick=back,modifier=Modifier.align(Alignment.TopStart).padding(14.dp).size(46.dp).clip(CircleShape).background(Color(0x5520182C))) { SmallIcon(R.drawable.ic_back,Color.White,22) }
                     IconButton(onClick={
-                        val send=Intent(Intent.ACTION_SEND).apply { type="text/plain"; putExtra(Intent.EXTRA_TEXT,"\${item.name} (\${item.year ?: ""})") }
+                        val send=Intent(Intent.ACTION_SEND).apply { type="text/plain"; putExtra(Intent.EXTRA_TEXT,"${item.name} (${item.year ?: ""})") }
                         ctx.startActivity(Intent.createChooser(send,"Share title"))
                     },modifier=Modifier.align(Alignment.TopEnd).padding(14.dp).size(46.dp).clip(CircleShape).background(Color(0x5520182C))) { Text("↥",color=Color.White,fontSize=24.sp) }
                 }
@@ -897,7 +898,7 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                         Row(Modifier.fillMaxWidth().clickable { onPlay(ep) }.padding(horizontal=20.dp,vertical=9.dp),verticalAlignment=Alignment.CenterVertically) {
                             AsyncImage(Api.landscape(ep),null,Modifier.size(124.dp,70.dp).clip(RoundedCornerShape(10.dp)),contentScale=ContentScale.Crop)
                             Column(Modifier.weight(1f).padding(start=12.dp)) {
-                                Text("\${ep.index ?: ""}. \${ep.name}",color=Color.White,fontWeight=FontWeight.SemiBold,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                Text("${ep.index ?: ""}. ${ep.name}",color=Color.White,fontWeight=FontWeight.SemiBold,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
                                 Text(fmtRuntime(ep.runTimeTicks),color=Color(0xFFB9B0C5),fontSize=11.sp)
                             }
                             Text("▶",color=Color(0xFFFF6681))
