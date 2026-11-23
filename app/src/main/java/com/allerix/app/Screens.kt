@@ -848,217 +848,267 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val startDownload = rememberDownloadStarter()
-    var cur by remember { mutableStateOf(base) }
-    var seasons by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var episodes by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var seasonIdx by remember { mutableStateOf(0) }
-    var similar by remember { mutableStateOf<List<Item>>(emptyList()) }
-    var tab by remember { mutableStateOf(0) }
+    var cur by remember(base.id) { mutableStateOf(base) }
+    var seasons by remember(base.id) { mutableStateOf<List<Item>>(emptyList()) }
+    var episodes by remember(base.id) { mutableStateOf<List<Item>>(emptyList()) }
+    var seasonIdx by remember(base.id) { mutableIntStateOf(0) }
+    var similar by remember(base.id) { mutableStateOf<List<Item>>(emptyList()) }
+    var tab by remember(base.id) { mutableIntStateOf(0) }
+    var saved by remember(base.id) { mutableStateOf(base.userData?.isFavorite == true) }
     var downloadRecords by remember { mutableStateOf(Downloads.list(ctx)) }
     var downloadStates by remember { mutableStateOf<Map<String, DlState>>(emptyMap()) }
-    LaunchedEffect(base.id, episodes) {
-        while (true) {
-            downloadRecords = Downloads.list(ctx)
-            downloadStates = downloadRecords.associate { it.id to Downloads.state(ctx, it) }
-            delay(1000)
-        }
-    }
+
     val isSeries = base.type == "Series"
     val isSeason = base.type == "Season"
-    val tabs = if (isSeries || isSeason) listOf("Episodes", "Details", "More Like This") else listOf("Details", "More Like This")
+    val isEpisode = base.type == "Episode"
+    val isShow = isSeries || isSeason
+    val tabs = if (isShow) listOf("Episodes", "About", "Similar") else listOf("About", "Similar")
 
     LaunchedEffect(base.id) {
-        runCatching { cur = Api.item(base.id) }
+        cur = runCatching { Api.item(base.id) }.getOrDefault(base)
         if (isSeries) seasons = runCatching { Api.children(base.id) }.getOrDefault(emptyList()).filter { it.type == "Season" }
         else if (isSeason) episodes = runCatching { Api.children(base.id) }.getOrDefault(emptyList())
         similar = runCatching { Api.similar(base.id) }.getOrDefault(emptyList())
     }
     LaunchedEffect(seasons, seasonIdx) {
         if (isSeries && seasons.isNotEmpty()) {
-            episodes = runCatching { Api.children(seasons[seasonIdx.coerceIn(0, seasons.size - 1)].id) }
-                .getOrDefault(emptyList())
+            episodes = runCatching { Api.children(seasons[seasonIdx.coerceIn(0, seasons.lastIndex)].id) }.getOrDefault(emptyList())
+        }
+    }
+    LaunchedEffect(base.id) {
+        while (true) {
+            downloadRecords = Downloads.list(ctx)
+            downloadStates = downloadRecords.associate { it.id to Downloads.state(ctx, it) }
+            delay(1000)
         }
     }
 
     val video = cur.mediaSources?.firstOrNull()?.streams?.firstOrNull { it.type == "Video" }
-    val h = video?.height ?: 0
-    val resBadge = when { h >= 4000 -> "8K"; h >= 2000 -> "4K"; h >= 1000 -> "1080p"; h >= 700 -> "720p"; h > 0 -> "SD"; else -> "" }
+    val height = video?.height ?: 0
+    val resolution = when { height >= 4000 -> "8K"; height >= 2000 -> "4K"; height >= 1000 -> "1080p"; height >= 700 -> "720p"; height > 0 -> "SD"; else -> "" }
     val hdr = video?.videoRange?.contains("HDR", ignoreCase = true) == true
-    val meta = listOfNotNull(cur.year?.toString(), fmtRuntime(cur.runTimeTicks).ifEmpty { null }, cur.officialRating)
-        .joinToString("   •   ")
-    val canDownload = !isSeries && !isSeason
+    val metadata = listOfNotNull(
+        if (isShow) "SERIES" else if (isEpisode) "EPISODE" else "MOVIE",
+        cur.year?.toString(), cur.officialRating, resolution.takeIf { it.isNotBlank() }, "HDR".takeIf { hdr }
+    ).joinToString("  ·  ")
+    val totalTicks = cur.runTimeTicks ?: 0L
+    val positionTicks = cur.userData?.positionTicks ?: 0L
+    val progress = if (totalTicks > 0L) (positionTicks.toFloat() / totalTicks).coerceIn(0f, 1f) else 0f
+    val remaining = if (totalTicks > 0L && positionTicks > 0L && positionTicks < totalTicks) fmtRuntime(totalTicks - positionTicks) else ""
+    val canDownload = !isShow
     val currentDownload = downloadRecords.firstOrNull { it.id == cur.id }
     val currentDownloadState = currentDownload?.let { downloadStates[it.id] }
-    val downloadedEpisodes = episodes.count { ep ->
-        downloadRecords.firstOrNull { it.id == ep.id }?.let { downloadStates[it.id]?.status == android.app.DownloadManager.STATUS_SUCCESSFUL } == true
-    }
-    val activeEpisode = episodes.firstNotNullOfOrNull { ep ->
-        val rec = downloadRecords.firstOrNull { it.id == ep.id } ?: return@firstNotNullOfOrNull null
-        val state = downloadStates[ep.id] ?: return@firstNotNullOfOrNull null
-        if (state.status == android.app.DownloadManager.STATUS_RUNNING || state.status == android.app.DownloadManager.STATUS_PENDING) rec to state else null
-    }
+    val downloading = currentDownloadState?.status == android.app.DownloadManager.STATUS_RUNNING ||
+        currentDownloadState?.status == android.app.DownloadManager.STATUS_PENDING
+    val downloaded = currentDownloadState?.status == android.app.DownloadManager.STATUS_SUCCESSFUL
 
-    AppBackground {
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+    Box(Modifier.fillMaxSize().background(
+        Brush.linearGradient(listOf(Color(0xFF35151D), Color(0xFF28143A), Color(0xFF0B2028), Color(0xFF080A11)))
+    )) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
             item {
-                Box(Modifier.fillMaxWidth().height(280.dp).background(Color(0xFF111111))) {
+                Box(Modifier.fillMaxWidth().height(510.dp)) {
                     AsyncImage(Api.backdrop(cur), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                    Box(
-                        Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(0f to Color(0x88000000), 0.4f to Color.Transparent, 1f to BgDark)
+                    Box(Modifier.fillMaxSize().background(
+                        Brush.verticalGradient(0f to Color(0xAA100811), 0.28f to Color(0x55200D22), 0.72f to Color(0xAA101020), 1f to Color(0xFF24152E))
+                    ))
+                    Box(Modifier.fillMaxSize().background(
+                        Brush.radialGradient(listOf(Color(0x55FF754E), Color(0x223F45B8), Color.Transparent), radius = 850f)
+                    ))
+
+                    IconButton(onClick = back, modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 12.dp)
+                        .size(48.dp).clip(CircleShape).background(Color(0x5520182C))) {
+                        SmallIcon(R.drawable.ic_back, Color.White, 22)
+                    }
+                    IconButton(onClick = {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, "${cur.name} (${cur.year ?: ""})")
+                        }
+                        ctx.startActivity(Intent.createChooser(send, "Share title"))
+                    }, modifier = Modifier.align(Alignment.TopEnd).padding(end = 12.dp, top = 12.dp)
+                        .size(48.dp).clip(CircleShape).background(Color(0x5520182C))) {
+                        Text("↥", color = Color.White, fontSize = 25.sp)
+                    }
+
+                    // The orbit is a cinematic progress motif. For a movie, the numbered
+                    // satellites are decorative markers; actual playback progress is shown by the ring.
+                    Box(Modifier.align(Alignment.Center).size(310.dp), contentAlignment = Alignment.Center) {
+                        Box(Modifier.fillMaxSize().clip(CircleShape).border(1.dp, Color(0x447F8CA9), CircleShape))
+                        Box(Modifier.fillMaxSize().padding(24.dp).clip(CircleShape).border(1.dp, Color(0x338F9AB0), CircleShape))
+                        Box(Modifier.fillMaxSize().padding(48.dp).clip(CircleShape).border(1.dp, Color(0x228F9AB0), CircleShape))
+                        val markers = listOf(
+                            Modifier.align(Alignment.TopCenter).offset(y = 3.dp),
+                            Modifier.align(Alignment.CenterEnd).offset(x = (-2).dp),
+                            Modifier.align(Alignment.BottomEnd).offset(x = (-28).dp, y = (-8).dp),
+                            Modifier.align(Alignment.BottomCenter).offset(y = (-2).dp),
+                            Modifier.align(Alignment.BottomStart).offset(x = 28.dp, y = (-8).dp),
+                            Modifier.align(Alignment.CenterStart).offset(x = 2.dp),
+                            Modifier.align(Alignment.TopStart).offset(x = 28.dp, y = 24.dp),
+                            Modifier.align(Alignment.TopEnd).offset(x = (-28).dp, y = 24.dp)
                         )
-                    )
-                    IconButton(onClick = back, modifier = Modifier.align(Alignment.TopStart).padding(6.dp)) {
-                        SmallIcon(R.drawable.ic_back)
+                        markers.forEachIndexed { index, placement ->
+                            Box(placement.size(36.dp).clip(CircleShape)
+                                .background(if (index == 0 && progress > 0f) Color(0xFFFF5B79) else Color(0x442B263B))
+                                .border(1.dp, Color(0x667D829B), CircleShape), contentAlignment = Alignment.Center) {
+                                Text("${index + 1}", color = Color(0xFFEAE5F1), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        Box(Modifier.size(238.dp).clip(CircleShape).background(Color(0xFF171325))) {
+                            AsyncImage(Api.primary(cur), null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
+                            Box(Modifier.fillMaxSize().background(
+                                Brush.verticalGradient(0f to Color(0x11000000), 0.65f to Color(0x22000000), 1f to Color(0x990A0712))
+                            ))
+                            CircularProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxSize().padding(2.dp),
+                                color = Color(0xFFFF557E), trackColor = Color(0x668C7A9B), strokeWidth = 4.dp
+                            )
+                        }
+                        if (remaining.isNotEmpty()) {
+                            Text("CONTINUE  ·  $remaining LEFT", color = Color.White, fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.BottomCenter)
+                                    .offset(y = 42.dp).clip(CircleShape).background(Color(0x66342B45))
+                                    .padding(horizontal = 13.dp, vertical = 8.dp))
+                        }
                     }
                 }
             }
+
             item {
-                Column(Modifier.padding(horizontal = 16.dp)) {
-                    Text(cur.seriesName ?: cur.name, color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-                    if (cur.seriesName != null) Text(cur.name, color = Grey, fontSize = 15.sp)
-                    Spacer(Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (meta.isNotEmpty()) Text(meta, color = Grey, fontSize = 13.sp)
-                        if (resBadge.isNotEmpty()) Badge(resBadge)
-                        if (hdr) Badge("HDR")
+                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).offset(y = (-2).dp)) {
+                    Text(metadata, color = Color(0xFFBDB3C7), fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.6.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(8.dp))
+                    Text(cur.seriesName ?: cur.name, color = Color(0xFFF7F2FA), fontSize = 34.sp,
+                        lineHeight = 38.sp, fontWeight = FontWeight.ExtraBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (cur.seriesName != null) {
+                        Text(cur.name, color = Color(0xFFC5B9CE), fontSize = 15.sp, modifier = Modifier.padding(top = 3.dp))
                     }
-                    Spacer(Modifier.height(10.dp))
-                    Text(cur.overview.orEmpty(), color = Color(0xFFD2D2D2), fontSize = 14.sp, lineHeight = 20.sp)
+                    Spacer(Modifier.height(12.dp))
+                    Text(cur.overview.orEmpty().ifBlank { "Discover more about this title in your Allervue library." },
+                        color = Color(0xFFD0C7D5), fontSize = 15.sp, lineHeight = 23.sp)
                     Spacer(Modifier.height(16.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Button(
-                            onClick = { onPlay(cur) }, modifier = Modifier.weight(1f).height(46.dp),
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)
-                        ) {
-                            SmallIcon(R.drawable.ic_play, Color.White, 20)
-                            Spacer(Modifier.width(6.dp))
-                            Text("Play", fontWeight = FontWeight.Bold)
-                        }
-                        MyListButton(cur, Modifier.weight(1f))
-                        if (canDownload) IconButton(
-                            onClick = {
-                                if (currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL &&
-                                    currentDownloadState?.status != android.app.DownloadManager.STATUS_RUNNING &&
-                                    currentDownloadState?.status != android.app.DownloadManager.STATUS_PENDING
-                                ) startDownload(cur)
-                            },
-                            enabled = currentDownloadState?.status != android.app.DownloadManager.STATUS_SUCCESSFUL &&
-                                currentDownloadState?.status != android.app.DownloadManager.STATUS_RUNNING &&
-                                currentDownloadState?.status != android.app.DownloadManager.STATUS_PENDING
-                        ) {
-                            when (currentDownloadState?.status) {
-                                android.app.DownloadManager.STATUS_SUCCESSFUL ->
-                                    SmallIcon(R.drawable.ic_check, Color(0xFF8FC7A0), 24)
-                                android.app.DownloadManager.STATUS_RUNNING,
-                                android.app.DownloadManager.STATUS_PENDING -> {
-                                    val progress = currentDownloadState.let {
-                                        if (it.total > 0L) (it.done.toFloat() / it.total).coerceIn(0f, 1f) else 0f
-                                    }
-                                    CircularProgressIndicator(
-                                        progress = { progress },
-                                        modifier = Modifier.size(24.dp),
-                                        color = Red,
-                                        trackColor = Color(0x44FFFFFF),
-                                        strokeWidth = 2.5.dp
-                                    )
-                                }
-                                else -> SmallIcon(R.drawable.ic_download, Color.White, 24)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val cast = cur.people.orEmpty().filter { it.type == "Actor" }.take(3)
+                        cast.forEachIndexed { index, person ->
+                            Box(Modifier.size(42.dp).offset(x = (-index * 7).dp).clip(CircleShape)
+                                .background(listOf(Color(0xFFFF875A), Color(0xFFEA62A8), Color(0xFF4654A8))[index % 3])
+                                .border(1.dp, Color(0xFF20172C), CircleShape), contentAlignment = Alignment.Center) {
+                                Text(person.name.firstOrNull()?.uppercase() ?: "•", color = Color.White, fontWeight = FontWeight.Bold)
                             }
                         }
-                    }
-                    if (canDownload && currentDownloadState != null) {
-                        val state = currentDownloadState
-                        val label = when (state.status) {
-                            android.app.DownloadManager.STATUS_SUCCESSFUL -> "Downloaded"
-                            android.app.DownloadManager.STATUS_RUNNING, android.app.DownloadManager.STATUS_PENDING -> {
-                                val pct = if (state.total > 0) (state.done * 100 / state.total).toInt() else 0
-                                "Downloading · $pct%"
-                            }
-                            android.app.DownloadManager.STATUS_PAUSED -> "Download paused"
-                            android.app.DownloadManager.STATUS_FAILED -> "Download failed · tap to retry"
-                            else -> ""
-                        }
-                        if (label.isNotEmpty()) Text(label, color = if (state.status == android.app.DownloadManager.STATUS_SUCCESSFUL) Color(0xFF8FC7A0) else Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
-                    }
-                    if ((isSeries || isSeason) && episodes.isNotEmpty()) {
-                        Text(
-                            "Downloads · $downloadedEpisodes/${episodes.size} episodes downloaded" +
-                                (activeEpisode?.let { pair ->
-                                    val pct = if (pair.second.total > 0) (pair.second.done * 100 / pair.second.total).toInt() else 0
-                                    " · ${pair.first.title}: $pct%"
-                                } ?: ""),
-                            color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp)
-                        )
+                        if (cast.isNotEmpty()) Text(cast.joinToString(" · ") { it.name }, color = Color(0xFFB9B0C5),
+                            fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 2.dp))
                     }
                 }
             }
+
             item {
-                Row(Modifier.fillMaxWidth().padding(top = 22.dp, start = 8.dp)) {
-                    tabs.forEachIndexed { i, label ->
-                        val on = i == tab
-                        Column(
-                            Modifier.clickable { tab = i }.padding(horizontal = 12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(label, color = if (on) Color.White else Dim, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(6.dp))
-                            Box(Modifier.height(2.dp).width(28.dp).background(if (on) Red else Color.Transparent))
+                Column(Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 8.dp)
+                    .clip(RoundedCornerShape(topStart = 34.dp, topEnd = 34.dp))
+                    .background(Color(0xEE171329)).padding(horizontal = 20.dp, vertical = 22.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text(if (progress > 0f && progress < 1f) "Continue watching" else "Ready when you are",
+                                color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold)
+                            Text(if (remaining.isNotEmpty()) "$remaining remaining" else fmtRuntime(cur.runTimeTicks).ifEmpty { "Full title" },
+                                color = Color(0xFFB8AEC4), fontSize = 13.sp, modifier = Modifier.padding(top = 3.dp))
+                        }
+                        Button(onClick = { onPlay(cur) }, modifier = Modifier.height(58.dp).weight(1.05f),
+                            shape = CircleShape, colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFF4D70), contentColor = Color(0xFF1A0A17)
+                            )) {
+                            Text(if (progress > 0.02f) "▶  Resume" else "▶  Play",
+                                fontSize = 15.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = {
+                            scope.launch { runCatching { Api.setFavorite(cur.id, !saved) }; saved = !saved }
+                        }, modifier = Modifier.weight(1f).height(48.dp), shape = CircleShape,
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                            Text(if (saved) "✓  Saved" else "＋  Save", maxLines = 1)
+                        }
+                        if (canDownload) OutlinedButton(onClick = {
+                            if (!downloaded && !downloading) startDownload(cur)
+                        }, enabled = !downloaded && !downloading, modifier = Modifier.weight(1f).height(48.dp),
+                            shape = CircleShape, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                            Text(when { downloaded -> "✓  Downloaded"; downloading -> "Downloading"; else -> "↓  Download" }, maxLines = 1)
+                        } else {
+                            OutlinedButton(onClick = { tab = 0 }, modifier = Modifier.weight(1f).height(48.dp),
+                                shape = CircleShape, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)) {
+                                Text("Episodes", maxLines = 1)
+                            }
+                        }
+                    }
+                    if (currentDownloadState != null && downloading) {
+                        val pct = if (currentDownloadState.total > 0L) currentDownloadState.done.toFloat() / currentDownloadState.total else 0f
+                        LinearProgressIndicator(progress = { pct.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                            color = Color(0xFFFF5B79), trackColor = Color(0x44FFFFFF))
+                    }
+                }
+            }
+
+            item {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(26.dp)) {
+                    tabs.forEachIndexed { index, label ->
+                        Column(Modifier.clickable { tab = index }) {
+                            Text(label, color = if (tab == index) Color.White else Color(0xFF9F95AC),
+                                fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(7.dp))
+                            Box(Modifier.width(28.dp).height(3.dp).clip(CircleShape)
+                                .background(if (tab == index) Color(0xFFFF587B) else Color.Transparent))
                         }
                     }
                 }
             }
-            when (tabs[tab.coerceIn(0, tabs.size - 1)]) {
+
+            when (tabs[tab.coerceIn(0, tabs.lastIndex)]) {
                 "Episodes" -> {
-                    if (isSeries && seasons.size > 1) item {
-                        LazyRow(
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(seasons.size) { i ->
-                                val on = i == seasonIdx
-                                Text(
-                                    seasons[i].name, color = Color.White, fontSize = 13.sp,
-                                    modifier = Modifier.clip(RoundedCornerShape(20.dp))
-                                        .background(if (on) Red else Color(0xFF2A2A2E))
-                                        .clickable { seasonIdx = i }
-                                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                                )
+                    if (seasons.size > 1) item {
+                        LazyRow(contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(seasons.size) { index ->
+                                val active = index == seasonIdx
+                                Text(seasons[index].name, color = if (active) Color(0xFF1B0D1A) else Color.White,
+                                    modifier = Modifier.clip(CircleShape)
+                                        .background(if (active) Color(0xFFFF647C) else Color(0x44352D47))
+                                        .clickable { seasonIdx = index }.padding(horizontal = 14.dp, vertical = 9.dp),
+                                    fontSize = 12.sp)
                             }
                         }
                     }
                     items(episodes, key = { it.id }) { ep ->
-                        EpisodeRow(
-                            ep, onPlay = { onPlay(ep) },
-                            onDownload = { startDownload(ep) },
-                            downloadState = downloadStates[ep.id]
-                        )
+                        EpisodeRow(ep, onPlay = { onPlay(ep) }, onDownload = { startDownload(ep) },
+                            downloadState = downloadStates[ep.id])
                     }
                 }
-                "Details" -> item {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-                        val genres = cur.genres.orEmpty().joinToString(", ")
-                        val studios = cur.studios.orEmpty().joinToString(", ") { it.name }
-                        val cast = cur.people.orEmpty().filter { it.type == "Actor" }.take(10).joinToString(", ") { it.name }
+                "About" -> item {
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
                         cur.rating?.let { DetailLine("Rating", "★ %.1f".format(it)) }
-                        if (genres.isNotEmpty()) DetailLine("Genres", genres)
-                        if (studios.isNotEmpty()) DetailLine("Studio", studios)
-                        if (cast.isNotEmpty()) DetailLine("Cast", cast)
-                        if (genres.isEmpty() && studios.isEmpty() && cast.isEmpty() && cur.rating == null) {
-                            Text("No extra details available.", color = Grey, fontSize = 14.sp)
+                        val genres = cur.genres.orEmpty().joinToString("  ·  ")
+                        val studios = cur.studios.orEmpty().joinToString("  ·  ") { it.name }
+                        val cast = cur.people.orEmpty().filter { it.type == "Actor" }.take(10).joinToString("  ·  ") { it.name }
+                        if (genres.isNotBlank()) DetailLine("Genres", genres)
+                        if (studios.isNotBlank()) DetailLine("Studio", studios)
+                        if (cast.isNotBlank()) DetailLine("Cast", cast)
+                        if (genres.isBlank() && studios.isBlank() && cast.isBlank() && cur.rating == null) {
+                            Text("No additional details available.", color = Color(0xFFB9B0C5), fontSize = 14.sp)
                         }
                     }
                 }
                 else -> {
                     if (similar.isEmpty()) item {
-                        Text("Nothing similar found.", color = Grey, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
-                    }
-                    similar.chunked(3).forEach { chunk ->
-                        item {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                chunk.forEach { MediaCard(it, Modifier.weight(1f)) { onOpen(it) } }
-                                repeat(3 - chunk.size) { Spacer(Modifier.weight(1f)) }
+                        Text("Nothing similar found yet.", color = Color(0xFFB9B0C5), fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
+                    } else item {
+                        LazyRow(contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(similar, key = { it.id }) { related ->
+                                MediaCard(related, Modifier.width(118.dp)) { onOpen(related) }
                             }
                         }
                     }
