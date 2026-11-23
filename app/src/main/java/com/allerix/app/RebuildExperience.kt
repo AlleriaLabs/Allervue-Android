@@ -602,30 +602,42 @@ private fun AllervueCatalogCard(item: Item, number: Int, onClick: () -> Unit) {
 @Composable
 private fun RebuildCollection(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
     var section by remember { mutableStateOf("Saved") }
-    Column(Modifier.fillMaxSize()) {
-        RebuildHeader("My Collection", "Saved titles and offline downloads")
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp)
-                .clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface)
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            listOf("Saved", "Downloads").forEach { label ->
-                val active = section == label
-                Box(
-                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
-                        .background(if (active) VCyan.copy(alpha = .18f) else Color.Transparent)
-                        .clickable { section = label }.padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(label, color = if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 12.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium)
-                }
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351329), Color(0xFF24143A), Color(0xFF0B2630), Color(0xFF080A11))))) {
+        Canvas(Modifier.fillMaxSize()) {
+            listOf(Offset(size.width*.08f,size.height*.13f), Offset(size.width*.82f,size.height*.09f),
+                Offset(size.width*.92f,size.height*.28f), Offset(size.width*.17f,size.height*.42f),
+                Offset(size.width*.71f,size.height*.57f), Offset(size.width*.11f,size.height*.76f),
+                Offset(size.width*.88f,size.height*.88f)).forEachIndexed { i, p ->
+                drawCircle(Color.White.copy(alpha = if (i % 3 == 0) .32f else .15f), if (i % 3 == 0) 2.1f else 1.2f, p)
             }
         }
-        Box(Modifier.weight(1f)) {
-            if (section == "Saved") RebuildSaved(onOpen, onPlay, showHeader = false)
-            else RebuildDownloads(showHeader = false)
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().padding(start=22.dp,end=18.dp,top=20.dp,bottom=14.dp), verticalAlignment=Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("MY COLLECTION", color=Color(0xFFFF9C9C), fontSize=10.sp, fontWeight=FontWeight.Bold, letterSpacing=2.sp)
+                    Text("Your library", color=Color.White, fontSize=29.sp, fontWeight=FontWeight.ExtraBold)
+                    Text("Saved favorites and offline downloads", color=Color(0xFFBEB2C8), fontSize=12.sp)
+                }
+                Text("✦", color=Color(0xFFFFB36B), fontSize=25.sp, modifier=Modifier.padding(8.dp))
+            }
+            Row(Modifier.fillMaxWidth().padding(horizontal=18.dp, vertical=4.dp).clip(RoundedCornerShape(18.dp))
+                .background(Color(0x55251D35)).border(1.dp,Color(0x33D8C2E8),RoundedCornerShape(18.dp)).padding(4.dp),
+                horizontalArrangement=Arrangement.spacedBy(4.dp)) {
+                listOf("Saved","Downloads").forEach { label ->
+                    val active = section == label
+                    Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp))
+                        .background(if(active) Brush.horizontalGradient(listOf(Color(0xFFE95D83),Color(0xFF8B5CF6))) else Brush.horizontalGradient(listOf(Color.Transparent,Color.Transparent)))
+                        .clickable { section=label }.padding(vertical=12.dp),
+                        horizontalArrangement=Arrangement.Center, verticalAlignment=Alignment.CenterVertically) {
+                        Text(if(label=="Saved") "♡" else "↓", color=Color.White, fontSize=15.sp)
+                        Spacer(Modifier.width(7.dp))
+                        Text(label,color=Color.White,fontSize=13.sp,fontWeight=if(active) FontWeight.Bold else FontWeight.Medium)
+                    }
+                }
+            }
+            Box(Modifier.weight(1f)) {
+                if(section=="Saved") RebuildSaved(onOpen,onPlay,showHeader=false) else RebuildDownloads(showHeader=false)
+            }
         }
     }
 }
@@ -635,31 +647,60 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHea
     var savedItems by remember { mutableStateOf(emptyList<Item>()) }
     var loading by remember { mutableStateOf(true) }
     var filter by remember { mutableStateOf("All") }
-    LaunchedEffect(Unit) { savedItems = runCatching { Api.favorites() }.getOrDefault(emptyList()); loading = false }
-    val visible = when (filter) {
-        "Films" -> savedItems.filter { it.type == "Movie" }
-        "Series" -> savedItems.filter { it.type == "Series" }
+    LaunchedEffect(Unit) { savedItems=runCatching { Api.favorites() }.getOrDefault(emptyList()); loading=false }
+    val visible = when(filter) {
+        "Films" -> savedItems.filter { it.type=="Movie" }
+        "Series" -> savedItems.filter { it.type=="Series" }
+        "Anime" -> savedItems.filter { (it.genres.orEmpty()+it.tags.orEmpty()).any { tag -> tag.contains("anime",true) } }
         else -> savedItems
     }
     Column(Modifier.fillMaxSize()) {
-        if (showHeader) RebuildHeader("My Collection", savedItems.size.toString() + " saved titles")
-        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("All", "Films", "Series").forEach { label ->
-                val active = filter == label
-                Text(label, color = if (active) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.clip(CircleShape).background(if (active) VCyan else MaterialTheme.colorScheme.surface)
-                        .clickable { filter = label }.padding(horizontal = 15.dp, vertical = 9.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=14.dp),verticalAlignment=Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(if(showHeader) "My Collection" else "Saved for later",color=Color.White,fontSize=20.sp,fontWeight=FontWeight.Bold)
+                Text(savedItems.size.toString()+" saved titles",color=Color(0xFFBEB2C8),fontSize=11.sp)
+            }
+            Text("✦  FAVORITES",color=Color(0xFFFFB36B),fontSize=9.sp,fontWeight=FontWeight.Bold,letterSpacing=1.2.sp)
+        }
+        Row(Modifier.fillMaxWidth().padding(start=18.dp,end=18.dp,bottom=8.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            listOf("All","Films","Series","Anime").forEach { label ->
+                val active=filter==label
+                Text(label,color=if(active) Color.White else Color(0xFFBEB2C8),fontSize=11.sp,fontWeight=FontWeight.SemiBold,
+                    modifier=Modifier.clip(CircleShape).background(if(active) Brush.horizontalGradient(listOf(Color(0xFFE95D83),Color(0xFF8B5CF6))) else Brush.horizontalGradient(listOf(Color(0x332F253D),Color(0x332F253D))))
+                        .border(1.dp,if(active) Color.Transparent else Color(0x33D8C2E8),CircleShape)
+                        .clickable { filter=label }.padding(horizontal=15.dp,vertical=9.dp))
             }
         }
-        if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
-        else if (visible.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(if (savedItems.isEmpty()) "Save a title to find it here." else "No " + filter.lowercase() + " saved yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(visible.size, key = { visible[it].id }) { index ->
-                val item = visible[index]
-                AllervueCatalogCard(item, index + 1, onClick = { onOpen(item) })
+        if(loading) Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center) { CircularProgressIndicator(color=Color(0xFFFF7895)) }
+        else if(visible.isEmpty()) Box(Modifier.fillMaxSize().padding(28.dp),contentAlignment=Alignment.Center) {
+            Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                Text(if(savedItems.isEmpty()) "♡" else "✦",color=Color(0xFFFF9C9C),fontSize=42.sp)
+                Text(if(savedItems.isEmpty()) "Your saved collection is waiting." else "No "+filter.lowercase()+" saved yet.",
+                    color=Color.White,fontSize=14.sp,fontWeight=FontWeight.SemiBold)
+                Text("Save titles from their details page to keep them here.",color=Color(0xFFBEB2C8),fontSize=11.sp,modifier=Modifier.padding(top=5.dp))
+            }
+        } else LazyVerticalGrid(GridCells.Fixed(2),Modifier.fillMaxSize(),
+            contentPadding=PaddingValues(start=16.dp,end=16.dp,top=8.dp,bottom=24.dp),
+            horizontalArrangement=Arrangement.spacedBy(13.dp),verticalArrangement=Arrangement.spacedBy(17.dp)) {
+            items(visible.size,key={visible[it].id}) { index ->
+                val item=visible[index]
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(15.dp)).background(Color(0x33231B31))
+                    .clickable { onOpen(item) }.padding(7.dp)) {
+                    Box(Modifier.fillMaxWidth().aspectRatio(.72f).clip(RoundedCornerShape(11.dp)).background(Color(0xFF30263C))) {
+                        AsyncImage(Api.poster(item),null,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+                        Box(Modifier.align(Alignment.TopEnd).padding(7.dp).size(25.dp).clip(CircleShape).background(Color(0xB51A1425)),contentAlignment=Alignment.Center) {
+                            Text("♡",color=Color(0xFFFF91A9),fontSize=15.sp)
+                        }
+                        val progress=item.userData?.playedPercentage?.toFloat()
+                            ?: if((item.runTimeTicks?:0L)>0L) ((item.userData?.positionTicks?:0L).toFloat()/item.runTimeTicks!!.toFloat())*100f else 0f
+                        if(progress>0f && progress<100f) LinearProgressIndicator(progress={ (progress/100f).coerceIn(0f,1f) },
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(3.dp),color=Color(0xFFFF7895),trackColor=Color(0x66000000))
+                    }
+                    Text(item.name,color=Color.White,fontSize=12.sp,fontWeight=FontWeight.SemiBold,maxLines=2,lineHeight=15.sp,
+                        overflow=TextOverflow.Ellipsis,modifier=Modifier.padding(start=3.dp,top=8.dp))
+                    Text(listOfNotNull(item.year?.toString(),item.type.takeIf { it!="Movie" }).joinToString(" · "),
+                        color=Color(0xFFBEB2C8),fontSize=10.sp,modifier=Modifier.padding(start=3.dp,top=3.dp))
+                }
             }
         }
     }
@@ -667,68 +708,146 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHea
 
 @Composable
 private fun RebuildDownloads(showHeader: Boolean = true) {
-    val ctx = LocalContext.current
+    val ctx=LocalContext.current
     var records by remember { mutableStateOf(Downloads.list(ctx)) }
-    var states by remember { mutableStateOf(emptyMap<String, DlState>()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            records = Downloads.list(ctx)
-            states = records.associate { it.id to Downloads.state(ctx, it) }
-            delay(1000)
-        }
+    var states by remember { mutableStateOf(emptyMap<String,DlState>()) }
+    LaunchedEffect(Unit) { while(true) { records=Downloads.list(ctx); states=records.associate { it.id to Downloads.state(ctx,it) }; delay(1000) } }
+    val active=records.filter { states[it.id]?.status in listOf(DownloadManager.STATUS_PENDING,DownloadManager.STATUS_RUNNING,DownloadManager.STATUS_PAUSED) }
+    val complete=records.filter { states[it.id]?.status==DownloadManager.STATUS_SUCCESSFUL }
+    val failed=records.filter { states[it.id]?.status==DownloadManager.STATUS_FAILED }
+    val mediaBytes=records.sumOf { rec ->
+        val media=java.io.File(rec.file).takeIf { it.exists() }?.length() ?: states[rec.id]?.done ?: 0L
+        media+rec.subtitles.sumOf { sub -> java.io.File(sub.file).takeIf { it.exists() }?.length() ?: 0L }
     }
-    val active = records.filter { rec -> states[rec.id]?.status?.let { status -> status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PAUSED } == true }
-    val complete = records.filter { states[it.id]?.status == DownloadManager.STATUS_SUCCESSFUL }
+    val stat=remember(ctx) { android.os.StatFs((ctx.getExternalFilesDir(null)?:ctx.filesDir).absolutePath) }
+    val totalBytes=stat.totalBytes.coerceAtLeast(1L)
+    val freeBytes=stat.availableBytes.coerceAtLeast(0L)
+    val usedBytes=(totalBytes-freeBytes).coerceAtLeast(0L)
+    val pctUsed=(usedBytes.toFloat()/totalBytes.toFloat()).coerceIn(0f,1f)
     Column(Modifier.fillMaxSize()) {
-        if (showHeader) RebuildHeader("My Collection", "${records.size} offline titles")
-        if (records.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Your offline library is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
-            if (active.isNotEmpty()) item { RebuildSectionLabel("IN PROGRESS") }
-            items(active, key = { it.id }) { rec -> RebuildDownloadRow(rec, states[rec.id], onDelete = { Downloads.remove(ctx, rec) }) }
-            if (complete.isNotEmpty()) item { RebuildSectionLabel("AVAILABLE OFFLINE") }
-            items(complete, key = { it.id }) { rec ->
-                RebuildDownloadRow(rec, states[rec.id], onDelete = { Downloads.remove(ctx, rec) },
-                    onPlay = { ctx.startActivity(Intent(ctx, PlayerActivity::class.java).putExtra("id", rec.id).putExtra("title", rec.title).putExtra("file", rec.file)) })
+        if(showHeader) Text("Downloads",color=Color.White,fontSize=25.sp,fontWeight=FontWeight.ExtraBold,modifier=Modifier.padding(start=21.dp,top=18.dp))
+        LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(start=18.dp,end=18.dp,top=8.dp,bottom=26.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+            item {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(23.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF48213F),Color(0xFF30244D),Color(0xFF12333A))))
+                    .border(1.dp,Color(0x33E4C3E8),RoundedCornerShape(23.dp)).padding(18.dp)) {
+                    Text("READY TO WATCH OFFLINE",color=Color(0xFFFFB36B),fontSize=9.sp,fontWeight=FontWeight.Bold,letterSpacing=1.6.sp)
+                    Text("Your downloads",color=Color.White,fontSize=23.sp,fontWeight=FontWeight.ExtraBold,modifier=Modifier.padding(top=4.dp))
+                    Text(complete.size.toString()+" ready · "+active.size+" in progress",color=Color(0xFFD0C3D8),fontSize=11.sp,modifier=Modifier.padding(top=3.dp))
+                    Row(Modifier.fillMaxWidth().padding(top=17.dp),verticalAlignment=Alignment.CenterVertically) {
+                        Box(Modifier.size(142.dp),contentAlignment=Alignment.Center) {
+                            Canvas(Modifier.fillMaxSize()) {
+                                val stroke=13.dp.toPx(); val diameter=size.minDimension-stroke
+                                val rect=Offset((size.width-diameter)/2f,(size.height-diameter)/2f)
+                                drawArc(Color(0xFF8B5CF6),-90f,360f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                drawArc(Color(0xFFFFA45B),-90f,pctUsed*360f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                val downloadSweep=(mediaBytes.toFloat()/totalBytes.toFloat()*360f).coerceIn(0f,360f)
+                                if(mediaBytes>0L) drawArc(Color(0xFF39D6C5),-90f,downloadSweep,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                                drawArc(Color(0xFFFF6F91),135f,9f,false,rect,Size(diameter,diameter),style=Stroke(stroke,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                            }
+                            Column(horizontalAlignment=Alignment.CenterHorizontally) {
+                                Text(formatCollectionBytes(usedBytes),color=Color.White,fontSize=19.sp,fontWeight=FontWeight.ExtraBold)
+                                Text("USED",color=Color(0xFFD0C3D8),fontSize=9.sp,fontWeight=FontWeight.Bold,letterSpacing=1.3.sp)
+                            }
+                        }
+                        Spacer(Modifier.width(18.dp))
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                            StorageLegend(Color(0xFFFFA45B),"Phone used",formatCollectionBytes(usedBytes))
+                            StorageLegend(Color(0xFF8B5CF6),"Available",formatCollectionBytes(freeBytes))
+                            StorageLegend(Color(0xFF39D6C5),"Offline media",formatCollectionBytes(mediaBytes))
+                        }
+                    }
+                    Text(formatCollectionBytes(totalBytes)+" total device storage",color=Color(0xFFBEB2C8),fontSize=10.sp,modifier=Modifier.padding(top=13.dp))
+                }
             }
-            val failed = records.filter { states[it.id]?.status == DownloadManager.STATUS_FAILED }
-            if (failed.isNotEmpty()) item { RebuildSectionLabel("NEEDS ATTENTION") }
-            items(failed, key = { it.id }) { rec -> RebuildDownloadRow(rec, states[rec.id], onDelete = { Downloads.remove(ctx, rec) }) }
+            item {
+                Row(Modifier.fillMaxWidth().padding(top=7.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("On this phone",color=Color.White,fontSize=19.sp,fontWeight=FontWeight.Bold)
+                        Text(records.size.toString()+" offline titles · "+formatCollectionBytes(mediaBytes)+" downloaded",color=Color(0xFFBEB2C8),fontSize=11.sp,modifier=Modifier.padding(top=3.dp))
+                    }
+                    Text("LOCAL STORAGE",color=Color(0xFFFFB36B),fontSize=9.sp,fontWeight=FontWeight.Bold,letterSpacing=1.sp)
+                }
+            }
+            if(records.isEmpty()) item {
+                Column(Modifier.fillMaxWidth().padding(vertical=34.dp),horizontalAlignment=Alignment.CenterHorizontally) {
+                    Text("↓",color=Color(0xFF39D6C5),fontSize=42.sp)
+                    Text("Nothing downloaded yet",color=Color.White,fontSize=14.sp,fontWeight=FontWeight.SemiBold,modifier=Modifier.padding(top=8.dp))
+                    Text("Use the download action on a title to watch it offline.",color=Color(0xFFBEB2C8),fontSize=11.sp,modifier=Modifier.padding(top=4.dp))
+                }
+            }
+            if(active.isNotEmpty()) { item { CollectionDownloadLabel("DOWNLOADING") }; items(active,key={it.id}) { rec -> CollectionDownloadCard(rec,states[rec.id],onDelete={Downloads.remove(ctx,rec)}) } }
+            if(complete.isNotEmpty()) { item { CollectionDownloadLabel("AVAILABLE OFFLINE") }; items(complete,key={it.id}) { rec ->
+                CollectionDownloadCard(rec,states[rec.id],onDelete={Downloads.remove(ctx,rec)},onPlay={
+                    ctx.startActivity(Intent(ctx,PlayerActivity::class.java).putExtra("id",rec.id).putExtra("title",rec.title).putExtra("file",rec.file))
+                })
+            } }
+            if(failed.isNotEmpty()) { item { CollectionDownloadLabel("NEEDS ATTENTION") }; items(failed,key={it.id}) { rec -> CollectionDownloadCard(rec,states[rec.id],onDelete={Downloads.remove(ctx,rec)}) } }
         }
     }
 }
 
 @Composable
-private fun RebuildSectionLabel(text: String) {
-    Text(text, color = VCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.4.sp,
-        modifier = Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp))
-}
-
-@Composable
-private fun RebuildDownloadRow(rec: DownloadRec, state: DlState?, onDelete: () -> Unit, onPlay: (() -> Unit)? = null) {
-    val pct = if ((state?.total ?: 0L) > 0L) ((state!!.done * 100L) / state.total).toInt() else 0
-    Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-        AsyncImage(rec.cover.ifBlank { Api.base + "/Items/${rec.id}/Images/Primary" }, null,
-            Modifier.size(58.dp, 78.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant), contentScale = ContentScale.Crop)
-        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(rec.title, color = MaterialTheme.colorScheme.onBackground, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(when (state?.status) {
-                DownloadManager.STATUS_SUCCESSFUL -> "Ready offline"
-                DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PENDING -> "Downloading · $pct%"
-                DownloadManager.STATUS_PAUSED -> "Paused"
-                DownloadManager.STATUS_FAILED -> "Failed · ${Downloads.reasonText(state?.reason ?: 0)}"
-                else -> "Checking file"
-            }, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
-            if (state?.status == DownloadManager.STATUS_RUNNING || state?.status == DownloadManager.STATUS_PENDING) {
-                LinearProgressIndicator(progress = { if (state.total > 0) state.done.toFloat() / state.total else 0f },
-                    modifier = Modifier.fillMaxWidth().padding(top = 7.dp).height(3.dp), color = VCyan, trackColor = MaterialTheme.colorScheme.surfaceVariant)
-            }
+private fun StorageLegend(color: Color,label: String,value: String) {
+    Row(verticalAlignment=Alignment.CenterVertically) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+        Column(Modifier.padding(start=8.dp)) {
+            Text(label,color=Color(0xFFD0C3D8),fontSize=10.sp)
+            Text(value,color=Color.White,fontSize=12.sp,fontWeight=FontWeight.Bold)
         }
-        if (onPlay != null) Text("Play", color = VCyan, modifier = Modifier.clickable(onClick = onPlay).padding(8.dp))
-        Text("Remove", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp, modifier = Modifier.clickable(onClick = onDelete).padding(7.dp))
     }
 }
 
+@Composable
+private fun CollectionDownloadLabel(text: String) {
+    Text(text,color=Color(0xFFFFB36B),fontSize=9.sp,fontWeight=FontWeight.Bold,letterSpacing=1.5.sp,
+        modifier=Modifier.padding(start=2.dp,top=7.dp,bottom=1.dp))
+}
+
+@Composable
+private fun CollectionDownloadCard(rec: DownloadRec,state: DlState?,onDelete: () -> Unit,onPlay: (() -> Unit)?=null) {
+    val pct=if((state?.total?:0L)>0L) ((state!!.done*100L)/state.total).toInt() else 0
+    val status=when(state?.status) {
+        DownloadManager.STATUS_SUCCESSFUL -> "Ready to watch offline"
+        DownloadManager.STATUS_RUNNING,DownloadManager.STATUS_PENDING -> "Downloading · "+pct+"%"
+        DownloadManager.STATUS_PAUSED -> "Paused"
+        DownloadManager.STATUS_FAILED -> "Failed · "+Downloads.reasonText(state.reason)
+        else -> "Checking download"
+    }
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0x44251D35))
+        .border(1.dp,Color(0x22D8C2E8),RoundedCornerShape(18.dp))
+        .clickable(enabled=onPlay!=null,onClick={onPlay?.invoke()}).padding(horizontal=12.dp,vertical=11.dp),
+        verticalAlignment=Alignment.CenterVertically) {
+        Box(Modifier.size(62.dp).clip(CircleShape).background(Color(0xFF34253F))) {
+            AsyncImage(rec.cover.ifBlank { Api.base+"/Items/"+rec.id+"/Images/Primary" },null,Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+            if(state?.status==DownloadManager.STATUS_SUCCESSFUL) Box(Modifier.align(Alignment.BottomEnd).size(21.dp)
+                .clip(CircleShape).background(Color(0xFF39D6C5)).border(2.dp,Color(0xFF251C35),CircleShape),contentAlignment=Alignment.Center) {
+                Text("✓",color=Color(0xFF071C20),fontSize=12.sp,fontWeight=FontWeight.ExtraBold)
+            } else if(state?.status==DownloadManager.STATUS_RUNNING || state?.status==DownloadManager.STATUS_PENDING) {
+                Canvas(Modifier.fillMaxSize()) {
+                    drawArc(Color(0xFFFFA45B),-90f,pct*3.6f,false,Offset(2.dp.toPx(),2.dp.toPx()),
+                        Size(size.width-4.dp.toPx(),size.height-4.dp.toPx()),style=Stroke(3.dp.toPx(),cap=androidx.compose.ui.graphics.StrokeCap.Round))
+                }
+            }
+        }
+        Column(Modifier.weight(1f).padding(start=13.dp,end=8.dp)) {
+            Text(rec.title,color=Color.White,fontSize=13.sp,fontWeight=FontWeight.SemiBold,maxLines=2,overflow=TextOverflow.Ellipsis)
+            Text(status,color=if(state?.status==DownloadManager.STATUS_FAILED) Color(0xFFFF9C9C) else Color(0xFFBEB2C8),
+                fontSize=10.sp,modifier=Modifier.padding(top=4.dp),maxLines=2)
+            if(state?.status==DownloadManager.STATUS_RUNNING || state?.status==DownloadManager.STATUS_PENDING)
+                LinearProgressIndicator(progress={if(state.total>0L) state.done.toFloat()/state.total else 0f},
+                    Modifier.fillMaxWidth().padding(top=7.dp).height(3.dp),color=Color(0xFF39D6C5),trackColor=Color(0xFF57465E))
+        }
+        if(onPlay!=null) Text("PLAY",color=Color(0xFF39D6C5),fontSize=9.sp,fontWeight=FontWeight.Bold,modifier=Modifier.padding(horizontal=7.dp,vertical=10.dp))
+        Text("⋯",color=Color(0xFFBEB2C8),fontSize=20.sp,modifier=Modifier.clickable(onClick=onDelete).padding(start=5.dp,end=2.dp))
+    }
+}
+
+private fun formatCollectionBytes(bytes: Long): String {
+    val gb=bytes/(1024.0*1024.0*1024.0)
+    return if(gb>=1.0) String.format(java.util.Locale.US,"%.1f GB",gb)
+    else String.format(java.util.Locale.US,"%.0f MB",bytes/(1024.0*1024.0))
+}
 @Composable
 private fun RebuildSearch(onOpen: (Item) -> Unit, back: () -> Unit) {
     var query by remember { mutableStateOf("") }
