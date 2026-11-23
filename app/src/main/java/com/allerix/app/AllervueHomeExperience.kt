@@ -37,6 +37,7 @@ import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
+import java.util.Calendar
 
 private val AAccent = AllervueDesign.Cyan
 private val AHot = Color(0xFFFF4D86)
@@ -97,6 +98,15 @@ internal fun AllervueHome(
     var loading by remember { mutableStateOf(true) }
     var failure by remember { mutableStateOf(false) }
     val orbitRotation = remember { mutableFloatStateOf(0f) }
+    var deviceHour by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            deviceHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            delay(60_000)
+        }
+    }
+    val isDaytime = deviceHour in 6..17
+
     val orbitMotion = rememberInfiniteTransition(label = "home-orbit-motion")
     val automaticRotation by orbitMotion.animateFloat(
         initialValue = 0f,
@@ -290,8 +300,9 @@ internal fun AllervueHome(
             ) {
                 val w = maxWidth
                 val h = maxHeight
-                val nodeSize = (w * .14f).coerceIn(54.dp, 66.dp)
-                val nodeOuterSize = nodeSize + 8.dp
+                // Planet diameters vary like a miniature solar system; each slot
+                // keeps its own size when artwork is shuffled every eight seconds.
+                val planetSizes = listOf(42.dp, 58.dp, 36.dp, 64.dp, 48.dp, 32.dp)
                 val centerSize = (w * .48f).coerceIn(172.dp, 216.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .50f
@@ -303,21 +314,25 @@ internal fun AllervueHome(
                 // varying radius and rotation speed so the field never reads as one ellipse.
                 // Slot geometry is tied only to layout dimensions and node count—not movie IDs.
                 // Replacing/shuffling artwork therefore never resets a circle's path or position.
-                val orbitSlots = remember(visibleOrbitItems.size, w, h, nodeSize) {
+                val orbitSlots = remember(visibleOrbitItems.size, w, h, planetSizes) {
                     val count = visibleOrbitItems.size.coerceAtLeast(1)
                     List(visibleOrbitItems.size) { slot ->
                         val baseAngle = -90f + slot * (360f / count)
                         val phaseJitter = kotlin.random.Random.nextFloat() * 34f - 17f
+                        val planetSize = planetSizes[slot % planetSizes.size]
+                        val outerSize = planetSize + 8.dp
                         val radiusX = (w * (.25f + kotlin.random.Random.nextFloat() * .18f))
-                            .coerceAtMost((w - nodeOuterSize) / 2 - 6.dp)
+                            .coerceAtMost((w - outerSize) / 2 - 6.dp)
                         val radiusY = (h * (.13f + kotlin.random.Random.nextFloat() * .20f))
-                            .coerceAtMost((h - nodeOuterSize) / 2 - 12.dp)
+                            .coerceAtMost((h - outerSize) / 2 - 12.dp)
                         val speed = .65f + kotlin.random.Random.nextFloat() * .7f
                         Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
                     }
                 }
                 visibleOrbitItems.forEachIndexed { index, item ->
                     val lane = orbitSlots[index]
+                    val nodeSize = planetSizes[index % planetSizes.size]
+                    val nodeOuterSize = nodeSize + 8.dp
                     val angle = Math.toRadians(
                         (lane.first + automaticRotation * lane.third + orbitRotation.floatValue).toDouble()
                     )
@@ -349,6 +364,19 @@ internal fun AllervueHome(
                 }
 
                 if (centerItem != null) {
+                    // The central star/moon follows the device's local clock.
+                    Box(
+                        Modifier.offset(
+                            x = orbitCenterX - (centerSize + 42.dp) / 2,
+                            y = orbitCenterY - (centerSize + 42.dp) / 2
+                        ).size(centerSize + 42.dp).clip(CircleShape)
+                            .background(
+                                Brush.radialGradient(
+                                    if (isDaytime) listOf(Color(0xFFFFC65C).copy(alpha = .36f), Color(0xFFFF8A4C).copy(alpha = .12f), Color.Transparent)
+                                    else listOf(Color(0xFFB9D8FF).copy(alpha = .30f), Color(0xFF8795D8).copy(alpha = .12f), Color.Transparent)
+                                )
+                            )
+                    )
                     Box(
                         Modifier.offset(
                             x = orbitCenterX - (centerSize + 14.dp) / 2,
