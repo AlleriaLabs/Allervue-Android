@@ -177,6 +177,31 @@ object Api {
     suspend fun views(): List<Item> =
         json.decodeFromString<ItemsResult>(call("GET", "/Users/$userId/Views")).items
 
+    /**
+     * Loads media only from the named Jellyfin libraries. Jellyfin's Views endpoint
+     * supplies the actual folder IDs, so the app never guesses by genre or media type.
+     * Library labels are normalized so names such as "Jellyfin Anime Library" and
+     * "Anime" resolve to the same exact library name without substring matching.
+     */
+    private fun normalizedLibraryName(value: String): String =
+        value.lowercase()
+            .replace("jellyfin", "")
+            .replace("library", "")
+            .replace(Regex("[^a-z0-9]"), "")
+
+    suspend fun libraryItems(libraryNames: List<String>, itemTypes: List<String>): List<Item> {
+        val wanted = libraryNames.map(::normalizedLibraryName).toSet()
+        val libraries = views().filter { normalizedLibraryName(it.name) in wanted }
+        if (libraries.isEmpty()) return emptyList()
+        return coroutineScope {
+            libraries.flatMap { library ->
+                itemTypes.map { itemType ->
+                    async { byType(itemType, parentId = library.id) }
+                }
+            }.flatMap { it.await() }.distinctBy { it.id }
+        }
+    }
+
     suspend fun resume(): List<Item> = json.decodeFromString<ItemsResult>(
         call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview,ImageTags,BackdropImageTags,ParentBackdropItemId")).items
 
