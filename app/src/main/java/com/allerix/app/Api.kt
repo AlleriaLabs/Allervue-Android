@@ -233,7 +233,7 @@ object Api {
             "sortBy=SortName", "limit=500",
             "fields=Genres,Tags,Overview,ProductionLocations,CommunityRating,UserData"
         )
-        parentId?.takeIf { it.isNotBlank() }?.let { params += "parentId=$it" }
+        parentId?.takeIf { it.isNotBlank() }?.let { params += "ParentId=${URLEncoder.encode(it, "UTF-8")}" }
         genre?.takeIf { it.isNotBlank() }?.let { params += "genres=${URLEncoder.encode(it, "UTF-8")}" }
         year?.let { params += "years=$it" }
         minRating?.let { params += "minCommunityRating=$it" }
