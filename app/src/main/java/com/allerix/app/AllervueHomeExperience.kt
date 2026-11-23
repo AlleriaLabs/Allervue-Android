@@ -295,9 +295,15 @@ internal fun AllervueHome(
 
             BoxWithConstraints(
                 Modifier.fillMaxSize().pointerInput(Unit) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        orbitRotation.floatValue = (orbitRotation.floatValue + dragAmount.x / 3.2f) % 360f
+                    detectTransformGestures { _, pan, zoomChange, _ ->
+                        // Pinch inward (zoom out) reveals more planets; pinch
+                        // outward (zoom in) reduces the visible orbit to its core.
+                        orbitZoom.floatValue =
+                            (orbitZoom.floatValue * zoomChange).coerceIn(.72f, 1.28f)
+                        if (kotlin.math.abs(pan.x) > 0.5f) {
+                            orbitRotation.floatValue =
+                                (orbitRotation.floatValue + pan.x / 3.2f) % 360f
+                        }
                     }
                 }
             ) {
