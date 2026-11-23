@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -30,7 +31,7 @@ fun AllervueWordmark(
     textSize: androidx.compose.ui.unit.TextUnit = 42.sp
 ) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Canvas(Modifier.width(emblemSize).then(Modifier)) {
+        Canvas(Modifier.size(emblemSize)) {
             val stroke = size.minDimension * .105f
             val inset = stroke / 2f
             val arcSize = Size(size.width - stroke, size.height - stroke)
