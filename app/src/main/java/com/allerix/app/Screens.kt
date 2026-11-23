@@ -24,6 +24,7 @@ import java.io.File
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -47,8 +48,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -932,45 +937,96 @@ fun DetailScreen(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, bac
                         Text("↥", color = Color.White, fontSize = 25.sp)
                     }
 
-                    // The orbit is a cinematic progress motif. For a movie, the numbered
-                    // satellites are decorative markers; actual playback progress is shown by the ring.
-                    Box(Modifier.align(Alignment.Center).size(310.dp), contentAlignment = Alignment.Center) {
-                        Box(Modifier.fillMaxSize().clip(CircleShape).border(1.dp, Color(0x447F8CA9), CircleShape))
-                        Box(Modifier.fillMaxSize().padding(24.dp).clip(CircleShape).border(1.dp, Color(0x338F9AB0), CircleShape))
-                        Box(Modifier.fillMaxSize().padding(48.dp).clip(CircleShape).border(1.dp, Color(0x228F9AB0), CircleShape))
-                        val markers = listOf(
-                            Modifier.align(Alignment.TopCenter).offset(y = 3.dp),
-                            Modifier.align(Alignment.CenterEnd).offset(x = (-2).dp),
-                            Modifier.align(Alignment.BottomEnd).offset(x = (-28).dp, y = (-8).dp),
-                            Modifier.align(Alignment.BottomCenter).offset(y = (-2).dp),
-                            Modifier.align(Alignment.BottomStart).offset(x = 28.dp, y = (-8).dp),
-                            Modifier.align(Alignment.CenterStart).offset(x = 2.dp),
-                            Modifier.align(Alignment.TopStart).offset(x = 28.dp, y = 24.dp),
-                            Modifier.align(Alignment.TopEnd).offset(x = (-28).dp, y = 24.dp)
+                    // Orbital hero: dotted celestial tracks, a curved progress trail,
+                    // eight numbered satellites and the circular artwork at the center.
+                    Box(Modifier.align(Alignment.Center).size(340.dp), contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val radius = size.minDimension * 0.455f
+                            val topLeft = Offset(size.width / 2f - radius, size.height / 2f - radius)
+                            val arcSize = Size(radius * 2f, radius * 2f)
+                            drawCircle(
+                                color = Color(0x557F8CA9), radius = radius,
+                                style = Stroke(width = 1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 13f)))
+                            )
+                            drawCircle(
+                                color = Color(0x227F8CA9), radius = radius * 0.78f,
+                                style = Stroke(width = 1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 15f)))
+                            )
+                            drawArc(
+                                color = Color(0xFFFF477F), startAngle = -82f,
+                                sweepAngle = if (progress > 0f) (35f + progress * 32f) else 58f,
+                                useCenter = false, topLeft = topLeft, size = arcSize,
+                                style = Stroke(width = 4.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                            )
+                            // Tiny stars scattered around the orbital field.
+                            listOf(
+                                Offset(size.width * .12f, size.height * .22f),
+                                Offset(size.width * .82f, size.height * .17f),
+                                Offset(size.width * .92f, size.height * .68f),
+                                Offset(size.width * .19f, size.height * .83f),
+                                Offset(size.width * .48f, size.height * .04f)
+                            ).forEach { drawCircle(Color(0x887F9AB4), radius = 1.7f, center = it) }
+                        }
+
+                        val satellites = listOf(
+                            Triple(0.dp, (-145).dp, 0),
+                            Triple(103.dp, (-103).dp, 1),
+                            Triple(145.dp, 0.dp, 2),
+                            Triple(103.dp, 103.dp, 3),
+                            Triple(0.dp, 145.dp, 4),
+                            Triple((-103).dp, 103.dp, 5),
+                            Triple((-145).dp, 0.dp, 6),
+                            Triple((-103).dp, (-103).dp, 7)
                         )
-                        markers.forEachIndexed { index, placement ->
-                            Box(placement.size(36.dp).clip(CircleShape)
-                                .background(if (index == 0 && progress > 0f) Color(0xFFFF5B79) else Color(0x442B263B))
-                                .border(1.dp, Color(0x667D829B), CircleShape), contentAlignment = Alignment.Center) {
-                                Text("${index + 1}", color = Color(0xFFEAE5F1), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        satellites.forEach { (x, y, index) ->
+                            val active = index == 0 && progress > 0f
+                            val current = index == 1 && progress > 0f
+                            Box(
+                                Modifier.offset(x = x, y = y).size(if (active) 44.dp else 42.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            active -> Brush.linearGradient(listOf(Color(0xFFFF8150), Color(0xFFFF347E)))
+                                            else -> Brush.linearGradient(listOf(Color(0x662B2037), Color(0x55302748)))
+                                        }
+                                    )
+                                    .border(
+                                        width = if (current) 2.dp else 1.dp,
+                                        color = if (current) Color(0xFFFF3982) else Color(0x667F829A),
+                                        shape = CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (current) {
+                                    Box(Modifier.fillMaxSize().padding(4.dp).border(1.dp, Color(0xFFFF3982), CircleShape))
+                                }
+                                Text("${index + 1}", color = if (active) Color(0xFF190C18) else Color.White,
+                                    fontSize = 14.sp, fontWeight = FontWeight.Bold)
                             }
                         }
-                        Box(Modifier.size(238.dp).clip(CircleShape).background(Color(0xFF171325))) {
+
+                        Box(Modifier.size(204.dp).clip(CircleShape)
+                            .background(Color(0xFF171325))
+                            .border(3.dp, Color(0xAA9A688E), CircleShape)) {
                             AsyncImage(Api.poster(cur), null, Modifier.fillMaxSize().clip(CircleShape), contentScale = ContentScale.Crop)
                             Box(Modifier.fillMaxSize().background(
-                                Brush.verticalGradient(0f to Color(0x11000000), 0.65f to Color(0x22000000), 1f to Color(0x990A0712))
+                                Brush.verticalGradient(0f to Color(0x11000000), 0.58f to Color(0x22000000), 1f to Color(0xAA090713))
                             ))
                             CircularProgressIndicator(
                                 progress = { progress },
                                 modifier = Modifier.fillMaxSize().padding(2.dp),
-                                color = Color(0xFFFF557E), trackColor = Color(0x668C7A9B), strokeWidth = 4.dp
+                                color = Color(0xFFFF557E), trackColor = Color(0x668C7A9B), strokeWidth = 3.dp
                             )
                         }
                         if (remaining.isNotEmpty()) {
-                            Text("CONTINUE  ·  $remaining LEFT", color = Color.White, fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold, modifier = Modifier.align(Alignment.BottomCenter)
-                                    .offset(y = 42.dp).clip(CircleShape).background(Color(0x66342B45))
-                                    .padding(horizontal = 13.dp, vertical = 8.dp))
+                            Text(
+                                "${if (isEpisode) "EPISODE" else "CONTINUE"} · $remaining LEFT",
+                                color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 34.dp, y = (-48).dp)
+                                    .clip(CircleShape).background(Color(0x884A3B5B))
+                                    .border(1.dp, Color(0x55FFFFFF), CircleShape)
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            )
                         }
                     }
                 }
