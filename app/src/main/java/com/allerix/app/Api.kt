@@ -225,13 +225,15 @@ object Api {
 
     suspend fun byType(
         type: String, genre: String? = null, year: Int? = null,
-        minRating: Double? = null, resolution: String? = null, watched: String? = null
+        minRating: Double? = null, resolution: String? = null, watched: String? = null,
+        parentId: String? = null
     ): List<Item> {
         val params = mutableListOf(
             "userId=$userId", "recursive=true", "includeItemTypes=$type",
             "sortBy=SortName", "limit=500",
             "fields=Genres,Tags,Overview,ProductionLocations,CommunityRating,UserData"
         )
+        parentId?.takeIf { it.isNotBlank() }?.let { params += "parentId=$it" }
         genre?.takeIf { it.isNotBlank() }?.let { params += "genres=${URLEncoder.encode(it, "UTF-8")}" }
         year?.let { params += "years=$it" }
         minRating?.let { params += "minCommunityRating=$it" }
