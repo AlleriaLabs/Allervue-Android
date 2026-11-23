@@ -170,7 +170,7 @@ internal fun AllervueHome(
 
     Column(
         Modifier.fillMaxSize().drawBehind {
-            drawRect(Brush.verticalGradient(listOf(Color(0xFF32191F), Color(0xFF17152D), Color(0xFF071F27))))
+            drawRect(Brush.verticalGradient(if (isDaytime) listOf(Color(0xFF563B38), Color(0xFF263B4A), Color(0xFF142C38)) else listOf(Color(0xFF10182F), Color(0xFF17152D), Color(0xFF071522))))
             // Ambient lighting drifts across the entire Home surface, including
             // the lower information area. Motion is slow and continuous, never flashing.
             val phase = Math.toRadians((automaticRotation * .38f).toDouble())
@@ -184,14 +184,14 @@ internal fun AllervueHome(
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(Color(0xFF42C6D0).copy(alpha = .18f), Color.Transparent),
+                    (if (isDaytime) listOf(Color(0xFFFFC66A).copy(alpha = .25f), Color(0xFFFF9B68).copy(alpha = .06f), Color.Transparent) else listOf(Color(0xFF9BBFFF).copy(alpha = .22f), Color(0xFF8C8FE0).copy(alpha = .07f), Color.Transparent)),
                     center = ambientA, radius = size.maxDimension * .72f
                 ),
                 radius = size.maxDimension * .72f, center = ambientA
             )
             drawCircle(
                 brush = Brush.radialGradient(
-                    listOf(Color(0xFF9A62B8).copy(alpha = .16f), Color.Transparent),
+                    (if (isDaytime) listOf(Color(0xFFFFDDA0).copy(alpha = .16f), Color(0xFF75C6D1).copy(alpha = .06f), Color.Transparent) else listOf(Color(0xFF8D78C7).copy(alpha = .19f), Color(0xFF4B8EAA).copy(alpha = .06f), Color.Transparent)),
                     center = ambientB, radius = size.maxDimension * .66f
                 ),
                 radius = size.maxDimension * .66f, center = ambientB
@@ -218,13 +218,13 @@ internal fun AllervueHome(
                 // changing the orbit geometry when featured titles shuffle.
                 drawRect(
                     brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF35BFCB).copy(alpha = .13f), Color.Transparent),
+                        colors = (if (isDaytime) listOf(Color(0xFFFFC56C).copy(alpha = .19f), Color(0xFFFFA16B).copy(alpha = .05f), Color.Transparent) else listOf(Color(0xFF7DAFFF).copy(alpha = .17f), Color(0xFF9A83D0).copy(alpha = .05f), Color.Transparent)),
                         center = glowCenterA, radius = radius * .95f
                     )
                 )
                 drawRect(
                     brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF9B5AB8).copy(alpha = .12f), Color.Transparent),
+                        colors = (if (isDaytime) listOf(Color(0xFFFFDDA0).copy(alpha = .12f), Color(0xFF73BFCB).copy(alpha = .04f), Color.Transparent) else listOf(Color(0xFF9A78D0).copy(alpha = .15f), Color(0xFF527DA8).copy(alpha = .04f), Color.Transparent)),
                         center = glowCenterB, radius = radius * .82f
                     )
                 )
@@ -416,7 +416,7 @@ internal fun AllervueHome(
         Column(
             Modifier.fillMaxWidth().height(254.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xF219162F), Color(0xE617152C))))
+                .background(Brush.verticalGradient(if (isDaytime) listOf(Color(0xF22B293D), Color(0xE61B3040)) else listOf(Color(0xF2141930), Color(0xE60D1D2B))))
                 .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 14.dp)
         ) {
             Row(
