@@ -341,7 +341,17 @@ internal fun AllervueHome(
                         .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
                         .clickable { centerItem?.let(onPlay) },
                     contentAlignment = Alignment.Center
-                ) { Text("▶", color = Color(0xFF170D1B), fontSize = 25.sp) }
+                ) {
+                    Canvas(Modifier.size(25.dp)) {
+                        val play = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(size.width * .29f, size.height * .12f)
+                            lineTo(size.width * .92f, size.height * .50f)
+                            lineTo(size.width * .29f, size.height * .88f)
+                            close()
+                        }
+                        drawPath(play, Color(0xFF170D1B))
+                    }
+                }
             }
             // Reserve the synopsis slot even when an item has no description so
             // the panel geometry never shifts between featured titles.
@@ -349,15 +359,20 @@ internal fun AllervueHome(
                 color = Color(0xFFC7C2D3), fontSize = 13.sp, lineHeight = 18.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis)
             Row(
-                Modifier.fillMaxWidth().height(28.dp),
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                Modifier.fillMaxWidth().height(32.dp),
+                horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("MORE IN THIS MOOD", color = Color(0xFF8CE0E2), fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                (centerItem?.genres.orEmpty().take(2)).forEach { genre ->
-                    Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF302A48)).padding(horizontal = 9.dp, vertical = 5.dp)) {
-                        Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("MORE IN THIS MOOD", color = Color(0xFF8CE0E2), fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                    (centerItem?.genres.orEmpty().take(2)).forEach { genre ->
+                        Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF302A48)).padding(horizontal = 9.dp, vertical = 5.dp)) {
+                            Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
+                        }
                     }
                 }
             }
