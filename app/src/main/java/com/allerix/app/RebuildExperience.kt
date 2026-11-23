@@ -862,21 +862,43 @@ private fun RebuildSearch(onOpen: (Item) -> Unit, back: () -> Unit) {
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf(emptyList<Item>()) }
     var busy by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
+
+    // Debounce keystrokes so the server is queried after a brief pause in typing.
+    LaunchedEffect(query) {
+        val term = query.trim()
+        if (term.isBlank()) {
+            results = emptyList()
+            busy = false
+            return@LaunchedEffect
+        }
+        delay(350)
+        busy = true
+        try {
+            results = Api.search(term)
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            results = emptyList()
+        } finally {
+            busy = false
+        }
+    }
+
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("‹", color = MaterialTheme.colorScheme.onBackground, fontSize = 30.sp, modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
             OutlinedTextField(query, { query = it }, Modifier.weight(1f), singleLine = true,
-                placeholder = { Text("Titles, people, genres…") },
+                placeholder = { Text("Search titles, people, genres…") },
                 colors = OutlinedTextFieldDefaults.colors(focusedTextColor = MaterialTheme.colorScheme.onBackground, unfocusedTextColor = MaterialTheme.colorScheme.onBackground,
                     focusedBorderColor = VCyan, unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant, cursorColor = VCyan))
-            Text("Go", color = VCyan, modifier = Modifier.clickable {
-                scope.launch { busy = true; results = runCatching { Api.search(query.trim()) }.getOrDefault(emptyList()); busy = false }
-            }.padding(start = 12.dp))
         }
         if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = VCyan)
         if (results.isEmpty() && query.isBlank()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Find something worth watching.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        } else if (results.isEmpty() && !busy) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No results found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         } else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
