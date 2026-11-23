@@ -296,7 +296,7 @@ object Api {
     }.getOrDefault(emptyList())
 
     suspend fun favorites(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName")
+        call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName&fields=Genres,Tags,ParentId,SeriesId,ImageTags,BackdropImageTags,ParentBackdropItemId")
     ).items
 
     suspend fun setFavorite(id: String, favorite: Boolean) {
