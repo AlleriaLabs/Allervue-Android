@@ -6,6 +6,8 @@ import android.app.DownloadManager
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -21,7 +23,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -758,7 +764,10 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
     var similar by remember(base.id) { mutableStateOf(emptyList<Item>()) }
     var seasonIndex by remember(base.id) { mutableIntStateOf(0) }
     var saved by remember(base.id) { mutableStateOf(base.userData?.isFavorite == true) }
-    var tab by remember { mutableStateOf(if (base.type == "Series" || base.type == "Season") "Episodes" else "About") }
+    var tab by remember(base.id) { mutableStateOf(if (base.type == "Series" || base.type == "Season") "Episodes" else "About") }
+    val isShow = base.type == "Series" || base.type == "Season"
+    val isEpisode = base.type == "Episode"
+
     LaunchedEffect(base.id) {
         item = runCatching { Api.item(base.id) }.getOrDefault(base)
         if (base.type == "Series") {
@@ -767,135 +776,148 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
         } else if (base.type == "Season") episodes = runCatching { Api.children(base.id) }.getOrDefault(emptyList())
         similar = runCatching { Api.similar(base.id) }.getOrDefault(emptyList())
     }
-    val isShow = base.type == "Series" || base.type == "Season"
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item {
-            Box(
-                Modifier.fillMaxWidth().height(350.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                AsyncImage(
-                    Api.backdrop(item), null,
-                    Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-                Box(
-                    Modifier.fillMaxSize().background(
-                        Brush.verticalGradient(
-                            0f to Color(0x99070A10),
-                            0.36f to Color(0x22070A10),
-                            1f to Color(0xF5090B10)
-                        )
-                    )
-                )
-                Text(
-                    "‹",
-                    color = Color.White,
-                    fontSize = 34.sp,
-                    modifier = Modifier.align(Alignment.TopStart)
-                        .padding(start = 18.dp, top = 12.dp)
-                        .clip(CircleShape)
-                        .clickable(onClick = back)
-                        .padding(horizontal = 10.dp, vertical = 2.dp)
-                )
-                Column(
-                    Modifier.align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 20.dp)
-                ) {
-                    Text(
-                        if (item.type == "Series" || item.type == "Season") "SERIES" else "FILM",
-                        color = VCyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    )
-                    Spacer(Modifier.height(7.dp))
-                    Text(
-                        item.name,
-                        color = Color.White,
-                        fontSize = 30.sp,
-                        lineHeight = 34.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(Modifier.height(7.dp))
-                    Text(
-                        listOfNotNull(item.year?.toString(), item.officialRating,
-                            fmtRuntime(item.runTimeTicks).ifEmpty { null })
-                            .joinToString("  ·  "),
-                        color = Color(0xFFE0E4E9),
-                        fontSize = 12.sp
-                    )
+
+    val video = item.mediaSources?.firstOrNull()?.streams?.firstOrNull { it.type == "Video" }
+    val h = video?.height ?: 0
+    val resolution = when { h >= 4000 -> "8K"; h >= 2000 -> "4K"; h >= 1000 -> "1080p"; h >= 700 -> "720p"; h > 0 -> "SD"; else -> "" }
+    val hdr = video?.videoRange?.contains("HDR", ignoreCase = true) == true
+    val metadata = listOfNotNull(if (isShow) "SERIES" else if (isEpisode) "EPISODE" else "MOVIE",
+        item.year?.toString(), item.officialRating, resolution.takeIf { it.isNotBlank() }, "HDR".takeIf { hdr }).joinToString("  ·  ")
+    val total = item.runTimeTicks ?: 0L
+    val position = item.userData?.positionTicks ?: 0L
+    val progress = if (total > 0L) (position.toFloat() / total).coerceIn(0f, 1f) else 0f
+    val remaining = if (total > 0L && position > 0L && position < total) fmtRuntime(total - position) else ""
+
+    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF35151D), Color(0xFF28143A), Color(0xFF0B2028), Color(0xFF080A11))))) {
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
+            item {
+                Box(Modifier.fillMaxWidth().height(420.dp), contentAlignment = Alignment.Center) {
+                    AsyncImage(Api.backdrop(item), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0xAA160A18), .38f to Color(0x66301938), 1f to Color(0xFF24152E))))
+                    Box(Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0x55FF754E), Color(0x333F45B8), Color.Transparent), radius = 900f)))
+                    Canvas(Modifier.fillMaxSize()) {
+                        val cx = size.width / 2f; val cy = size.height / 2f
+                        val r = size.minDimension * .405f
+                        drawCircle(Color(0x557F8CA9), r, Offset(cx, cy), style = Stroke(1.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f, 13f))))
+                        drawCircle(Color(0x227F8CA9), r * .76f, Offset(cx, cy), style = Stroke(1f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f, 15f))))
+                        drawArc(Color(0xFFFF477F), -82f, if (progress > 0f) 42f + progress * 30f else 58f, false,
+                            Offset(cx-r, cy-r), Size(r*2f, r*2f), style = Stroke(4.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                        listOf(Offset(size.width*.12f,size.height*.20f),Offset(size.width*.84f,size.height*.16f),
+                            Offset(size.width*.91f,size.height*.72f),Offset(size.width*.16f,size.height*.82f),Offset(size.width*.51f,size.height*.07f))
+                            .forEach { drawCircle(Color(0x997F9AB4),1.7f,it) }
+                    }
+                    val satellites = listOf(Triple(0.dp,(-142).dp,0),Triple(101.dp,(-101).dp,1),Triple(142.dp,0.dp,2),
+                        Triple(101.dp,101.dp,3),Triple(0.dp,142.dp,4),Triple((-101).dp,101.dp,5),Triple((-142).dp,0.dp,6),Triple((-101).dp,(-101).dp,7))
+                    satellites.forEach { (x,y,n) ->
+                        val active = n == 0
+                        val current = n == 1 && progress > 0f
+                        Box(Modifier.offset(x,y).size(if(active)44.dp else 42.dp).clip(CircleShape)
+                            .background(if(active) Brush.linearGradient(listOf(Color(0xFFFF8150),Color(0xFFFF347E))) else Brush.linearGradient(listOf(Color(0x662B2037),Color(0x55302748))))
+                            .border(if(current)2.dp else 1.dp,if(current)Color(0xFFFF3982) else Color(0x667F829A),CircleShape),contentAlignment=Alignment.Center) {
+                            if(current) Box(Modifier.fillMaxSize().padding(4.dp).border(1.dp,Color(0xFFFF3982),CircleShape))
+                            Text("\${n+1}",color=if(active)Color(0xFF190C18) else Color.White,fontSize=14.sp,fontWeight=FontWeight.Bold)
+                        }
+                    }
+                    Box(Modifier.size(204.dp).clip(CircleShape).background(Color(0xFF171325)).border(3.dp,Color(0xAA9A688E),CircleShape)) {
+                        AsyncImage(Api.poster(item),null,Modifier.fillMaxSize().clip(CircleShape),contentScale=ContentScale.Crop)
+                        Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x11000000),.58f to Color(0x22000000),1f to Color(0xAA090713))))
+                        CircularProgressIndicator(progress={progress},modifier=Modifier.fillMaxSize().padding(2.dp),color=Color(0xFFFF557E),trackColor=Color(0x668C7A9B),strokeWidth=3.dp)
+                    }
+                    if(remaining.isNotEmpty()) Text("\${if(isEpisode) "EPISODE" else "CONTINUE"} · $remaining LEFT",color=Color.White,fontSize=11.sp,fontWeight=FontWeight.SemiBold,
+                        modifier=Modifier.align(Alignment.CenterEnd).offset(x=18.dp,y=(-45).dp).clip(CircleShape).background(Color(0x884A3B5B)).border(1.dp,Color(0x55FFFFFF),CircleShape).padding(horizontal=12.dp,vertical=8.dp))
+                    IconButton(onClick=back,modifier=Modifier.align(Alignment.TopStart).padding(14.dp).size(46.dp).clip(CircleShape).background(Color(0x5520182C))) { SmallIcon(R.drawable.ic_back,Color.White,22) }
+                    IconButton(onClick={
+                        val send=Intent(Intent.ACTION_SEND).apply { type="text/plain"; putExtra(Intent.EXTRA_TEXT,"\${item.name} (\${item.year ?: ""})") }
+                        ctx.startActivity(Intent.createChooser(send,"Share title"))
+                    },modifier=Modifier.align(Alignment.TopEnd).padding(14.dp).size(46.dp).clip(CircleShape).background(Color(0x5520182C))) { Text("↥",color=Color.White,fontSize=24.sp) }
                 }
             }
-        }
-        item {
-            Column(Modifier.padding(horizontal = 18.dp, vertical = 16.dp)) {
-                Text(item.overview.orEmpty(), color = Color(0xFFD3D8DF), fontSize = 13.sp, lineHeight = 19.sp)
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    Button(onClick = { onPlay(item) }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = VCyan, contentColor = MaterialTheme.colorScheme.background)) { Text("▶  Play", fontWeight = FontWeight.Bold) }
-                    OutlinedButton(onClick = {
-                        scope.launch { runCatching { Api.setFavorite(item.id, !saved) }; saved = !saved }
-                    }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)) { Text(if (saved) "✓  Saved" else "+  My List") }
-                    if (!isShow) OutlinedButton(onClick = { startDownload(item) }, shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onBackground)) { Text("↓") }
-                }
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                (if (isShow) listOf("Episodes", "About", "Similar") else listOf("About", "Similar")).forEach { label ->
-                    Column(Modifier.clickable { tab = label }) {
-                        Text(label, color = if (tab == label) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        Spacer(Modifier.height(7.dp))
-                        Box(Modifier.width(30.dp).height(2.dp).background(if (tab == label) VCyan else Color.Transparent))
+            item {
+                Column(Modifier.fillMaxWidth().padding(horizontal=20.dp)) {
+                    Text(metadata,color=Color(0xFFBDB3C7),fontSize=11.sp,fontWeight=FontWeight.Bold,letterSpacing=1.6.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(8.dp))
+                    Text(item.name,color=Color(0xFFF7F2FA),fontSize=34.sp,lineHeight=38.sp,fontWeight=FontWeight.ExtraBold,maxLines=2,overflow=TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(12.dp))
+                    Text(item.overview.orEmpty().ifBlank { "Discover more about this title in your Allervue library." },color=Color(0xFFD0C7D5),fontSize=15.sp,lineHeight=23.sp)
+                    Spacer(Modifier.height(17.dp))
+                    val cast=item.people.orEmpty().filter { it.type=="Actor" }.take(3)
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        cast.forEachIndexed { i,p ->
+                            Box(Modifier.size(42.dp).offset(x=(-i*7).dp).clip(CircleShape).background(listOf(Color(0xFFFF875A),Color(0xFFEA62A8),Color(0xFF4654A8))[i%3]).border(1.dp,Color(0xFF20172C),CircleShape),contentAlignment=Alignment.Center) {
+                                Text(p.name.firstOrNull()?.uppercase() ?: "•",color=Color.White,fontWeight=FontWeight.Bold)
+                            }
+                        }
+                        if(cast.isNotEmpty()) Text(cast.joinToString(" · ") { it.name },color=Color(0xFFB9B0C5),fontSize=12.sp,maxLines=1,overflow=TextOverflow.Ellipsis)
                     }
                 }
             }
-        }
-        when (tab) {
-            "Episodes" -> {
-                if (seasons.isNotEmpty()) item {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        seasons.forEachIndexed { index, season ->
-                            Text(season.name, color = if (index == seasonIndex) MaterialTheme.colorScheme.background else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.clip(CircleShape).background(if (index == seasonIndex) VCyan else MaterialTheme.colorScheme.surface)
-                                    .clickable {
-                                        seasonIndex = index
-                                        scope.launch { episodes = runCatching { Api.children(season.id) }.getOrDefault(emptyList()) }
-                                    }.padding(horizontal = 12.dp, vertical = 8.dp), fontSize = 11.sp)
+            item {
+                Column(Modifier.fillMaxWidth().padding(top=20.dp,bottom=8.dp).clip(RoundedCornerShape(topStart=34.dp,topEnd=34.dp)).background(Color(0xEE171329)).padding(horizontal=20.dp,vertical=22.dp)) {
+                    Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                        Column(Modifier.weight(1f)) {
+                            Text(if(remaining.isNotEmpty()) "Continue watching" else "Ready when you are",color=Color.White,fontSize=22.sp,fontWeight=FontWeight.ExtraBold)
+                            Text(if(remaining.isNotEmpty()) "$remaining remaining" else fmtRuntime(item.runTimeTicks).ifEmpty { "Full title" },color=Color(0xFFB8AEC4),fontSize=13.sp,modifier=Modifier.padding(top=3.dp))
+                        }
+                        Button(onClick={onPlay(item)},modifier=Modifier.height(58.dp).weight(1.05f),shape=CircleShape,colors=ButtonDefaults.buttonColors(containerColor=Color(0xFFFF4D70),contentColor=Color(0xFF1A0A17))) {
+                            Text(if(progress>.02f) "▶  Resume" else "▶  Play",fontSize=15.sp,fontWeight=FontWeight.Bold,maxLines=1)
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick={scope.launch { runCatching { Api.setFavorite(item.id,!saved) }; saved=!saved }},modifier=Modifier.weight(1f).height(48.dp),shape=CircleShape,colors=ButtonDefaults.outlinedButtonColors(contentColor=Color.White)) { Text(if(saved) "✓  Saved" else "＋  Save",maxLines=1) }
+                        OutlinedButton(onClick={startDownload(item)},modifier=Modifier.weight(1f).height(48.dp),shape=CircleShape,colors=ButtonDefaults.outlinedButtonColors(contentColor=Color.White)) { Text("↓  Download",maxLines=1) }
+                    }
+                }
+            }
+            item {
+                Row(Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=18.dp),horizontalArrangement=Arrangement.spacedBy(26.dp)) {
+                    (if(isShow) listOf("Episodes","About","Similar") else listOf("About","Similar")).forEach { label ->
+                        Column(Modifier.clickable { tab=label }) {
+                            Text(label,color=if(tab==label)Color.White else Color(0xFF9F95AC),fontSize=14.sp,fontWeight=FontWeight.SemiBold)
+                            Spacer(Modifier.height(7.dp))
+                            Box(Modifier.width(28.dp).height(3.dp).clip(CircleShape).background(if(tab==label)Color(0xFFFF587B) else Color.Transparent))
                         }
                     }
                 }
-                items(episodes, key = { it.id }) { ep ->
-                    Row(Modifier.fillMaxWidth().clickable { onPlay(ep) }.padding(horizontal = 18.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically) {
-                        AsyncImage(Api.landscape(ep), null, Modifier.size(124.dp, 70.dp).clip(RoundedCornerShape(9.dp)), contentScale = ContentScale.Crop)
-                        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                            Text("${ep.index ?: ""}. ${ep.name}", color = MaterialTheme.colorScheme.onBackground, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 2)
-                            Text(fmtRuntime(ep.runTimeTicks), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
+            }
+            when(tab) {
+                "Episodes" -> {
+                    if(seasons.size>1) item {
+                        LazyRow(contentPadding=PaddingValues(horizontal=20.dp,vertical=10.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            items(seasons.size) { i ->
+                                val active=i==seasonIndex
+                                Text(seasons[i].name,color=if(active)Color(0xFF1B0D1A) else Color.White,modifier=Modifier.clip(CircleShape).background(if(active)Color(0xFFFF647C) else Color(0x44352D47)).clickable {
+                                    seasonIndex=i
+                                    scope.launch { episodes=runCatching { Api.children(seasons[i].id) }.getOrDefault(emptyList()) }
+                                }.padding(horizontal=14.dp,vertical=9.dp),fontSize=12.sp)
+                            }
                         }
-                        Text("▶", color = VCyan)
+                    }
+                    items(episodes,key={it.id}) { ep ->
+                        Row(Modifier.fillMaxWidth().clickable { onPlay(ep) }.padding(horizontal=20.dp,vertical=9.dp),verticalAlignment=Alignment.CenterVertically) {
+                            AsyncImage(Api.landscape(ep),null,Modifier.size(124.dp,70.dp).clip(RoundedCornerShape(10.dp)),contentScale=ContentScale.Crop)
+                            Column(Modifier.weight(1f).padding(start=12.dp)) {
+                                Text("\${ep.index ?: ""}. \${ep.name}",color=Color.White,fontWeight=FontWeight.SemiBold,fontSize=13.sp,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                Text(fmtRuntime(ep.runTimeTicks),color=Color(0xFFB9B0C5),fontSize=11.sp)
+                            }
+                            Text("▶",color=Color(0xFFFF6681))
+                        }
                     }
                 }
-            }
-            "Similar" -> item { RebuildShelf("More like this", similar, onOpen, "Similar") }
-            else -> item {
-                Column(Modifier.padding(18.dp)) {
-                    item.rating?.let { Text("★ %.1f".format(it), color = VGold, fontSize = 13.sp) }
-                    Text(item.genres.orEmpty().joinToString("  ·  "), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
-                    Text(item.people.orEmpty().filter { it.type == "Actor" }.take(8).joinToString("  ·  ") { it.name },
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+                "Similar" -> item { RebuildShelf("More like this",similar,onOpen,"Similar") }
+                else -> item {
+                    Column(Modifier.padding(horizontal=20.dp,vertical=12.dp)) {
+                        item.rating?.let { Text("★ %.1f".format(it),color=VGold,fontSize=13.sp) }
+                        val genres=item.genres.orEmpty().joinToString("  ·  ")
+                        if(genres.isNotBlank()) Text(genres,color=Color(0xFFB9B0C5),fontSize=12.sp)
+                        val people=item.people.orEmpty().filter { it.type=="Actor" }.take(10).joinToString("  · ") { it.name }
+                        if(people.isNotBlank()) Text(people,color=Color(0xFFB9B0C5),fontSize=12.sp,modifier=Modifier.padding(top=10.dp))
+                    }
                 }
             }
         }
     }
 }
-
-
 @Composable
 private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -> Unit) {
     var children by remember(folder.id) { mutableStateOf(emptyList<Item>()) }
