@@ -369,11 +369,11 @@ fun LibraryTab(
     onSearch: () -> Unit, onSettings: () -> Unit, isShows: Boolean = false, animeOnly: Boolean = false,
     libraryNames: List<String> = emptyList()
 ) {
-    var list by remember(title) { mutableStateOf<List<Item>>(emptyList()) }
-    var loading by remember(title) { mutableStateOf(true) }
+    var list by remember(title, libraryNames) { mutableStateOf<List<Item>>(emptyList()) }
+    var loading by remember(title, libraryNames) { mutableStateOf(true) }
     var allItems by remember(title) { mutableStateOf<List<Item>>(emptyList()) }
-    var libraryIds by remember(title) { mutableStateOf<List<String>>(emptyList()) }
-    var libraryLoadError by remember(title) { mutableStateOf<String?>(null) }
+    var libraryIds by remember(title, libraryNames) { mutableStateOf<List<String>>(emptyList()) }
+    var libraryLoadError by remember(title, libraryNames) { mutableStateOf<String?>(null) }
     var selectedGenre by remember(title) { mutableStateOf("All") }
     var selectedYear by remember(title) { mutableStateOf("Any") }
     var selectedRating by remember(title) { mutableStateOf("Any") }
@@ -437,7 +437,7 @@ fun LibraryTab(
             .filter { it.isNotBlank() }.distinct().sorted()
     }
     val years = remember(allItems) { allItems.mapNotNull { it.year }.distinct().sortedDescending() }
-    val visible = remember(list, selectedGenre, showFilter, isShows) {
+    val visible = remember(list, selectedGenre, showFilter, isShows, animeOnly, libraryNames) {
         list.filter { item ->
             val categoryMatch = when {
                 animeOnly -> true
@@ -454,7 +454,7 @@ fun LibraryTab(
             categoryMatch && genreMatch
         }
     }
-    val originRows = remember(visible, isShows) {
+    val originRows = remember(visible, isShows, animeOnly, libraryNames) {
         if (isShows) emptyList() else movieOriginOrder.mapNotNull { origin ->
             val titles = visible.filter { it.movieOriginCategory() == origin }
             if (titles.isEmpty()) null else origin to titles
