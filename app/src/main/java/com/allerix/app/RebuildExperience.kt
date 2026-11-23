@@ -33,7 +33,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), MOVIES("Movies", R.drawable.ic_nav_movie), SHOWS("TV Shows", R.drawable.ic_nav_tv), ANIME("Anime", R.drawable.ic_nav_star), COLLECTION("My Collection", R.drawable.ic_nav_download) }
+private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), MOVIES("Movies", R.drawable.ic_nav_movie), SHOWS("TV Shows", R.drawable.ic_nav_tv), ANIME("Anime", R.drawable.ic_nav_star), COLLECTION("Collection", R.drawable.ic_nav_download) }
 private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 private val VCyan = AllervueDesign.Cyan
 private val VGold = AllervueDesign.Gold
