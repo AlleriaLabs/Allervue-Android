@@ -828,7 +828,7 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
                             val angle = (index.toDouble() / orbitItems.size.toDouble()) * 2.0 * PI - PI / 2.0
                             val x = (cos(angle) * 142.0).toFloat().dp
                             val y = (sin(angle) * 142.0).toFloat().dp
-                            val isCurrent = orbitItem.userData?.played == true ||
+                            val isCurrent = orbitItem.userData?.isPlayed == true ||
                                 (orbitItem.userData?.positionTicks ?: 0L) > 0L
                             Box(
                                 Modifier.offset(x, y).size(42.dp).clip(CircleShape)
