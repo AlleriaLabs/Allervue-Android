@@ -33,7 +33,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), MOVIES("Movies", R.drawable.ic_nav_movie), SHOWS("TV Shows", R.drawable.ic_nav_tv), SAVED("My List", R.drawable.ic_nav_star), DOWNLOADS("Downloads", R.drawable.ic_nav_download) }
+private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R.drawable.ic_nav_home), MOVIES("Movies", R.drawable.ic_nav_movie), SHOWS("TV Shows", R.drawable.ic_nav_tv), ANIME("Anime", R.drawable.ic_nav_star), COLLECTION("My Collection", R.drawable.ic_nav_download) }
 private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 private val VCyan = AllervueDesign.Cyan
 private val VGold = AllervueDesign.Gold
@@ -71,8 +71,8 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                     RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
                     RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })
                     RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
-                    RebuildTab.SAVED -> RebuildSaved(onOpen, onPlay)
-                    RebuildTab.DOWNLOADS -> RebuildDownloads()
+                    RebuildTab.ANIME -> RebuildCatalog("Anime", "Anime", onOpen, { stack.add(Nav.Search) })
+                    RebuildTab.COLLECTION -> RebuildCollection(onOpen, onPlay)
                 }
                 is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
                 is Nav.Detail -> RebuildDetail(top.item, onOpen, onPlay, back)
@@ -312,7 +312,38 @@ private fun AllervueCatalogCard(item: Item, number: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
+private fun RebuildCollection(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
+    var section by remember { mutableStateOf("Saved") }
+    Column(Modifier.fillMaxSize()) {
+        RebuildHeader("My Collection", "Saved titles and offline downloads")
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 6.dp)
+                .clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surface)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            listOf("Saved", "Downloads").forEach { label ->
+                val active = section == label
+                Box(
+                    Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
+                        .background(if (active) VCyan.copy(alpha = .18f) else Color.Transparent)
+                        .clickable { section = label }.padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(label, color = if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium)
+                }
+            }
+        }
+        Box(Modifier.weight(1f)) {
+            if (section == "Saved") RebuildSaved(onOpen, onPlay, showHeader = false)
+            else RebuildDownloads(showHeader = false)
+        }
+    }
+}
+
+@Composable
+private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHeader: Boolean = true) {
     var savedItems by remember { mutableStateOf(emptyList<Item>()) }
     var loading by remember { mutableStateOf(true) }
     var filter by remember { mutableStateOf("All") }
@@ -323,7 +354,7 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
         else -> savedItems
     }
     Column(Modifier.fillMaxSize()) {
-        RebuildHeader("My List", savedItems.size.toString() + " saved titles")
+        if (showHeader) RebuildHeader("My Collection", savedItems.size.toString() + " saved titles")
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("All", "Films", "Series").forEach { label ->
                 val active = filter == label
@@ -347,7 +378,7 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
 }
 
 @Composable
-private fun RebuildDownloads() {
+private fun RebuildDownloads(showHeader: Boolean = true) {
     val ctx = LocalContext.current
     var records by remember { mutableStateOf(Downloads.list(ctx)) }
     var states by remember { mutableStateOf(emptyMap<String, DlState>()) }
@@ -361,7 +392,7 @@ private fun RebuildDownloads() {
     val active = records.filter { rec -> states[rec.id]?.status?.let { status -> status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_RUNNING || status == DownloadManager.STATUS_PAUSED } == true }
     val complete = records.filter { states[it.id]?.status == DownloadManager.STATUS_SUCCESSFUL }
     Column(Modifier.fillMaxSize()) {
-        RebuildHeader("Downloads", "${records.size} offline titles")
+        if (showHeader) RebuildHeader("My Collection", "${records.size} offline titles")
         if (records.isEmpty()) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Your offline library is empty.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
