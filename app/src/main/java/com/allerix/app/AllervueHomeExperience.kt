@@ -168,6 +168,29 @@ internal fun AllervueHome(
                 val radius = size.width * .43f
                 val dash = PathEffect.dashPathEffect(floatArrayOf(5.dp.toPx(), 8.dp.toPx()), 0f)
                 val center = androidx.compose.ui.geometry.Offset(cx, cy)
+                val drift = Math.toRadians((automaticRotation * .42f).toDouble())
+                val glowCenterA = androidx.compose.ui.geometry.Offset(
+                    cx + kotlin.math.cos(drift).toFloat() * radius * .24f,
+                    cy + kotlin.math.sin(drift).toFloat() * radius * .18f
+                )
+                val glowCenterB = androidx.compose.ui.geometry.Offset(
+                    cx + kotlin.math.cos(drift + 2.4).toFloat() * radius * .34f,
+                    cy + kotlin.math.sin(drift + 2.4).toFloat() * radius * .24f
+                )
+                // Slow-moving ambient color fields add depth without flashing or
+                // changing the orbit geometry when featured titles shuffle.
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0xFF35BFCB).copy(alpha = .13f), Color.Transparent),
+                        center = glowCenterA, radius = radius * .95f
+                    )
+                )
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(Color(0xFF9B5AB8).copy(alpha = .12f), Color.Transparent),
+                        center = glowCenterB, radius = radius * .82f
+                    )
+                )
                 drawCircle(Color.White.copy(alpha = .11f), radius, center, style = Stroke(1.dp.toPx(), pathEffect = dash))
                 drawCircle(Color.White.copy(alpha = .13f), radius * .78f, center, style = Stroke(1.dp.toPx(), pathEffect = dash))
                 drawCircle(Color.White.copy(alpha = .15f), radius * .66f, center, style = Stroke(1.dp.toPx(), pathEffect = dash))
@@ -179,15 +202,28 @@ internal fun AllervueHome(
                     ),
                     radius = radius * .78f, center = center
                 )
-                val particleAngle = Math.toRadians((automaticRotation * .72f - 90f).toDouble())
-                val particleCenter = androidx.compose.ui.geometry.Offset(
-                    cx + kotlin.math.cos(particleAngle).toFloat() * radius,
-                    cy + kotlin.math.sin(particleAngle).toFloat() * radius
+                // A restrained particle field drifts continuously around the scene.
+                // Particles are decorative only; they never affect movie-node placement.
+                for (i in 0 until 12) {
+                    val angle = Math.toRadians((automaticRotation * (if (i % 2 == 0) .34f else -.22f) + i * 30f).toDouble())
+                    val orbitRadius = radius * (.72f + (i % 3) * .105f)
+                    val particle = androidx.compose.ui.geometry.Offset(
+                        cx + kotlin.math.cos(angle).toFloat() * orbitRadius,
+                        cy + kotlin.math.sin(angle).toFloat() * orbitRadius * .58f
+                    )
+                    val alpha = .28f + (i % 4) * .12f
+                    drawCircle(
+                        if (i % 2 == 0) Color(0xFF8CE6E8).copy(alpha = alpha)
+                        else Color(0xFFFFB4C5).copy(alpha = alpha),
+                        (1.2f + (i % 3) * .45f).dp.toPx(), particle
+                    )
+                }
+                val sweepAngle = Math.toRadians((automaticRotation * .72f - 90f).toDouble())
+                val sweepCenter = androidx.compose.ui.geometry.Offset(
+                    cx + kotlin.math.cos(sweepAngle).toFloat() * radius,
+                    cy + kotlin.math.sin(sweepAngle).toFloat() * radius
                 )
-                drawCircle(Color(0xFFFFB4C5).copy(alpha = .9f), 3.2.dp.toPx(), particleCenter)
-                drawCircle(Color(0xFF8CE6E8).copy(alpha = .65f), 1.8.dp.toPx(),
-                    androidx.compose.ui.geometry.Offset(cx + kotlin.math.cos(particleAngle + 1.9).toFloat() * radius * .78f,
-                        cy + kotlin.math.sin(particleAngle + 1.9).toFloat() * radius * .78f))
+                drawCircle(Color(0xFFFFB4C5).copy(alpha = .82f), 3.2.dp.toPx(), sweepCenter)
             }
 
             Row(
@@ -225,7 +261,7 @@ internal fun AllervueHome(
                 val h = maxHeight
                 val nodeSize = (w * .14f).coerceIn(54.dp, 66.dp)
                 val nodeOuterSize = nodeSize + 8.dp
-                val centerSize = (w * .56f).coerceIn(196.dp, 252.dp)
+                val centerSize = (w * .48f).coerceIn(172.dp, 216.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .50f
                 // Every artwork node follows the same fixed elliptical orbit.
