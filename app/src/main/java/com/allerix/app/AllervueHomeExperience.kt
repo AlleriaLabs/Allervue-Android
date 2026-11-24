@@ -177,7 +177,40 @@ internal fun AllervueHome(
 
     Column(
         Modifier.fillMaxSize().drawBehind {
-            drawRect(Brush.verticalGradient(if (isDaytime) listOf(Color(0xFF563B38), Color(0xFF263B4A), Color(0xFF142C38)) else listOf(Color(0xFF10182F), Color(0xFF17152D), Color(0xFF071522))))
+            // Day and night use deliberately distinct full-screen palettes.
+            // Daylight is bright and airy rather than a slightly warmer version of night.
+            drawRect(
+                Brush.verticalGradient(
+                    if (isDaytime) listOf(Color(0xFFB9A17F), Color(0xFF668E9A), Color(0xFF294B60))
+                    else listOf(Color(0xFF10182F), Color(0xFF17152D), Color(0xFF071522))
+                )
+            )
+            // A visible sun or moon is part of the ambient background, not a UI icon.
+            val skyBody = androidx.compose.ui.geometry.Offset(size.width * .79f, size.height * .23f)
+            val skyRadius = size.minDimension * .105f
+            if (isDaytime) {
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(Color(0xFFFFE6A6).copy(alpha = .42f), Color(0xFFFFD28A).copy(alpha = .13f), Color.Transparent),
+                        center = skyBody, radius = skyRadius * 3.2f
+                    ),
+                    radius = skyRadius * 3.2f, center = skyBody
+                )
+                drawCircle(Color(0xFFFFE7B0).copy(alpha = .88f), skyRadius, skyBody)
+                drawCircle(Color.White.copy(alpha = .18f), skyRadius * .72f,
+                    androidx.compose.ui.geometry.Offset(skyBody.x - skyRadius * .22f, skyBody.y - skyRadius * .25f))
+            } else {
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(Color(0xFFB9D4FF).copy(alpha = .24f), Color(0xFF8D9DDA).copy(alpha = .07f), Color.Transparent),
+                        center = skyBody, radius = skyRadius * 3.0f
+                    ),
+                    radius = skyRadius * 3.0f, center = skyBody
+                )
+                drawCircle(Color(0xFFE1E9FF).copy(alpha = .88f), skyRadius, skyBody)
+                drawCircle(Color(0xFF17203A), skyRadius * .88f,
+                    androidx.compose.ui.geometry.Offset(skyBody.x + skyRadius * .42f, skyBody.y - skyRadius * .24f))
+            }
             // Ambient lighting drifts across the entire Home surface, including
             // the lower information area. Motion is slow and continuous, never flashing.
             val phase = Math.toRadians((automaticRotation * .38f).toDouble())
