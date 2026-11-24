@@ -114,6 +114,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var prevEpisodeBtn: TextView
     private lateinit var nextEpisodeBtn: TextView
     private lateinit var episodesAction: TextView
+    private lateinit var nextEpisodeAction: TextView
     private var isSeriesEpisode = false
     private lateinit var skipIntroBtn: TextView
     private lateinit var subText: TextView
@@ -581,7 +582,21 @@ class PlayerActivity : ComponentActivity() {
                 leftMargin = dp(3); rightMargin = dp(3)
             })
             chip("☾  Sleep", { showSleepTimerSheet() })
-            chip("Next ep ›", { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }, true)
+            nextEpisodeAction = TextView(this@PlayerActivity).apply {
+                text = "Next ep ›"; textSize = 14f; gravity = Gravity.CENTER
+                setTextColor(0xFF210D19.toInt())
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(dp(22), dp(13), dp(22), dp(13))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(30).toFloat()
+                    colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
+                }
+                visibility = View.GONE
+                setOnClickListener { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
+            }
+            addView(nextEpisodeAction, LinearLayout.LayoutParams(-2, -2).apply {
+                leftMargin = dp(4); rightMargin = dp(4)
+            })
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -590,9 +605,57 @@ class PlayerActivity : ComponentActivity() {
             addView(timeline, LinearLayout.LayoutParams(-1, -2))
             addView(utilityDock, LinearLayout.LayoutParams(-1, -2))
         }
+        fun sideRail(iconRes: Int, initial: Int, onValue: (Int) -> Unit): LinearLayout {
+            val rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
+            val slider = SeekBar(this).apply {
+                max = 100; progress = initial; rotation = 270f
+                progressTintList = ColorStateList.valueOf(0xFFFF4F78.toInt())
+                thumbTintList = ColorStateList.valueOf(Color.WHITE)
+                progressBackgroundTintList = ColorStateList.valueOf(0x667F718C)
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(v: SeekBar, value: Int, fromUser: Boolean) { if (fromUser) onValue(value) }
+                    override fun onStartTrackingTouch(v: SeekBar) { handler.removeCallbacks(autoHide) }
+                    override fun onStopTrackingTouch(v: SeekBar) { scheduleHide() }
+                })
+            }
+            rail.addView(FrameLayout(this).apply {
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(28).toFloat(); setColor(0xB3130B20.toInt())
+                    setStroke(dp(1), 0x667F718C)
+                }
+                addView(slider, FrameLayout.LayoutParams(dp(220), dp(36), Gravity.CENTER))
+            }, LinearLayout.LayoutParams(dp(54), dp(244)))
+            rail.addView(ImageView(this).apply {
+                setImageResource(iconRes); setColorFilter(Color.WHITE)
+                setPadding(dp(12), dp(12), dp(12), dp(12))
+                background = circleBg(0xB3130B20.toInt(), 0x667F718C)
+            }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { topMargin = dp(12) })
+            return rail
+        }
+        val leftRail = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+            addView(sideRail(R.drawable.ic_tune, 55) { value ->
+                brightness = (value / 100f).coerceIn(.05f, 1f)
+                window.attributes = window.attributes.also { it.screenBrightness = brightness }
+            })
+            addView(ImageView(this@PlayerActivity).apply {
+                setImageResource(R.drawable.ic_lock); setColorFilter(Color.WHITE)
+                setPadding(dp(13), dp(13), dp(13), dp(13))
+                background = circleBg(0xB3130B20.toInt(), 0x667F718C)
+                setOnClickListener { toggleLock() }
+            }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { topMargin = dp(12) })
+        }
+        val rightRail = sideRail(R.drawable.ic_volume,
+            (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 /
+                audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1))) { value ->
+            val maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            audio.setStreamVolume(AudioManager.STREAM_MUSIC, value * maxVolume / 100, 0)
+        }
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-            addView(centerControls, FrameLayout.LayoutParams(-1, dp(112), Gravity.CENTER))
+            addView(centerControls, FrameLayout.LayoutParams(-1, dp(150), Gravity.CENTER))
+            addView(leftRail, FrameLayout.LayoutParams(dp(64), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(26) })
+            addView(rightRail, FrameLayout.LayoutParams(dp(64), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(26) })
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -846,8 +909,10 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun updateEpisodeButtons() {
-        prevEpisodeBtn.visibility = if (hasPrev) View.VISIBLE else View.INVISIBLE
-        nextEpisodeBtn.visibility = if (hasNext) View.VISIBLE else View.INVISIBLE
+        prevEpisodeBtn.visibility = if (isSeriesEpisode && hasPrev) View.VISIBLE else View.GONE
+        nextEpisodeBtn.visibility = if (isSeriesEpisode && hasNext) View.VISIBLE else View.GONE
+        if (::episodesAction.isInitialized) episodesAction.visibility = if (isSeriesEpisode) View.VISIBLE else View.GONE
+        if (::nextEpisodeAction.isInitialized) nextEpisodeAction.visibility = if (isSeriesEpisode && hasNext) View.VISIBLE else View.GONE
     }
 
     private fun updateIntroSkip() {
@@ -1524,7 +1589,7 @@ class PlayerActivity : ComponentActivity() {
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
             isSeriesEpisode = item.type == "Episode"
-            episodesAction.visibility = if (isSeriesEpisode) View.VISIBLE else View.GONE
+            updateEpisodeButtons()
             if (item.type == "Episode" && item.seriesName != null) {
                 titleView.text = item.seriesName
                 nowTag = "S${item.parentIndex ?: 0}:E${item.index ?: 0} · ${item.name}"
@@ -1595,6 +1660,7 @@ class PlayerActivity : ComponentActivity() {
         sourceId = ""; itemId = newId; introSegments = emptyList()
         isSeriesEpisode = false
         if (::episodesAction.isInitialized) episodesAction.visibility = View.GONE
+        if (::nextEpisodeAction.isInitialized) nextEpisodeAction.visibility = View.GONE
         defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
