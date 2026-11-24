@@ -1,5 +1,6 @@
 package com.allerix.app
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -39,11 +41,14 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import java.util.Calendar
+import kotlin.random.Random
 
 private val AAccent = AllervueDesign.Cyan
 private val AHot = Color(0xFFFF4D86)
 private val AInk = Color(0xFF100E20)
 private val APanel = Color(0xFF17152C)
+
+private data class HomeMeteor(val startX: Float, val startY: Float)
 
 @Composable
 private fun HomeArtwork(
@@ -133,6 +138,34 @@ internal fun AllervueHome(
             deviceMinuteOfDay + 360f
         }
         (nightMinutes / 720f).coerceIn(0f, 1f)
+    }
+
+    // A fixed star map twinkles at different rates. Meteors are occasional,
+    // independently randomized events and only run while the local sky is dark.
+    val starField = remember {
+        List(115) { Triple(Random.nextFloat(), Random.nextFloat() * .72f, Random.nextFloat()) }
+    }
+    var meteor by remember { mutableStateOf<HomeMeteor?>(null) }
+    val meteorProgress = remember { Animatable(0f) }
+    LaunchedEffect(isDaytime) {
+        if (isDaytime) {
+            meteor = null
+            meteorProgress.snapTo(0f)
+        } else {
+            while (true) {
+                delay(Random.nextLong(18_000L, 55_001L))
+                meteor = HomeMeteor(
+                    startX = Random.nextFloat() * .72f + .12f,
+                    startY = Random.nextFloat() * .30f + .06f
+                )
+                meteorProgress.snapTo(0f)
+                meteorProgress.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = Random.nextInt(750, 1_201), easing = LinearEasing)
+                )
+                meteor = null
+            }
+        }
     }
 
     val orbitMotion = rememberInfiniteTransition(label = "home-orbit-motion")
@@ -243,6 +276,32 @@ internal fun AllervueHome(
                 drawCircle(Color(0xFF17203A), skyRadius * .88f,
                     androidx.compose.ui.geometry.Offset(skyBody.x + skyRadius * .42f, skyBody.y - skyRadius * .24f))
             }
+            if (!isDaytime) {
+                // Stars have individually phased, restrained twinkle.
+                starField.forEachIndexed { index, star ->
+                    val twinkle = (.42f + .34f * kotlin.math.sin(
+                        Math.toRadians((automaticRotation * (1.1f + star.third * 1.8f) + index * 47f).toDouble())
+                    ).toFloat()).coerceIn(.12f, .82f)
+                    drawCircle(
+                        Color(0xFFEAF2FF).copy(alpha = twinkle),
+                        radius = .65f + star.third * 1.15f,
+                        center = androidx.compose.ui.geometry.Offset(size.width * star.first, size.height * star.second)
+                    )
+                }
+                meteor?.let { shootingStar ->
+                    val progress = meteorProgress.value
+                    val travel = androidx.compose.ui.geometry.Offset(size.width * .34f, size.height * .25f)
+                    val tip = androidx.compose.ui.geometry.Offset(
+                        size.width * shootingStar.startX + travel.x * progress,
+                        size.height * shootingStar.startY + travel.y * progress
+                    )
+                    val tail = androidx.compose.ui.geometry.Offset(tip.x - travel.x * .24f, tip.y - travel.y * .24f)
+                    drawLine(Color(0xFFB9D8FF).copy(alpha = .24f), tail, tip, 7.dp.toPx(), cap = StrokeCap.Round)
+                    drawLine(Color.White, tail, tip, 2.dp.toPx(), cap = StrokeCap.Round)
+                    drawCircle(Color.White, radius = 2.1.dp.toPx(), center = tip)
+                }
+            }
+
             // Ambient lighting drifts across the entire Home surface, including
             // the lower information area. Motion is slow and continuous, never flashing.
             val phase = Math.toRadians((automaticRotation * .38f).toDouble())
