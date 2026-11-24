@@ -639,7 +639,7 @@ fun RequestShowScreen(back: () -> Unit) {
         if (connected) requests = runCatching { SeerrApi.myRequests() }.getOrDefault(emptyList())
     }
 
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader("Request Movies & TV", back)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -864,7 +864,7 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
     var saveData by remember { mutableStateOf(prefs.getBoolean("save_data", true)) }
     var dialog by remember { mutableStateOf(0) }
 
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader("Playback Settings", back)
         Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glass(18.dp)) {
             SettingsRow("HD", "Quality", quality.label) { dialog = 1 }
@@ -949,7 +949,7 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
         if (w != null && w.canGoBack()) w.goBack() else back()
     }
     DisposableEffect(Unit) { onDispose { holder[0]?.destroy() } }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader(title, back)
         if (progress in 1..99) {
             LinearProgressIndicator(
@@ -981,7 +981,7 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
 fun DiagnosticScreen(back: () -> Unit) {
     val ctx = LocalContext.current
     var log by remember { mutableStateOf(DiagnosticLog.read(ctx)) }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader("Diagnostics", back)
         Text("If Allervue closes when you tap a video, reproduce the issue and return here. The log records player startup and crash details without your Jellyfin password or access token.",
             color = Grey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
