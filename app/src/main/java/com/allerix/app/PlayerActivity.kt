@@ -100,6 +100,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var playerView: PlayerView
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
+    private lateinit var aspectHud: TextView
     private lateinit var spinner: ProgressBar
     private lateinit var controls: FrameLayout
     private lateinit var lockOverlay: ImageView
@@ -185,6 +186,7 @@ class PlayerActivity : ComponentActivity() {
     private val hasPrev get() = siblingIndex > 0
 
     private val hideHud = Runnable { hud.visibility = View.GONE }
+    private val hideAspectHud = Runnable { if (::aspectHud.isInitialized) aspectHud.visibility = View.GONE }
     private val autoHide = Runnable { hideControls() }
     private val hideLockOverlay = Runnable { lockOverlay.visibility = View.GONE }
     private val progressTick = object : Runnable {
@@ -624,7 +626,7 @@ class PlayerActivity : ComponentActivity() {
                 setOnClickListener { showEpisodeSheet() }
             }
             addView(episodesAction, LinearLayout.LayoutParams(-2, dp(40)).apply { rightMargin = dp(6) })
-            pill("▣  Aspect", { showAspectRatioSheet() })
+            pill("⤢", { cycleAspectRatio() }).apply { textSize = 19f; minWidth = dp(40) }
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
                 text = "Next ep  ›"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFF180D19.toInt())
@@ -715,6 +717,17 @@ class PlayerActivity : ComponentActivity() {
             background = GradientDrawable().apply { setColor(0xFF1A2731.toInt()); cornerRadius = dp(12).toFloat() }
             visibility = View.GONE
         }
+        aspectHud = TextView(this).apply {
+            text = "FIT"; textSize = 12f; letterSpacing = 0.12f
+            typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+            setTextColor(0xFF180D19.toInt()); gravity = Gravity.CENTER
+            setPadding(dp(18), dp(8), dp(18), dp(8))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(22).toFloat()
+                colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
+            }
+            visibility = View.GONE; elevation = dp(8).toFloat()
+        }
         spinner = ProgressBar(this).apply {
             isIndeterminate = true; indeterminateTintList = ColorStateList.valueOf(0xFF65D6D0.toInt())
             visibility = View.GONE
@@ -730,6 +743,7 @@ class PlayerActivity : ComponentActivity() {
             addView(playerView, FrameLayout.LayoutParams(-1, -1))
             addView(subText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
+            addView(aspectHud, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(28) })
             addView(controls, FrameLayout.LayoutParams(-1, -1))
             skipIntroBtn = TextView(this@PlayerActivity).apply {
                 text = "SKIP INTRO  ›"; setTextColor(0xFF071014.toInt())
@@ -906,15 +920,21 @@ class PlayerActivity : ComponentActivity() {
         root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
     }
 
-    private fun showAspectRatioSheet() = sheet("Aspect ratio") { box, dlg ->
-        resizeModes.forEachIndexed { index, mode ->
-            box.addView(sheetRow(resizeNames[index],
-                if (playerView.resizeMode == mode) "Currently selected" else "Set video framing") {
-                playerView.resizeMode = mode
-                dlg.dismiss()
-                showHud("Aspect · " + resizeNames[index])
-            })
-        }
+    private fun cycleAspectRatio() {
+        val modes = intArrayOf(
+            AspectRatioFrameLayout.RESIZE_MODE_FIT,
+            AspectRatioFrameLayout.RESIZE_MODE_FILL,
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+        )
+        val labels = arrayOf("FIT", "STRETCH", "CROP")
+        val current = modes.indexOf(playerView.resizeMode).let { if (it < 0) 0 else it }
+        val next = (current + 1) % modes.size
+        playerView.resizeMode = modes[next]
+        aspectHud.text = labels[next]
+        aspectHud.visibility = View.VISIBLE
+        handler.removeCallbacks(hideAspectHud)
+        handler.postDelayed(hideAspectHud, 1400)
+        aspectHud.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
     }
 
     private fun showEpisodeSheet() = sheet("Episodes") { box, dlg ->
