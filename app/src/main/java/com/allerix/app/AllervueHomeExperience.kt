@@ -346,6 +346,15 @@ internal fun AllervueHome(
             ?: cachedHome?.resume?.firstOrNull() ?: cachedHome?.recent?.firstOrNull())
     }
     val shownCenterItem = displayedCenterItem
+    // On a cold Home launch there may be no cached selection yet. Seed the
+    // displayed item as soon as the first Jellyfin item arrives; otherwise the
+    // text panel stays empty until an unrelated navigation causes recomposition.
+    // After this initial seed, keep the artwork/text handoff atomic on rotations.
+    LaunchedEffect(centerItem?.id) {
+        if (displayedCenterItem == null && centerItem != null) {
+            displayedCenterItem = centerItem
+        }
+    }
     // Every 8-second center change also reshuffles six outer artwork nodes in the same
     // cycle. Their six slot positions stay anchored while only the titles change.
     val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
