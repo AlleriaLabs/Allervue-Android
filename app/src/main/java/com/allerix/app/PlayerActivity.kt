@@ -446,12 +446,27 @@ class PlayerActivity : ComponentActivity() {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             visibility = View.GONE
         }
+        val topRight = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
+            fun action(res: Int, click: () -> Unit) {
+                addView(ImageView(this@PlayerActivity).apply {
+                    setImageResource(res); setColorFilter(0xFFF4F5F7.toInt())
+                    setPadding(dp(12), dp(12), dp(12), dp(12))
+                    background = circleBg(0x5520162C, 0x667D718C)
+                    setOnClickListener { click() }
+                }, LinearLayout.LayoutParams(dp(48), dp(48)).apply { leftMargin = dp(8) })
+            }
+            action(R.drawable.ic_cast) { openCast() }
+            action(R.drawable.ic_aspect) { cycleAspect(); showHud("Aspect · " + aspectName()) }
+            action(R.drawable.ic_tune) { showPlaybackSettings("QUALITY") }
+        }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(14), dp(10), dp(14), dp(8))
-            addView(backBtn, LinearLayout.LayoutParams(dp(38), dp(42)))
+            setPadding(dp(28), dp(18), dp(28), dp(10))
+            addView(backBtn, LinearLayout.LayoutParams(dp(48), dp(48)))
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
+            addView(topRight, LinearLayout.LayoutParams(-2, -2))
         }
         val topPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -490,9 +505,17 @@ class PlayerActivity : ComponentActivity() {
         val rewBtn = skipButton(false).apply {
             background = circleBg(0xAA21182F.toInt(), 0x55FFFFFF); setPadding(dp(10), dp(10), dp(10), dp(10))
         }
-        playBtn = icon(R.drawable.ic_pause, 66, 18).apply {
-            background = GradientDrawable().apply { setColor(0xFFFF4F78.toInt()); cornerRadius = dp(40).toFloat() }
-            setColorFilter(0xFF210D19.toInt()); elevation = dp(2).toFloat()
+        playBtn = icon(R.drawable.ic_pause, 72, 20).apply {
+            background = GradientDrawable().apply { setColor(0xFFFF4F78.toInt()); shape = GradientDrawable.OVAL }
+            setColorFilter(0xFF210D19.toInt()); elevation = dp(3).toFloat()
+        }
+        val playControl = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0x22150D25)
+                setStroke(dp(2), 0x778F829C)
+            }
+            addView(playBtn, FrameLayout.LayoutParams(dp(72), dp(72), Gravity.CENTER))
         }
         val fwdBtn = skipButton(true).apply {
             background = circleBg(0xAA21182F.toInt(), 0x55FFFFFF); (getChildAt(0) as? ImageView)?.setColorFilter(0xFFE7EBF0.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -505,9 +528,9 @@ class PlayerActivity : ComponentActivity() {
                 })
             }
             slot(prevEpisodeBtn, 26, 48, right = 10)
-            slot(rewBtn, 46, 48, right = 12)
-            slot(playBtn, 66, 66, right = 12)
-            slot(fwdBtn, 46, 48, right = 10)
+            slot(rewBtn, 54, 54, right = 12)
+            slot(playControl, 112, 112, right = 12)
+            slot(fwdBtn, 54, 54, right = 10)
             slot(nextEpisodeBtn, 26, 48)
         }
         val centerControls = FrameLayout(this).apply {
@@ -711,7 +734,7 @@ class PlayerActivity : ComponentActivity() {
         applySubStyle(); layoutSubtitle()
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            topBar.setPadding(dp(14) + i.left, dp(10) + i.top, dp(14) + i.right, dp(8))
+            topBar.setPadding(dp(28) + i.left, dp(18) + i.top, dp(28) + i.right, dp(10))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply { leftMargin = 0; rightMargin = 0; bottomMargin = i.bottom }
             bottomPanel.requestLayout()
             insets
