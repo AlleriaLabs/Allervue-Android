@@ -45,6 +45,8 @@ import androidx.compose.ui.zIndex
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import java.util.Calendar
 import kotlin.random.Random
@@ -56,6 +58,18 @@ private val APanel = Color(0xFF17152C)
 
 private data class HomeMeteor(val startX: Float, val startY: Float)
 
+private data class HomeSnapshot(
+    val userId: String,
+    val featured: Item?,
+    val resume: List<Item>,
+    val recent: List<Item>,
+    val picks: List<Item>
+)
+
+private object HomeSnapshotCache {
+    @Volatile var snapshot: HomeSnapshot? = null
+}
+
 @Composable
 private fun HomeArtwork(
     model: String,
@@ -65,30 +79,49 @@ private fun HomeArtwork(
     fallbackModel: String? = null
 ) {
     val context = LocalContext.current
-    val imageRequest = remember(model, context) {
-        ImageRequest.Builder(context).data(model).crossfade(650).build()
+    // Keep the last successfully decoded artwork visible while the next random
+    // title downloads. The gradient is always underneath, so an empty painter
+    // can never expose a black frame during a model switch.
+    var displayedModel by remember { mutableStateOf(model) }
+    val targetRequest = remember(model, context) {
+        ImageRequest.Builder(context).data(model)
+            .memoryCacheKey(model).diskCacheKey(model)
+            .crossfade(false).build()
     }
+    val displayedRequest = remember(displayedModel, context) {
+        ImageRequest.Builder(context).data(displayedModel)
+            .memoryCacheKey(displayedModel).diskCacheKey(displayedModel)
+            .crossfade(false).build()
+    }
+    val targetPainter = rememberAsyncImagePainter(model = targetRequest)
+    val displayedPainter = rememberAsyncImagePainter(model = displayedRequest)
     val fallbackRequest = remember(fallbackModel, context) {
-        fallbackModel?.let { ImageRequest.Builder(context).data(it).crossfade(450).build() }
-    }
-    val painter = rememberAsyncImagePainter(model = imageRequest)
-    val fallbackPainter = rememberAsyncImagePainter(model = fallbackRequest)
-    val primaryFailed = painter.state is AsyncImagePainter.State.Error
-    val fallbackFailed = fallbackPainter.state is AsyncImagePainter.State.Error
-    Box(modifier, contentAlignment = Alignment.Center) {
-        if (primaryFailed && fallbackRequest != null && !fallbackFailed) {
-            Image(painter = fallbackPainter, contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(), contentScale = contentScale)
-        } else {
-            Image(painter = painter, contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(), contentScale = contentScale)
+        fallbackModel?.let {
+            ImageRequest.Builder(context).data(it)
+                .memoryCacheKey(it).diskCacheKey(it).crossfade(false).build()
         }
-        if (primaryFailed && (fallbackRequest == null || fallbackFailed)) {
-            Box(Modifier.fillMaxSize().background(
-                Brush.linearGradient(listOf(Color(0xFF392746), Color(0xFF172D3B), Color(0xFF202039)))
-            ), contentAlignment = Alignment.Center) {
-                Text("✦", color = Color.White.copy(alpha = .72f), fontSize = 25.sp)
-            }
+    }
+    val fallbackPainter = rememberAsyncImagePainter(model = fallbackRequest)
+    val targetLoaded = targetPainter.state is AsyncImagePainter.State.Success
+    val targetFailed = targetPainter.state is AsyncImagePainter.State.Error
+    val fallbackFailed = fallbackPainter.state is AsyncImagePainter.State.Error
+    LaunchedEffect(model, targetLoaded) {
+        if (targetLoaded) displayedModel = model
+    }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(
+            Brush.linearGradient(listOf(Color(0xFF392746), Color(0xFF172D3B), Color(0xFF202039)))
+        ))
+        when {
+            targetLoaded || !targetFailed -> Image(
+                painter = displayedPainter, contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(), contentScale = contentScale
+            )
+            fallbackRequest != null && !fallbackFailed -> Image(
+                painter = fallbackPainter, contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(), contentScale = contentScale
+            )
+            else -> Text("✦", color = Color.White.copy(alpha = .72f), fontSize = 25.sp)
         }
     }
 }
@@ -132,12 +165,18 @@ internal fun AllervueHome(
             weatherLoading = false
         }
     }
-    var featured by remember { mutableStateOf<Item?>(null) }
-    var resume by remember { mutableStateOf(emptyList<Item>()) }
-    var recent by remember { mutableStateOf(emptyList<Item>()) }
-    var picks by remember { mutableStateOf(emptyList<Item>()) }
-    var selected by remember { mutableStateOf<Item?>(null) }
-    var loading by remember { mutableStateOf(true) }
+    val cachedHome = remember(Api.userId) {
+        HomeSnapshotCache.snapshot?.takeIf { it.userId == Api.userId }
+    }
+    var featured by remember(Api.userId) { mutableStateOf(cachedHome?.featured) }
+    var resume by remember(Api.userId) { mutableStateOf(cachedHome?.resume ?: emptyList()) }
+    var recent by remember(Api.userId) { mutableStateOf(cachedHome?.recent ?: emptyList()) }
+    var picks by remember(Api.userId) { mutableStateOf(cachedHome?.picks ?: emptyList()) }
+    var selected by remember(Api.userId) {
+        mutableStateOf(cachedHome?.picks?.firstOrNull() ?: cachedHome?.featured
+            ?: cachedHome?.resume?.firstOrNull() ?: cachedHome?.recent?.firstOrNull())
+    }
+    var loading by remember(Api.userId) { mutableStateOf(cachedHome == null) }
     var failure by remember { mutableStateOf(false) }
     val orbitRotation = remember { mutableFloatStateOf(0f) }
     val orbitZoom = remember { mutableFloatStateOf(1f) }
@@ -214,18 +253,45 @@ internal fun AllervueHome(
         label = "home-orbit-rotation"
     )
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(Api.userId) {
+        val accountId = Api.userId
         try {
-            featured = runCatching { Api.featured().firstOrNull() }.getOrNull()
-            resume = runCatching {
-                Api.resume().filterNot { it.id in ContinueWatching.hiddenIds(context) }
-            }.getOrDefault(emptyList())
-            recent = runCatching { Api.trending() }.getOrDefault(emptyList())
-            picks = runCatching {
-                Api.personalizedPicks((resume + recent).map { it.id }.toSet())
-            }.getOrDefault(emptyList())
-            selected = picks.firstOrNull() ?: featured ?: resume.firstOrNull() ?: recent.firstOrNull()
-            if (featured == null && resume.isEmpty() && recent.isEmpty() && picks.isEmpty()) failure = true
+            // Fetch the first three Home sections in parallel. Render the hero as
+            // soon as the first result arrives instead of serially waiting for all.
+            coroutineScope {
+                val featuredTask = async { runCatching { Api.featured().firstOrNull() }.getOrNull() }
+                val resumeTask = async {
+                    runCatching {
+                        Api.resume().filterNot { it.id in ContinueWatching.hiddenIds(context) }
+                    }.getOrDefault(emptyList())
+                }
+                val recentTask = async { runCatching { Api.trending() }.getOrDefault(emptyList()) }
+
+                featured = featuredTask.await()
+                if (selected == null) selected = featured
+                resume = resumeTask.await()
+                if (selected == null) selected = resume.firstOrNull()
+                recent = recentTask.await()
+                if (selected == null) selected = recent.firstOrNull()
+
+                // The primary experience is now usable. Personalized ranking is
+                // secondary work and must not hold the Home hero behind it.
+                loading = false
+                failure = featured == null && resume.isEmpty() && recent.isEmpty()
+                if (failure) return@coroutineScope
+
+                val loadedPicks = runCatching {
+                    Api.personalizedPicks((resume + recent).map { it.id }.toSet())
+                }.getOrDefault(emptyList())
+                picks = loadedPicks
+                selected = loadedPicks.firstOrNull() ?: selected ?: featured
+                if (Api.userId == accountId) {
+                    HomeSnapshotCache.snapshot = HomeSnapshot(
+                        userId = accountId, featured = featured, resume = resume,
+                        recent = recent, picks = picks
+                    )
+                }
+            }
         } catch (error: Exception) {
             if (error.message?.contains("401") == true) onLogout() else failure = true
         } finally {
