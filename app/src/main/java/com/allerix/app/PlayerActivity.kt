@@ -182,6 +182,8 @@ class PlayerActivity : ComponentActivity() {
     private var seekTarget = 0L
     private var brightness = 0.5f
     private var volF = 0f
+    private var brightnessRailLevel: ((Int) -> Unit)? = null
+    private var volumeRailLevel: ((Int) -> Unit)? = null
 
     private val isTranscoding get() = offlinePath == null && plan?.transcoding == true
     private val hasNext get() = siblingIndex >= 0 && siblingIndex < siblings.size - 1
@@ -721,6 +723,11 @@ class PlayerActivity : ComponentActivity() {
                     return true
                 }
             }
+            if (iconRes == R.drawable.ic_brightness) {
+                brightnessRailLevel = { value -> slider.level = value }
+            } else if (iconRes == R.drawable.ic_volume) {
+                volumeRailLevel = { value -> slider.level = value }
+            }
             val railFace = FrameLayout(this).apply {
                 background = GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat(); setColor(0xB3130B20.toInt())
@@ -737,12 +744,14 @@ class PlayerActivity : ComponentActivity() {
         val leftRail = sideRail(R.drawable.ic_brightness, 55) { value ->
             brightness = (value / 100f).coerceIn(.05f, 1f)
             window.attributes = window.attributes.also { it.screenBrightness = brightness }
+            brightnessRailLevel?.invoke((brightness * 100).toInt())
         }
         val rightRail = sideRail(R.drawable.ic_volume,
             (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 /
                 audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1))) { value ->
             val maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, value * maxVolume / 100, 0)
+            volumeRailLevel?.invoke(value)
         }
         val rightRailWithFullscreen = rightRail
         controls = FrameLayout(this).apply {
@@ -1966,11 +1975,13 @@ class PlayerActivity : ComponentActivity() {
                     Mode.BRIGHT -> {
                         brightness = (brightness + dy / playerView.height).coerceIn(0.01f, 1f)
                         window.attributes = window.attributes.also { it.screenBrightness = brightness }
+                        brightnessRailLevel?.invoke((brightness * 100).toInt())
                         showHud("Brightness ${(brightness * 100).toInt()}%")
                     }
                     Mode.VOLUME -> {
                         volF = (volF + dy / playerView.height * maxVol() * 2.4f).coerceIn(0f, maxVol() * 2f)
                         setVolumeLevel(volF)
+                        volumeRailLevel?.invoke((volF / maxVol() * 100f).toInt().coerceIn(0, 100))
                         showHud("Volume ${volumePercent()}%")
                     }
                     else -> {}
