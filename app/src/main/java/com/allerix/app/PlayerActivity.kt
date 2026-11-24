@@ -420,13 +420,13 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        val backBtn = icon(R.drawable.ic_back, 38, 9).apply {
-            background = circleBg(0x44150D25, 0x887D718C.toInt())
+        val backBtn = icon(R.drawable.ic_back, 30, 7).apply {
+            background = null
             setColorFilter(0xFFF4F5F7.toInt())
         }
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF4F5F7.toInt()); textSize = 22f
+            setTextColor(0xFFF4F5F7.toInt()); textSize = 17f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
             maxLines = 1; maxWidth = dp(250); ellipsize = TextUtils.TruncateAt.END
         }
@@ -442,7 +442,7 @@ class PlayerActivity : ComponentActivity() {
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(8), 0, dp(6), 0)
+            setPadding(dp(3), 0, dp(4), 0)
             addView(titleView)
             addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
             addView(topPlaybackInfo, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
@@ -467,8 +467,8 @@ class PlayerActivity : ComponentActivity() {
         }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(28), dp(18), dp(28), dp(10))
-            addView(backBtn, LinearLayout.LayoutParams(dp(48), dp(48)))
+            setPadding(dp(10), dp(12), dp(16), dp(8))
+            addView(backBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
             addView(topRight, LinearLayout.LayoutParams(-2, -2))
@@ -634,7 +634,7 @@ class PlayerActivity : ComponentActivity() {
                 }
                 addView(ImageView(this@PlayerActivity).apply {
                     setImageResource(R.drawable.ic_aspect_ratio); setColorFilter(0xFFF5F1F8.toInt())
-                }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+                }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
                 setOnClickListener { cycleAspectRatio() }
             }, LinearLayout.LayoutParams(dp(40), dp(40)))
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
@@ -661,15 +661,21 @@ class PlayerActivity : ComponentActivity() {
         fun sideRail(iconRes: Int, initial: Int, onValue: (Int) -> Unit): LinearLayout {
             val rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
             val slider = object : View(this@PlayerActivity) {
-                private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x553D344B }
+                private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x663D344B }
                 private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
-                private val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
+                private val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+                private val markerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = 0xFFFF4F78.toInt(); style = Paint.Style.STROKE; strokeWidth = dp(1).toFloat()
+                }
                 var level = initial.coerceIn(0, 100)
                     set(value) { field = value.coerceIn(0, 100); invalidate() }
 
+                private fun sliderTop() = dp(5).toFloat()
+                private fun sliderBottom() = (height - dp(5)).toFloat()
+
                 private fun updateFromTouch(y: Float) {
-                    val top = dp(10).toFloat()
-                    val bottom = (height - dp(42)).toFloat()
+                    val top = sliderTop()
+                    val bottom = sliderBottom()
                     val span = (bottom - top).coerceAtLeast(1f)
                     level = (((bottom - y) / span) * 100f).toInt().coerceIn(0, 100)
                     onValue(level)
@@ -677,17 +683,23 @@ class PlayerActivity : ComponentActivity() {
 
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
-                    val cx = width / 2f
-                    val top = dp(10).toFloat()
-                    val bottom = (height - dp(42)).toFloat()
-                    val half = dp(9).toFloat()
-                    val radius = half
-                    canvas.drawRoundRect(cx - half, top, cx + half, bottom, radius, radius, trackPaint)
-                    val markerY = bottom - (bottom - top) * (level / 100f)
-                    if (markerY < bottom) {
-                        canvas.drawRoundRect(cx - half, markerY, cx + half, bottom, radius, radius, fillPaint)
+                    val left = dp(2).toFloat()
+                    val right = (width - dp(2)).toFloat()
+                    val top = sliderTop()
+                    val bottom = sliderBottom()
+                    val radius = dp(24).toFloat()
+                    canvas.drawRoundRect(left, top, right, bottom, radius, radius, trackPaint)
+                    val fillTop = bottom - (bottom - top) * (level / 100f)
+                    if (level > 0) {
+                        canvas.save()
+                        canvas.clipRoundRect(left, top, right, bottom, radius, radius)
+                        canvas.drawRect(left, fillTop, right, bottom, fillPaint)
+                        canvas.restore()
                     }
+                    val markerY = fillTop.coerceIn(top, bottom)
+                    val cx = width / 2f
                     canvas.drawCircle(cx, markerY, dp(5).toFloat(), markerPaint)
+                    canvas.drawCircle(cx, markerY, dp(5).toFloat(), markerStroke)
                 }
 
                 override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -725,8 +737,8 @@ class PlayerActivity : ComponentActivity() {
                 addView(slider, FrameLayout.LayoutParams(-1, -1))
                 addView(ImageView(this@PlayerActivity).apply {
                     setImageResource(iconRes); setColorFilter(Color.WHITE)
-                    setPadding(dp(7), dp(7), dp(7), dp(7))
-                }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+                    setPadding(dp(6), dp(6), dp(6), dp(6))
+                }, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             }
             rail.addView(railFace, LinearLayout.LayoutParams(dp(48), dp(124)))
             return rail
