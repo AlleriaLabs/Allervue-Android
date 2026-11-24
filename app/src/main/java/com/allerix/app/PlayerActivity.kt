@@ -589,7 +589,7 @@ class PlayerActivity : ComponentActivity() {
             setPadding(dp(24), dp(8), dp(24), dp(10)); clipToPadding = false
             fun pill(label: String, click: () -> Unit, emphasized: Boolean = false, width: Int = 0) {
                 val v = TextView(this@PlayerActivity).apply {
-                    text = label; textSize = if (label == "⤢") 19f else 12f; gravity = Gravity.CENTER
+                    text = label; textSize = 12f; gravity = Gravity.CENTER
                     setTextColor(if (emphasized) 0xFF180D19.toInt() else 0xFFF5F1F8.toInt())
                     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                     setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -626,7 +626,7 @@ class PlayerActivity : ComponentActivity() {
                 setOnClickListener { showEpisodeSheet() }
             }
             addView(episodesAction, LinearLayout.LayoutParams(-2, dp(40)).apply { rightMargin = dp(6) })
-            pill("⤢", { cycleAspectRatio() }, width = 40)
+            aspectRatioAction()
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
                 text = "Next ep  ›"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFF180D19.toInt())
@@ -648,6 +648,15 @@ class PlayerActivity : ComponentActivity() {
             addView(timeline, LinearLayout.LayoutParams(-1, -2))
             addView(utilityDock, LinearLayout.LayoutParams(-1, -2))
         }
+        fun aspectRatioAction(): View = FrameLayout(this).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dp(30).toFloat(); setColor(0x331A1429); setStroke(dp(1), 0x887D718C.toInt())
+            }
+            addView(ImageView(this@PlayerActivity).apply {
+                setImageResource(R.drawable.ic_aspect_ratio); setColorFilter(0xFFF5F1F8.toInt())
+            }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+            setOnClickListener { cycleAspectRatio() }
+        }.also { addView(it, LinearLayout.LayoutParams(dp(40), dp(40))) }
         fun sideRail(iconRes: Int, initial: Int, onValue: (Int) -> Unit): LinearLayout {
             val rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
             val slider = SeekBar(this).apply {
@@ -669,24 +678,24 @@ class PlayerActivity : ComponentActivity() {
                 addView(slider, FrameLayout.LayoutParams(dp(142), dp(34), Gravity.CENTER))
                 addView(ImageView(this@PlayerActivity).apply {
                     setImageResource(iconRes); setColorFilter(Color.WHITE)
-                    setPadding(dp(8), dp(8), dp(8), dp(8))
-                }, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+                    setPadding(dp(7), dp(7), dp(7), dp(7))
+                }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             }
-            rail.addView(railFace, LinearLayout.LayoutParams(dp(54), dp(150)))
+            rail.addView(railFace, LinearLayout.LayoutParams(dp(48), dp(124)))
             return rail
         }
         val leftRail = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            addView(sideRail(R.drawable.ic_tune, 55) { value ->
+            addView(sideRail(R.drawable.ic_brightness, 55) { value ->
                 brightness = (value / 100f).coerceIn(.05f, 1f)
                 window.attributes = window.attributes.also { it.screenBrightness = brightness }
             })
             addView(ImageView(this@PlayerActivity).apply {
                 setImageResource(R.drawable.ic_lock); setColorFilter(Color.WHITE)
-                setPadding(dp(13), dp(13), dp(13), dp(13))
+                setPadding(dp(9), dp(9), dp(9), dp(9))
                 background = circleBg(0xB3130B20.toInt(), 0x667F718C)
                 setOnClickListener { toggleLock() }
-            }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { topMargin = dp(12) })
+            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { topMargin = dp(8) })
         }
         val rightRail = sideRail(R.drawable.ic_volume,
             (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 /
@@ -699,16 +708,16 @@ class PlayerActivity : ComponentActivity() {
             addView(rightRail)
             addView(ImageView(this@PlayerActivity).apply {
                 setImageResource(R.drawable.ic_fullscreen); setColorFilter(Color.WHITE)
-                setPadding(dp(13), dp(13), dp(13), dp(13))
+                setPadding(dp(9), dp(9), dp(9), dp(9))
                 background = circleBg(0xB3130B20.toInt(), 0x667F718C)
                 setOnClickListener { rotateScreen() }
-            }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { topMargin = dp(12) })
+            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { topMargin = dp(8) })
         }
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             addView(centerControls, FrameLayout.LayoutParams(-1, dp(150), Gravity.CENTER))
-            addView(leftRail, FrameLayout.LayoutParams(dp(64), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(26) })
-            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(64), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(26) })
+            addView(leftRail, FrameLayout.LayoutParams(dp(56), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(14); topMargin = -dp(22) })
+            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(56), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(14); topMargin = -dp(22) })
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
