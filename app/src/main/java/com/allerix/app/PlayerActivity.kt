@@ -732,10 +732,8 @@ class PlayerActivity : ComponentActivity() {
         }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(38), dp(28), dp(38), dp(28))
-            background = GradientDrawable().apply {
-                setColor(0xF9161028.toInt())
-            }
+            setPadding(dp(30), dp(18), dp(30), dp(18))
+            background = GradientDrawable().apply { setColor(0xF9161028.toInt()) }
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
@@ -744,7 +742,7 @@ class PlayerActivity : ComponentActivity() {
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
             }, LinearLayout.LayoutParams(0, -2, 1f))
             addView(TextView(this@PlayerActivity).apply {
-                text = "×"; textSize = 30f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
+                text = "×"; textSize = 29f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
                 background = circleBg(0x22140D24, 0x667F718C)
                 setOnClickListener { root.removeView(overlay); if (controlsVisible) controls.visibility = View.VISIBLE }
             }, LinearLayout.LayoutParams(dp(54), dp(54)))
@@ -752,59 +750,57 @@ class PlayerActivity : ComponentActivity() {
         panel.addView(header)
         val columns = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(24), 0, 0)
+            setPadding(0, dp(8), 0, 0)
         }
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        // Track lists can exceed the available panel height. Give each settings
-        // column its own real vertical scroll container so touch drags scroll
-        // the options instead of being clipped by the full-height panel.
         val leftScroll = ScrollView(this).apply {
-            isFillViewport = false
-            isVerticalScrollBarEnabled = true
+            isFillViewport = false; isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             addView(left, ViewGroup.LayoutParams(-1, -2))
         }
         val rightScroll = ScrollView(this).apply {
-            isFillViewport = false
-            isVerticalScrollBarEnabled = true
+            isFillViewport = false; isVerticalScrollBarEnabled = false
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             addView(right, ViewGroup.LayoutParams(-1, -2))
         }
         fun label(parent: LinearLayout, text: String) {
             parent.addView(TextView(this).apply {
-                this.text = text; textSize = 15f; letterSpacing = .16f
-                setTextColor(0xFFBEB4CC.toInt()); typeface = Typeface.DEFAULT_BOLD
-                setPadding(dp(8), dp(16), 0, dp(10))
+                this.text = text; textSize = 14f; letterSpacing = .15f
+                setTextColor(0xFFBEB4CC.toInt()); typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
+                setPadding(dp(6), dp(12), 0, dp(7))
             })
         }
         fun option(parent: LinearLayout, text: String, selected: Boolean, action: () -> Unit) {
             val v = TextView(this).apply {
-                this.text = (if (selected) "◉   " else "○   ") + text
-                textSize = 18f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(70); setPadding(dp(20), dp(15), dp(16), dp(15))
+                this.text = (if (selected) "●   " else "○   ") + text
+                textSize = 16f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(46); setPadding(dp(18), dp(8), dp(12), dp(8))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(14).toFloat()
+                    cornerRadius = dp(15).toFloat()
                     setColor(if (selected) 0x443F354E else Color.TRANSPARENT)
                 }
                 setOnClickListener { action() }
             }
-            parent.addView(v, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(3) })
+            parent.addView(v, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = dp(2) })
         }
         fun choice(parent: LinearLayout, text: String, selected: Boolean, action: () -> Unit) {
             val v = TextView(this).apply {
-                this.text = text; textSize = 17f; gravity = Gravity.CENTER
+                this.text = text; textSize = 16f; gravity = Gravity.CENTER
                 setTextColor(if (selected) 0xFF210D19.toInt() else Color.WHITE)
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(28).toFloat()
-                    if (selected) setColor(0xFFFF4F78.toInt()) else {
+                    cornerRadius = dp(30).toFloat()
+                    if (selected) {
+                        colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
+                        gradientType = GradientDrawable.LINEAR_GRADIENT
+                    } else {
                         setColor(0x222C243B); setStroke(dp(1), 0x667D718C)
                     }
                 }
                 setOnClickListener { action() }
             }
-            parent.addView(v, LinearLayout.LayoutParams(0, dp(60), 1f).apply {
-                leftMargin = dp(3); rightMargin = dp(3); bottomMargin = dp(8)
+            parent.addView(v, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+                leftMargin = dp(3); rightMargin = dp(3); bottomMargin = dp(7)
             })
         }
         label(left, "SUBTITLES")
@@ -844,13 +840,12 @@ class PlayerActivity : ComponentActivity() {
             } }
             right.addView(row)
         }
-        columns.addView(leftScroll, LinearLayout.LayoutParams(0, -1, 1.15f).apply {
-            rightMargin = dp(32)
-        })
+        columns.addView(leftScroll, LinearLayout.LayoutParams(0, -1, 1.15f).apply { rightMargin = dp(28) })
         columns.addView(rightScroll, LinearLayout.LayoutParams(0, -1, .9f))
         panel.addView(columns, LinearLayout.LayoutParams(-1, 0, 1f))
         overlay.addView(panel, FrameLayout.LayoutParams(
-            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) (resources.displayMetrics.widthPixels * .66f).toInt() else -1,
+            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE)
+                (resources.displayMetrics.widthPixels * .66f).toInt() else -1,
             -1, Gravity.END
         ))
         overlay.setOnClickListener { root.removeView(overlay); if (controlsVisible) controls.visibility = View.VISIBLE }
