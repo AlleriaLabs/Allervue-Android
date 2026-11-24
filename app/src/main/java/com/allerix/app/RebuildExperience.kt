@@ -75,8 +75,8 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val top = stack.lastOrNull()
     val showNav = top == null || top is Nav.Detail || top is Nav.Grid
     Box(Modifier.fillMaxSize()) {
-        // RebuildHome draws its complete weather/time-driven sky itself.
-        // Do not stack a second animated full-screen Canvas behind it.
+        // RebuildHome owns the complete weather/time-driven sky for this route.
+        // Keep it as the only animated full-screen Canvas behind Home artwork.
         Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (top) {
