@@ -10,6 +10,8 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
@@ -658,23 +660,69 @@ class PlayerActivity : ComponentActivity() {
         }
         fun sideRail(iconRes: Int, initial: Int, onValue: (Int) -> Unit): LinearLayout {
             val rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
-            val slider = SeekBar(this).apply {
-                max = 100; progress = initial; rotation = 270f
-                progressTintList = ColorStateList.valueOf(0xFFFF4F78.toInt())
-                thumbTintList = ColorStateList.valueOf(Color.WHITE)
-                progressBackgroundTintList = ColorStateList.valueOf(0x667F718C)
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(v: SeekBar, value: Int, fromUser: Boolean) { if (fromUser) onValue(value) }
-                    override fun onStartTrackingTouch(v: SeekBar) { handler.removeCallbacks(autoHide) }
-                    override fun onStopTrackingTouch(v: SeekBar) { scheduleHide() }
-                })
+            val slider = object : View(this@PlayerActivity) {
+                private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x553D344B }
+                private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
+                private val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
+                var level = initial.coerceIn(0, 100)
+                    set(value) { field = value.coerceIn(0, 100); invalidate() }
+
+                private fun updateFromTouch(y: Float) {
+                    val top = dp(10).toFloat()
+                    val bottom = (height - dp(42)).toFloat()
+                    val span = (bottom - top).coerceAtLeast(1f)
+                    level = (((bottom - y) / span) * 100f).toInt().coerceIn(0, 100)
+                    onValue(level)
+                }
+
+                override fun onDraw(canvas: Canvas) {
+                    super.onDraw(canvas)
+                    val cx = width / 2f
+                    val top = dp(10).toFloat()
+                    val bottom = (height - dp(42)).toFloat()
+                    val half = dp(9).toFloat()
+                    val radius = half
+                    canvas.drawRoundRect(cx - half, top, cx + half, bottom, radius, radius, trackPaint)
+                    val markerY = bottom - (bottom - top) * (level / 100f)
+                    if (markerY < bottom) {
+                        canvas.drawRoundRect(cx - half, markerY, cx + half, bottom, radius, radius, fillPaint)
+                    }
+                    canvas.drawCircle(cx, markerY, dp(5).toFloat(), markerPaint)
+                }
+
+                override fun onTouchEvent(event: MotionEvent): Boolean {
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            handler.removeCallbacks(autoHide)
+                            updateFromTouch(event.y)
+                            parent?.requestDisallowInterceptTouchEvent(true)
+                            return true
+                        }
+                        MotionEvent.ACTION_MOVE -> {
+                            updateFromTouch(event.y)
+                            return true
+                        }
+                        MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                            updateFromTouch(event.y)
+                            scheduleHide()
+                            performClick()
+                            return true
+                        }
+                    }
+                    return true
+                }
+
+                override fun performClick(): Boolean {
+                    super.performClick()
+                    return true
+                }
             }
             val railFace = FrameLayout(this).apply {
                 background = GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat(); setColor(0xB3130B20.toInt())
                     setStroke(dp(1), 0x667F718C)
                 }
-                addView(slider, FrameLayout.LayoutParams(dp(142), dp(34), Gravity.CENTER))
+                addView(slider, FrameLayout.LayoutParams(-1, -1))
                 addView(ImageView(this@PlayerActivity).apply {
                     setImageResource(iconRes); setColorFilter(Color.WHITE)
                     setPadding(dp(7), dp(7), dp(7), dp(7))
