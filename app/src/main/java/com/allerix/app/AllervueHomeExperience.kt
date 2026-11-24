@@ -76,9 +76,8 @@ private fun HomeArtwork(
     fallbackModel: String? = null,
     onModelLoaded: (() -> Unit)? = null
 ) {
-    // Keep Home artwork on the same straightforward Coil path as catalog
-    // thumbnails. The previous painter/state handoff created extra painters
-    // for each orbit node and delayed the first visible frame.
+    // Use the same direct Coil request path as the catalog thumbnails.
+    // Keep fallback loading conditional so each orbit node starts with one request.
     var useFallback by remember(model) { mutableStateOf(false) }
     Box(
         modifier.background(
