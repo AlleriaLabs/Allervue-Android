@@ -111,6 +111,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var curTime: TextView
     private lateinit var durTime: TextView
     private lateinit var playBtn: ImageView
+    private var progressRing: View? = null
     private lateinit var prevEpisodeBtn: TextView
     private lateinit var nextEpisodeBtn: TextView
     private lateinit var episodesAction: TextView
@@ -421,7 +422,7 @@ class PlayerActivity : ComponentActivity() {
         }
         titleView = TextView(this).apply {
             text = intent.getStringExtra("title") ?: ""
-            setTextColor(0xFFF4F5F7.toInt()); textSize = 15f
+            setTextColor(0xFFF4F5F7.toInt()); textSize = 22f
             setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL), Typeface.NORMAL)
             maxLines = 1; maxWidth = dp(250); ellipsize = TextUtils.TruncateAt.END
         }
@@ -509,12 +510,29 @@ class PlayerActivity : ComponentActivity() {
             background = GradientDrawable().apply { setColor(0xFFFF4F78.toInt()); shape = GradientDrawable.OVAL }
             setColorFilter(0xFF210D19.toInt()); elevation = dp(3).toFloat()
         }
-        val playControl = FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(0x22150D25)
-                setStroke(dp(2), 0x778F829C)
+        val ring = object : View(this) {
+            private val trackPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = dp(3).toFloat()
+                color = 0x667F718C
             }
+            private val progressPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                style = android.graphics.Paint.Style.STROKE
+                strokeWidth = dp(3).toFloat()
+                strokeCap = android.graphics.Paint.Cap.ROUND
+                color = 0xFFFF4F78.toInt()
+            }
+            override fun onDraw(canvas: android.graphics.Canvas) {
+                super.onDraw(canvas)
+                val inset = dp(5).toFloat()
+                val bounds = android.graphics.RectF(inset, inset, width - inset, height - inset)
+                canvas.drawArc(bounds, 0f, 360f, false, trackPaint)
+                val fraction = if (duration > 0L) (playbackPositionMs().toFloat() / duration).coerceIn(0f, 1f) else 0f
+                canvas.drawArc(bounds, -90f, fraction * 360f, false, progressPaint)
+            }
+        }.also { progressRing = it }
+        val playControl = FrameLayout(this).apply {
+            addView(ring, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER))
             addView(playBtn, FrameLayout.LayoutParams(dp(72), dp(72), Gravity.CENTER))
         }
         val fwdBtn = skipButton(true).apply {
@@ -1438,6 +1456,7 @@ class PlayerActivity : ComponentActivity() {
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         curTime.text = fmt(pos)
         durTime.text = if (dur > 0) fmt(dur) else "--:--"
+        progressRing?.invalidate()
 
     }
 
