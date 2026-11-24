@@ -663,10 +663,6 @@ class PlayerActivity : ComponentActivity() {
             val slider = object : View(this@PlayerActivity) {
                 private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0x663D344B }
                 private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accent }
-                private val markerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-                private val markerStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                    color = 0xFFFF4F78.toInt(); style = Paint.Style.STROKE; strokeWidth = dp(1).toFloat()
-                }
                 var level = initial.coerceIn(0, 100)
                     set(value) { field = value.coerceIn(0, 100); invalidate() }
 
@@ -691,15 +687,16 @@ class PlayerActivity : ComponentActivity() {
                     canvas.drawRoundRect(left, top, right, bottom, radius, radius, trackPaint)
                     val fillTop = bottom - (bottom - top) * (level / 100f)
                     if (level > 0) {
+                        // Fill the complete rail width. The straight horizontal fill edge
+                        // is the level indicator; deliberately draw no dot or center line.
+                        val clip = android.graphics.Path().apply {
+                            addRoundRect(left, top, right, bottom, radius, radius, android.graphics.Path.Direction.CW)
+                        }
                         canvas.save()
-                        canvas.clipRoundRect(left, top, right, bottom, radius, radius)
+                        canvas.clipPath(clip)
                         canvas.drawRect(left, fillTop, right, bottom, fillPaint)
                         canvas.restore()
                     }
-                    val markerY = fillTop.coerceIn(top, bottom)
-                    val cx = width / 2f
-                    canvas.drawCircle(cx, markerY, dp(5).toFloat(), markerPaint)
-                    canvas.drawCircle(cx, markerY, dp(5).toFloat(), markerStroke)
                 }
 
                 override fun onTouchEvent(event: MotionEvent): Boolean {
