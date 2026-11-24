@@ -74,7 +74,9 @@ fun RebuildMainShell(onLogout: () -> Unit) {
 
     val top = stack.lastOrNull()
     val showNav = top == null || top is Nav.Detail || top is Nav.Grid
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Box(Modifier.fillMaxSize()) {
+        AllervueAmbientBackground(Modifier.matchParentSize())
+        Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
@@ -106,6 +108,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
             }
         }
         if (showNav) RebuildBottomNav(tab) { selected -> stack.clear(); tab = selected }
+        }
     }
 }
 
@@ -311,11 +314,7 @@ private fun RebuildCatalog(
     val listIndex = gridIndex
 
     Box(
-        modifier.fillMaxSize().background(
-            Brush.linearGradient(
-                listOf(Color(0xFF351329), Color(0xFF24143A), Color(0xFF071C25), Color(0xFF080A10))
-            )
-        )
+        modifier.fillMaxSize()
     ) {
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -602,7 +601,7 @@ private fun AllervueCatalogCard(item: Item, number: Int, onClick: () -> Unit) {
 @Composable
 private fun RebuildCollection(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit) {
     var section by remember { mutableStateOf("Saved") }
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351329), Color(0xFF24143A), Color(0xFF0B2630), Color(0xFF080A11))))) {
+    Box(Modifier.fillMaxSize()) {
         Canvas(Modifier.fillMaxSize()) {
             listOf(Offset(size.width*.08f,size.height*.13f), Offset(size.width*.82f,size.height*.09f),
                 Offset(size.width*.92f,size.height*.28f), Offset(size.width*.17f,size.height*.42f),
@@ -956,7 +955,7 @@ private fun RebuildDetail(base: Item, onOpen: (Item) -> Unit, onPlay: (Item) -> 
     }
     val showOrbit = orbitItems.size > 1
 
-    Box(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF35151D), Color(0xFF28143A), Color(0xFF0B2028), Color(0xFF080A11))))) {
+    Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 28.dp)) {
             item {
                 Box(Modifier.fillMaxWidth().height(420.dp), contentAlignment = Alignment.Center) {
@@ -1145,7 +1144,7 @@ private fun RebuildSettingsScreen(
     onPlayback: () -> Unit, onDiagnostics: () -> Unit, onSignOut: () -> Unit,
     onWeb: (String, String) -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("‹", color = MaterialTheme.colorScheme.onBackground, fontSize = 28.sp, modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
             Column { Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your Allervue experience", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
