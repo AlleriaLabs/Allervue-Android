@@ -80,7 +80,6 @@ fun App() {
     }
 
     Box(Modifier.fillMaxSize()) {
-        AllervueAmbientBackground(Modifier.matchParentSize())
         if (splash) {
             SplashScreen()
         } else if (loggedIn) {
