@@ -71,7 +71,7 @@ fun App() {
     var loggedIn by remember { mutableStateOf(Api.token.isNotEmpty()) }
     var loginSettings by remember { mutableStateOf(false) }
     var forgotPassword by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { delay(2400); splash = false }
+    LaunchedEffect(Unit) { delay(900); splash = false }
 
     var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     LaunchedEffect(Unit) {
