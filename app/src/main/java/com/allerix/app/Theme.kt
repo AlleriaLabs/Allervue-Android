@@ -61,22 +61,14 @@ fun Modifier.glass(radius: Dp = 16.dp): Modifier {
 @Composable
 fun AllervueAmbientBackground(modifier: Modifier = Modifier) {
     val context = LocalContext.current
-    var locationGranted by remember {
-        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED)
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        locationGranted = it
-    }
     var weather by remember { mutableStateOf<HomeWeather?>(null) }
+    // Home owns the permission prompt. The shared scene simply observes permission
+    // so it never launches a duplicate system dialog while the user enters Home.
     LaunchedEffect(Unit) {
-        if (!locationGranted) permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-    }
-    LaunchedEffect(locationGranted) {
-        if (locationGranted) {
-            while (true) {
-                weather = HomeWeatherRepository.load(context)
-                delay(30 * 60 * 1000L)
-            }
+        while (true) {
+            val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+            if (granted) weather = HomeWeatherRepository.load(context)
+            delay(if (granted) 30 * 60 * 1000L else 3_000L)
         }
     }
     var minute by remember {
