@@ -376,7 +376,7 @@ class PlayerActivity : ComponentActivity() {
             scaleX = if (forward) -1f else 1f
         }, FrameLayout.LayoutParams(-1, -1))
         addView(TextView(context).apply {
-            text = "10"; setTextColor(Color.WHITE); textSize = 12f
+            text = "10"; setTextColor(Color.WHITE); textSize = 9f
             setTypeface(typeface, Typeface.BOLD); gravity = Gravity.CENTER
         }, FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
     }
@@ -420,8 +420,9 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        val backBtn = icon(R.drawable.ic_back, 30, 0).apply {
+        val backBtn = icon(R.drawable.ic_back, 24, 0).apply {
             background = null
+            scaleType = ImageView.ScaleType.FIT_CENTER
             setColorFilter(0xFFF4F5F7.toInt())
         }
         titleView = TextView(this).apply {
@@ -468,7 +469,7 @@ class PlayerActivity : ComponentActivity() {
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(12), dp(16), dp(8))
-            addView(backBtn, LinearLayout.LayoutParams(dp(30), dp(36)))
+            addView(backBtn, LinearLayout.LayoutParams(dp(24), dp(36)))
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
             addView(topRight, LinearLayout.LayoutParams(-2, -2))
@@ -510,7 +511,7 @@ class PlayerActivity : ComponentActivity() {
         val rewBtn = skipButton(false).apply {
             background = circleBg(0xAA21182F.toInt(), 0x55FFFFFF); setPadding(dp(10), dp(10), dp(10), dp(10))
         }
-        playBtn = icon(R.drawable.ic_pause, 72, 20).apply {
+        playBtn = icon(R.drawable.ic_pause, 84, 18).apply {
             background = GradientDrawable().apply { colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt()); gradientType = GradientDrawable.LINEAR_GRADIENT; shape = GradientDrawable.OVAL }
             setColorFilter(0xFF210D19.toInt()); elevation = dp(3).toFloat()
         }
@@ -536,8 +537,8 @@ class PlayerActivity : ComponentActivity() {
             }
         }.also { progressRing = it }
         val playControl = FrameLayout(this).apply {
-            addView(ring, FrameLayout.LayoutParams(dp(96), dp(96), Gravity.CENTER))
-            addView(playBtn, FrameLayout.LayoutParams(dp(62), dp(62), Gravity.CENTER))
+            addView(ring, FrameLayout.LayoutParams(dp(112), dp(112), Gravity.CENTER))
+            addView(playBtn, FrameLayout.LayoutParams(dp(78), dp(78), Gravity.CENTER))
         }
         val fwdBtn = skipButton(true).apply {
             background = circleBg(0xAA21182F.toInt(), 0x55FFFFFF); (getChildAt(0) as? ImageView)?.setColorFilter(0xFFE7EBF0.toInt()); setPadding(dp(10), dp(10), dp(10), dp(10))
@@ -551,7 +552,7 @@ class PlayerActivity : ComponentActivity() {
             }
             slot(prevEpisodeBtn, 26, 48, right = 10)
             slot(rewBtn, 46, 46, right = 10)
-            slot(playControl, 96, 96, right = 10)
+            slot(playControl, 112, 112, right = 10)
             slot(fwdBtn, 46, 46, right = 8)
             slot(nextEpisodeBtn, 26, 48)
         }
@@ -660,8 +661,8 @@ class PlayerActivity : ComponentActivity() {
                 var level = initial.coerceIn(0, 100)
                     set(value) { field = value.coerceIn(0, 100); invalidate() }
 
-                private fun sliderTop() = dp(5).toFloat()
-                private fun sliderBottom() = (height - dp(5)).toFloat()
+                private fun sliderTop() = 0f
+                private fun sliderBottom() = height.toFloat()
 
                 private fun updateFromTouch(y: Float) {
                     val top = sliderTop()
@@ -673,11 +674,11 @@ class PlayerActivity : ComponentActivity() {
 
                 override fun onDraw(canvas: Canvas) {
                     super.onDraw(canvas)
-                    val left = dp(2).toFloat()
-                    val right = (width - dp(2)).toFloat()
+                    val left = 0f
+                    val right = width.toFloat()
                     val top = sliderTop()
                     val bottom = sliderBottom()
-                    val radius = dp(24).toFloat()
+                    val radius = (width / 2f).coerceAtLeast(1f)
                     canvas.drawRoundRect(left, top, right, bottom, radius, radius, trackPaint)
                     val fillTop = bottom - (bottom - top) * (level / 100f)
                     if (level > 0) {
@@ -730,7 +731,7 @@ class PlayerActivity : ComponentActivity() {
                     setPadding(dp(6), dp(6), dp(6), dp(6))
                 }, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             }
-            rail.addView(railFace, LinearLayout.LayoutParams(dp(34), dp(124)))
+            rail.addView(railFace, LinearLayout.LayoutParams(dp(40), dp(124)))
             return rail
         }
         val leftRail = sideRail(R.drawable.ic_brightness, 55) { value ->
@@ -747,8 +748,8 @@ class PlayerActivity : ComponentActivity() {
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             addView(centerControls, FrameLayout.LayoutParams(-1, dp(150), Gravity.CENTER))
-            addView(leftRail, FrameLayout.LayoutParams(dp(44), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(22); topMargin = -dp(22) })
-            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(44), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(22); topMargin = -dp(22) })
+            addView(leftRail, FrameLayout.LayoutParams(dp(48), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(22); topMargin = -dp(22) })
+            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(48), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(22); topMargin = -dp(22) })
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
@@ -806,7 +807,7 @@ class PlayerActivity : ComponentActivity() {
         applySubStyle(); layoutSubtitle()
         ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout())
-            topBar.setPadding(dp(28) + i.left, dp(18) + i.top, dp(28) + i.right, dp(10))
+            topBar.setPadding(i.left, dp(12) + i.top, dp(16) + i.right, dp(8))
             (bottomPanel.layoutParams as FrameLayout.LayoutParams).apply { leftMargin = 0; rightMargin = 0; bottomMargin = i.bottom }
             bottomPanel.requestLayout()
             insets
