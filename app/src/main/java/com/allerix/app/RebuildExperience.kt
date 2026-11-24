@@ -75,6 +75,10 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val top = stack.lastOrNull()
     val showNav = top == null || top is Nav.Detail || top is Nav.Grid
     Box(Modifier.fillMaxSize()) {
+        // The ambient sky belongs only to the Home destination.
+        if (top == null && tab == RebuildTab.HOME) {
+            AllervueAmbientBackground(Modifier.matchParentSize())
+        }
         Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (top) {
