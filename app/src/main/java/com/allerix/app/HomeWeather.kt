@@ -58,8 +58,9 @@ internal object HomeWeatherRepository {
                         if (continuation.isActive) continuation.resume(null)
                     }
                 }
-            } ?: runCatching {
-                LocationManagerCompat.getLastKnownLocation(locationManager, provider)
+            } ?: runCatching<Location?> {
+                @Suppress("MissingPermission")
+                locationManager.getLastKnownLocation(provider)
             }.getOrNull() ?: return@withContext null
 
             val city = runCatching {
