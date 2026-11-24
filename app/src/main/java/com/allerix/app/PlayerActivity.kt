@@ -700,13 +700,13 @@ class PlayerActivity : ComponentActivity() {
             isFillViewport = false
             isVerticalScrollBarEnabled = true
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            addView(left, ScrollView.LayoutParams(-1, -2))
+            addView(left, ViewGroup.LayoutParams(-1, -2))
         }
         val rightScroll = ScrollView(this).apply {
             isFillViewport = false
             isVerticalScrollBarEnabled = true
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
-            addView(right, ScrollView.LayoutParams(-1, -2))
+            addView(right, ViewGroup.LayoutParams(-1, -2))
         }
         fun label(parent: LinearLayout, text: String) {
             parent.addView(TextView(this).apply {
