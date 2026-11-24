@@ -61,11 +61,11 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
         unfocusedContainerColor = Color(0xFF1A1828)
     )
 
-    fun showBiometricPrompt(encrypt: Boolean) {
+    fun showBiometricPrompt() {
         val host = activity
         if (host == null) { err = "Biometric sign-in isn't available in this screen."; return }
         try {
-            val cipher = if (encrypt) BiometricLogin.newEncryptCipher() else BiometricLogin.newDecryptCipher(ctx)
+            val cipher = BiometricLogin.newDecryptCipher(ctx)
             val prompt = BiometricPrompt(
                 host, host.mainExecutor,
                 object : BiometricPrompt.AuthenticationCallback() {
@@ -73,35 +73,27 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                         val unlockedCipher = result.cryptoObject?.cipher
                         if (unlockedCipher == null) {
                             err = "Secure biometric authentication failed. Use your password."
-                            if (encrypt) onDone()
                             return
                         }
-                        if (encrypt) {
-                            val credentials = pendingCredentials
-                            if (credentials != null) {
-                                runCatching {
-                                    BiometricLogin.save(ctx, unlockedCipher, credentials.first, credentials.second)
-                                }.onSuccess { onDone() }
-                                    .onFailure { err = "Couldn't enable biometric sign-in."; onDone() }
-                            } else onDone()
-                        } else {
-                            try {
-                                val credentials = BiometricLogin.decrypt(ctx, unlockedCipher)
-                                scope.launch {
-                                    try { Api.login(ctx, credentials.username, credentials.password); onDone() }
-                                    catch (e: Exception) { BiometricLogin.clear(ctx); err = "Saved biometric login is no longer valid. Sign in with your password and enable it again." }
+                        try {
+                            val credentials = BiometricLogin.decrypt(ctx, unlockedCipher)
+                            scope.launch {
+                                try {
+                                    Api.login(ctx, credentials.username, credentials.password)
+                                    onDone()
+                                } catch (e: Exception) {
+                                    BiometricLogin.clear(ctx)
+                                    err = "Saved biometric login is no longer valid. Sign in with your password and enable it again."
                                 }
-                            } catch (e: Exception) {
-                                BiometricLogin.clear(ctx)
-                                err = "Biometric login needs to be set up again. Sign in with your password."
                             }
+                        } catch (e: Exception) {
+                            BiometricLogin.clear(ctx)
+                            err = "Biometric login needs to be set up again. Sign in with your password."
                         }
                     }
 
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                        err = if (encrypt) "Biometric setup cancelled. You can enable it later." else
-                            "Biometric sign-in cancelled. Use your password instead."
-                        if (encrypt) onDone()
+                        err = "Biometric sign-in cancelled. Use your password instead."
                     }
 
                     override fun onAuthenticationFailed() {
@@ -110,7 +102,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                 }
             )
             val info = BiometricPrompt.PromptInfo.Builder()
-                .setTitle(if (encrypt) "Enable Allervue biometric sign-in" else "Sign in to Allervue")
+                .setTitle("Sign in to Allervue")
                 .setSubtitle("Use your enrolled fingerprint or supported face authentication")
                 .setNegativeButtonText("Use password")
                 .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
@@ -118,7 +110,6 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
         } catch (e: Exception) {
             err = "Biometric sign-in isn't available. Use your password."
-            if (encrypt) onDone()
         }
     }
 
@@ -200,7 +191,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                 if (biometricAvailable && hasBiometricLogin) {
                     Spacer(Modifier.height(14.dp))
                     OutlinedButton(
-                        enabled = !busy, onClick = { err = ""; showBiometricPrompt(false) },
+                        enabled = !busy, onClick = { err = ""; showBiometricPrompt() },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(15.dp),
                         border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6682))
