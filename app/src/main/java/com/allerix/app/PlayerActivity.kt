@@ -727,33 +727,32 @@ class PlayerActivity : ComponentActivity() {
         if (!::root.isInitialized) return
         controls.visibility = View.GONE
         val overlay = FrameLayout(this).apply {
-            setBackgroundColor(0x66060010)
+            setBackgroundColor(0x26060010)
             isClickable = true
         }
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(26), dp(22), dp(26), dp(24))
+            setPadding(dp(38), dp(28), dp(38), dp(28))
             background = GradientDrawable().apply {
                 setColor(0xF9161028.toInt())
-                setStroke(dp(1), 0x447F718C)
             }
         }
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             addView(TextView(this@PlayerActivity).apply {
-                text = "Playback settings"; textSize = 25f; setTextColor(Color.WHITE)
+                text = "Playback settings"; textSize = 27f; setTextColor(Color.WHITE)
                 typeface = Typeface.create("sans-serif", Typeface.BOLD)
             }, LinearLayout.LayoutParams(0, -2, 1f))
             addView(TextView(this@PlayerActivity).apply {
                 text = "×"; textSize = 30f; setTextColor(Color.WHITE); gravity = Gravity.CENTER
-                background = circleBg(0x33251D38, 0x667F718C)
+                background = circleBg(0x22140D24, 0x667F718C)
                 setOnClickListener { root.removeView(overlay); if (controlsVisible) controls.visibility = View.VISIBLE }
-            }, LinearLayout.LayoutParams(dp(46), dp(46)))
+            }, LinearLayout.LayoutParams(dp(54), dp(54)))
         }
         panel.addView(header)
         val columns = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(18), 0, 0)
+            setPadding(0, dp(24), 0, 0)
         }
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
@@ -774,16 +773,16 @@ class PlayerActivity : ComponentActivity() {
         }
         fun label(parent: LinearLayout, text: String) {
             parent.addView(TextView(this).apply {
-                this.text = text; textSize = 13f; letterSpacing = .14f
+                this.text = text; textSize = 15f; letterSpacing = .16f
                 setTextColor(0xFFBEB4CC.toInt()); typeface = Typeface.DEFAULT_BOLD
-                setPadding(0, dp(15), 0, dp(8))
+                setPadding(dp(8), dp(16), 0, dp(10))
             })
         }
         fun option(parent: LinearLayout, text: String, selected: Boolean, action: () -> Unit) {
             val v = TextView(this).apply {
                 this.text = (if (selected) "◉   " else "○   ") + text
-                textSize = 15f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL
-                setPadding(dp(14), dp(13), dp(12), dp(13))
+                textSize = 18f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(70); setPadding(dp(20), dp(15), dp(16), dp(15))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(14).toFloat()
                     setColor(if (selected) 0x443F354E else Color.TRANSPARENT)
@@ -794,7 +793,7 @@ class PlayerActivity : ComponentActivity() {
         }
         fun choice(parent: LinearLayout, text: String, selected: Boolean, action: () -> Unit) {
             val v = TextView(this).apply {
-                this.text = text; textSize = 15f; gravity = Gravity.CENTER
+                this.text = text; textSize = 17f; gravity = Gravity.CENTER
                 setTextColor(if (selected) 0xFF210D19.toInt() else Color.WHITE)
                 background = GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat()
@@ -804,7 +803,7 @@ class PlayerActivity : ComponentActivity() {
                 }
                 setOnClickListener { action() }
             }
-            parent.addView(v, LinearLayout.LayoutParams(0, dp(48), 1f).apply {
+            parent.addView(v, LinearLayout.LayoutParams(0, dp(60), 1f).apply {
                 leftMargin = dp(3); rightMargin = dp(3); bottomMargin = dp(8)
             })
         }
@@ -846,12 +845,12 @@ class PlayerActivity : ComponentActivity() {
             right.addView(row)
         }
         columns.addView(leftScroll, LinearLayout.LayoutParams(0, -1, 1.15f).apply {
-            rightMargin = dp(24)
+            rightMargin = dp(32)
         })
         columns.addView(rightScroll, LinearLayout.LayoutParams(0, -1, .9f))
         panel.addView(columns, LinearLayout.LayoutParams(-1, 0, 1f))
         overlay.addView(panel, FrameLayout.LayoutParams(
-            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) (resources.displayMetrics.widthPixels * .67f).toInt() else -1,
+            if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) (resources.displayMetrics.widthPixels * .66f).toInt() else -1,
             -1, Gravity.END
         ))
         overlay.setOnClickListener { root.removeView(overlay); if (controlsVisible) controls.visibility = View.VISIBLE }
