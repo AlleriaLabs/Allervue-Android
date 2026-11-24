@@ -13,7 +13,6 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,9 +41,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
+import coil.compose.AsyncImage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -79,78 +76,29 @@ private fun HomeArtwork(
     fallbackModel: String? = null,
     onModelLoaded: (() -> Unit)? = null
 ) {
-    val context = LocalContext.current
-    // One request per visible circle: the previous implementation started a
-    // target, duplicate display, and fallback request for every orbit node.
-    // That multiplied startup image traffic and left the circles black while
-    // dozens of identical/oversized requests competed for the connection pool.
-    var displayedModel by remember { mutableStateOf<String?>(null) }
-    val targetRequest = remember(model, context) {
-        ImageRequest.Builder(context).data(model)
-            .memoryCacheKey(model).diskCacheKey(model)
-            .crossfade(false).build()
-    }
-    val targetPainter = rememberAsyncImagePainter(model = targetRequest)
-    val targetLoaded = targetPainter.state is AsyncImagePainter.State.Success
-    val targetFailed = targetPainter.state is AsyncImagePainter.State.Error
-
-    // Only keep a painter for the last successful image when changing titles.
-    // On first launch this is null, so we do not issue a duplicate request.
-    val previousModel = displayedModel?.takeIf { it != model }
-    val previousRequest = remember(previousModel, context) {
-        previousModel?.let {
-            ImageRequest.Builder(context).data(it)
-                .memoryCacheKey(it).diskCacheKey(it).crossfade(false).build()
-        }
-    }
-    val previousPainter = if (previousRequest != null) {
-        rememberAsyncImagePainter(model = previousRequest)
-    } else null
-    val previousLoaded = previousPainter?.state is AsyncImagePainter.State.Success
-
-    // The fallback is requested only if the primary image actually fails.
-    val fallbackRequest = remember(fallbackModel, context) {
-        fallbackModel?.let {
-            ImageRequest.Builder(context).data(it)
-                .memoryCacheKey(it).diskCacheKey(it).crossfade(false).build()
-        }
-    }
-    val fallbackPainter = if (targetFailed && fallbackRequest != null) {
-        rememberAsyncImagePainter(model = fallbackRequest)
-    } else null
-    val fallbackLoaded = fallbackPainter?.state is AsyncImagePainter.State.Success
-
-    LaunchedEffect(model, targetLoaded, targetFailed, fallbackLoaded) {
-        if (targetLoaded) {
-            displayedModel = model
-            onModelLoaded?.invoke()
-        } else if (targetFailed && fallbackLoaded) {
-            onModelLoaded?.invoke()
-        }
-    }
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().background(
-            Brush.linearGradient(listOf(Color(0xFF392746), Color(0xFF172D3B), Color(0xFF202039)))
-        ))
-        when {
-            targetLoaded -> Image(
-                painter = targetPainter, contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(), contentScale = contentScale
+    // Keep Home artwork on the same straightforward Coil path as catalog
+    // thumbnails. The previous painter/state handoff created extra painters
+    // for each orbit node and delayed the first visible frame.
+    var useFallback by remember(model) { mutableStateOf(false) }
+    Box(
+        modifier.background(
+            Brush.radialGradient(
+                listOf(Color(0xFF59435F), Color(0xFF263E50), Color(0xFF17152C))
             )
-            previousLoaded && previousPainter != null -> Image(
-                painter = previousPainter, contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(), contentScale = contentScale
-            )
-            fallbackLoaded && fallbackPainter != null -> Image(
-                painter = fallbackPainter, contentDescription = contentDescription,
-                modifier = Modifier.fillMaxSize(), contentScale = contentScale
-            )
-            else -> Box(
-                Modifier.fillMaxSize().background(
-                    Brush.radialGradient(listOf(Color(0xFF59435F), Color(0xFF263E50), Color(0xFF17152C)))
-                )
-            )
-        }
+        )
+    ) {
+        AsyncImage(
+            model = if (useFallback) fallbackModel ?: model else model,
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = contentScale,
+            onSuccess = { onModelLoaded?.invoke() },
+            onError = {
+                if (!useFallback && !fallbackModel.isNullOrBlank()) {
+                    useFallback = true
+                }
+            }
+        )
     }
 }
 
