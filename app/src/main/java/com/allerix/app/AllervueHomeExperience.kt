@@ -493,6 +493,51 @@ internal fun AllervueHome(
                 ) { Text("♙", color = Color.White, fontSize = 23.sp) }
             }
 
+            // Weather is presented as part of the living sky, not as a footer tracker.
+            // Its atmosphere is rendered behind this unobtrusive sky annotation.
+            Column(
+                Modifier.align(Alignment.TopEnd)
+                    .padding(top = 76.dp, end = 20.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable {
+                        if (!hasLocationPermission) {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        } else {
+                            weatherLoading = true
+                            weatherRefresh++
+                        }
+                    }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                horizontalAlignment = Alignment.End
+            ) {
+                if (homeWeather != null) {
+                    val weather = homeWeather!!
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            when (weather.kind) {
+                                "rain", "storm" -> "🌧"
+                                "cloudy", "fog" -> "☁"
+                                "snow" -> "❄"
+                                "partly" -> "⛅"
+                                else -> if (weather.isDay) "☀" else "☾"
+                            },
+                            fontSize = 13.sp
+                        )
+                        Text("${weather.temperature}°", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Text(weather.city, color = Color.White.copy(alpha = .78f), fontSize = 9.sp, maxLines = 1)
+                    Text(weather.condition, color = Color.White.copy(alpha = .58f), fontSize = 8.sp, maxLines = 1)
+                } else {
+                    Text(
+                        when {
+                            weatherLoading -> "Loading weather…"
+                            hasLocationPermission -> "Weather unavailable"
+                            else -> "Local weather"
+                        },
+                        color = Color.White.copy(alpha = .72f), fontSize = 9.sp
+                    )
+                }
+            }
             Text("DISCOVER", Modifier.align(Alignment.TopCenter).padding(top = 86.dp), color = Color.White.copy(alpha = .48f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             Text("GENTLE", Modifier.align(Alignment.CenterStart).padding(start = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Text("INTENSE", Modifier.align(Alignment.CenterEnd).padding(end = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
@@ -689,53 +734,6 @@ internal fun AllervueHome(
                             Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
                         }
                     }
-                }
-            }
-            Row(
-                Modifier.fillMaxWidth().height(32.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .clickable {
-                        if (!hasLocationPermission) {
-                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                        } else {
-                            weatherLoading = true
-                            weatherRefresh++
-                        }
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                if (homeWeather != null) {
-                    val weather = homeWeather!!
-                    Text(
-                        when (weather.kind) {
-                            "rain", "storm" -> "🌧"
-                            "cloudy", "fog" -> "☁"
-                            "snow" -> "❄"
-                            "partly" -> "⛅"
-                            else -> if (weather.isDay) "☀" else "☾"
-                        },
-                        fontSize = 17.sp
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("${weather.city}  ·  ${weather.condition}",
-                            color = Color(0xFFE5E5F0), fontSize = 10.sp, maxLines = 1,
-                            overflow = TextOverflow.Ellipsis)
-                        Text("Feels like ${weather.apparentTemperature}°C",
-                            color = Color(0xFFB7B2C7), fontSize = 9.sp, maxLines = 1)
-                    }
-                    Text("${weather.temperature}°",
-                        color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
-                } else {
-                    Text(
-                        when {
-                            weatherLoading -> "Finding local weather…"
-                            hasLocationPermission -> "Weather unavailable · Tap to retry"
-                            else -> "Tap to enable local weather"
-                        },
-                        color = Color(0xFFB7DDE0), fontSize = 11.sp, fontWeight = FontWeight.Medium
-                    )
                 }
             }
         }
