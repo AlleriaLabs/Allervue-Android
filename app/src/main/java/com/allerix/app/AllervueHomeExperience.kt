@@ -114,6 +114,11 @@ internal fun AllervueHome(
     var homeWeather by remember { mutableStateOf<HomeWeather?>(null) }
     var weatherLoading by remember { mutableStateOf(false) }
     var weatherRefresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        if (!hasLocationPermission) {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
     LaunchedEffect(hasLocationPermission, weatherRefresh) {
         if (hasLocationPermission) {
             while (true) {
@@ -313,39 +318,105 @@ internal fun AllervueHome(
                 drawCircle(Color(0xFF17203A), skyRadius * .88f,
                     androidx.compose.ui.geometry.Offset(skyBody.x + skyRadius * .42f, skyBody.y - skyRadius * .24f))
             }
-            // Weather changes the actual sky atmosphere, not just the label.
+            // Weather is the artwork: moving cloud banks, drifting fog, rain,
+            // snow and storm light are painted into the full-screen sky itself.
             val weatherKind = homeWeather?.kind
-            if (weatherKind == "cloudy" || weatherKind == "fog" || weatherKind == "rain" ||
-                weatherKind == "storm" || weatherKind == "snow") {
+            val weatherPhase = automaticRotation
+            val isOvercast = weatherKind in setOf("cloudy", "fog", "rain", "storm", "snow")
+            if (isOvercast) {
                 val cloudAlpha = when (weatherKind) {
-                    "rain", "storm" -> .34f
-                    "fog" -> .42f
-                    else -> .27f
+                    "rain", "storm" -> .43f
+                    "fog" -> .28f
+                    "snow" -> .34f
+                    else -> .36f
                 }
-                for (cloud in 0 until 7) {
-                    val cloudX = size.width * ((cloud * .19f + .08f) % 1f)
-                    val cloudY = size.height * (.12f + (cloud % 3) * .075f)
-                    val cloudRadius = size.width * (.15f + (cloud % 2) * .035f)
+                // Broad, layered cloud masses travel at different speeds and heights.
+                for (cloud in 0 until 9) {
+                    val drift = weatherPhase * (if (cloud % 2 == 0) .19f else -.12f)
+                    val rawX = cloud * size.width * .17f + drift * size.width / 360f
+                    val cloudX = ((rawX % (size.width * 1.45f)) + size.width * 1.45f) % (size.width * 1.45f) - size.width * .20f
+                    val cloudY = size.height * (.105f + (cloud % 4) * .062f)
+                    val cloudRadius = size.width * (.19f + (cloud % 3) * .035f)
+                    val cloudCenter = androidx.compose.ui.geometry.Offset(cloudX, cloudY)
                     drawCircle(
                         Brush.radialGradient(
-                            listOf(Color(0xFFDCE5EF).copy(alpha = cloudAlpha), Color(0xFFB9C8D8).copy(alpha = cloudAlpha * .34f), Color.Transparent),
-                            center = androidx.compose.ui.geometry.Offset(cloudX, cloudY),
-                            radius = cloudRadius
+                            listOf(
+                                Color(0xFFDCE7F0).copy(alpha = cloudAlpha),
+                                Color(0xFFAABBCB).copy(alpha = cloudAlpha * .52f),
+                                Color(0xFF71869A).copy(alpha = cloudAlpha * .12f),
+                                Color.Transparent
+                            ),
+                            center = cloudCenter, radius = cloudRadius
                         ),
-                        radius = cloudRadius,
-                        center = androidx.compose.ui.geometry.Offset(cloudX, cloudY)
+                        radius = cloudRadius, center = cloudCenter
+                    )
+                    // A soft underside gives the cloud bank depth instead of flat dots.
+                    drawOval(
+                        Brush.verticalGradient(
+                            listOf(Color(0xFF25394C).copy(alpha = cloudAlpha * .08f), Color(0xFF101B2B).copy(alpha = cloudAlpha * .28f), Color.Transparent)
+                        ),
+                        topLeft = androidx.compose.ui.geometry.Offset(cloudX - cloudRadius, cloudY),
+                        size = androidx.compose.ui.geometry.Size(cloudRadius * 2f, cloudRadius * .72f)
+                    )
+                }
+            }
+            if (weatherKind == "fog") {
+                // Fog sheets slide slowly across the horizon and veil distant light.
+                for (layer in 0 until 4) {
+                    val drift = weatherPhase * (if (layer % 2 == 0) .11f else -.075f)
+                    val x = size.width * (.5f + kotlin.math.sin(Math.toRadians((drift + layer * 83f).toDouble())).toFloat() * .22f)
+                    val y = size.height * (.30f + layer * .105f)
+                    val fogRadius = size.maxDimension * (.42f + layer * .055f)
+                    drawCircle(
+                        Brush.radialGradient(
+                            listOf(Color(0xFFDCE6E8).copy(alpha = .16f), Color(0xFFC5D3D9).copy(alpha = .075f), Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(x, y), radius = fogRadius
+                        ),
+                        radius = fogRadius,
+                        center = androidx.compose.ui.geometry.Offset(x, y)
                     )
                 }
             }
             if (weatherKind == "rain" || weatherKind == "storm") {
-                for (drop in 0 until 58) {
-                    val x = (drop * 83f + automaticRotation * 2.2f) % size.width
-                    val y = (drop * 59f + automaticRotation * 3.4f) % (size.height * .76f)
+                // Slanted rain spans the sky and foreground, with varied lengths and speeds.
+                for (drop in 0 until 105) {
+                    val speed = 2.1f + (drop % 5) * .42f
+                    val x = (drop * 47f + weatherPhase * speed) % size.width
+                    val y = (drop * 31f + weatherPhase * (speed + .9f)) % (size.height * .92f)
+                    val length = (9 + drop % 9).dp.toPx()
                     drawLine(
-                        Color(0xFFBBD8EF).copy(alpha = if (weatherKind == "storm") .28f else .20f),
+                        Color(0xFFD6E8F7).copy(alpha = if (weatherKind == "storm") .31f else .23f),
                         androidx.compose.ui.geometry.Offset(x, y),
-                        androidx.compose.ui.geometry.Offset(x - 5.dp.toPx(), y + 13.dp.toPx()),
-                        strokeWidth = 1.dp.toPx()
+                        androidx.compose.ui.geometry.Offset(x - length * .34f, y + length),
+                        strokeWidth = if (drop % 4 == 0) 1.45.dp.toPx() else .85.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+            if (weatherKind == "snow") {
+                // Snowflakes fall at different speeds and drift sideways in the wind.
+                for (flake in 0 until 72) {
+                    val speed = .55f + (flake % 6) * .16f
+                    val x = (flake * 59f + kotlin.math.sin(Math.toRadians((weatherPhase * .8f + flake * 29f).toDouble())).toFloat() * 24f + weatherPhase * .22f) % size.width
+                    val y = (flake * 37f + weatherPhase * speed) % (size.height * .88f)
+                    val radius = (.8f + (flake % 4) * .42f).dp.toPx()
+                    drawCircle(Color(0xFFEAF5FF).copy(alpha = .48f + (flake % 3) * .12f), radius, androidx.compose.ui.geometry.Offset(x, y))
+                }
+                drawRect(Color(0xFFDAEAF5).copy(alpha = .045f))
+            }
+            if (weatherKind == "storm") {
+                // A restrained distant lightning glow illuminates the cloud deck periodically.
+                val lightningPulse = (kotlin.math.sin(Math.toRadians((weatherPhase * 3.7f).toDouble())).toFloat() - .965f).coerceAtLeast(0f) / .035f
+                if (lightningPulse > 0f) {
+                    drawRect(Color(0xFFDCEBFF).copy(alpha = lightningPulse * .12f))
+                    drawCircle(
+                        Brush.radialGradient(
+                            listOf(Color(0xFFBBD8FF).copy(alpha = lightningPulse * .22f), Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(size.width * .72f, size.height * .24f),
+                            radius = size.width * .58f
+                        ),
+                        radius = size.width * .58f,
+                        center = androidx.compose.ui.geometry.Offset(size.width * .72f, size.height * .24f)
                     )
                 }
             }
@@ -493,51 +564,6 @@ internal fun AllervueHome(
                 ) { Text("♙", color = Color.White, fontSize = 23.sp) }
             }
 
-            // Weather is presented as part of the living sky, not as a footer tracker.
-            // Its atmosphere is rendered behind this unobtrusive sky annotation.
-            Column(
-                Modifier.align(Alignment.TopEnd)
-                    .padding(top = 76.dp, end = 20.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable {
-                        if (!hasLocationPermission) {
-                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                        } else {
-                            weatherLoading = true
-                            weatherRefresh++
-                        }
-                    }
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                horizontalAlignment = Alignment.End
-            ) {
-                if (homeWeather != null) {
-                    val weather = homeWeather!!
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Text(
-                            when (weather.kind) {
-                                "rain", "storm" -> "🌧"
-                                "cloudy", "fog" -> "☁"
-                                "snow" -> "❄"
-                                "partly" -> "⛅"
-                                else -> if (weather.isDay) "☀" else "☾"
-                            },
-                            fontSize = 13.sp
-                        )
-                        Text("${weather.temperature}°", color = Color.White, fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                    Text(weather.city, color = Color.White.copy(alpha = .78f), fontSize = 9.sp, maxLines = 1)
-                    Text(weather.condition, color = Color.White.copy(alpha = .58f), fontSize = 8.sp, maxLines = 1)
-                } else {
-                    Text(
-                        when {
-                            weatherLoading -> "Loading weather…"
-                            hasLocationPermission -> "Weather unavailable"
-                            else -> "Local weather"
-                        },
-                        color = Color.White.copy(alpha = .72f), fontSize = 9.sp
-                    )
-                }
-            }
             Text("DISCOVER", Modifier.align(Alignment.TopCenter).padding(top = 86.dp), color = Color.White.copy(alpha = .48f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
             Text("GENTLE", Modifier.align(Alignment.CenterStart).padding(start = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
             Text("INTENSE", Modifier.align(Alignment.CenterEnd).padding(end = 8.dp), color = Color.White.copy(alpha = .50f), fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
