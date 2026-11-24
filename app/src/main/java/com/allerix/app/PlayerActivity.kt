@@ -416,7 +416,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun buildUi() {
         val backBtn = icon(R.drawable.ic_back, 38, 9).apply {
-            background = null
+            background = circleBg(0x44150D25, 0x887D718C.toInt())
             setColorFilter(0xFFF4F5F7.toInt())
         }
         titleView = TextView(this).apply {
@@ -538,16 +538,16 @@ class PlayerActivity : ComponentActivity() {
         }
 
         curTime = TextView(this).apply {
-            text = "00:00"; setTextColor(0xFFE7EBF0.toInt()); textSize = 10f
+            text = "00:00"; setTextColor(0xFFF4F0F7.toInt()); textSize = 14f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); gravity = Gravity.CENTER_VERTICAL
         }
         durTime = TextView(this).apply {
-            text = "--:--"; setTextColor(0xFF9AA6B5.toInt()); textSize = 10f
+            text = "--:--"; setTextColor(0xFFF4F0F7.toInt()); textSize = 14f
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            progressTintList = ColorStateList.valueOf(0xFFD9B77D.toInt())
-            thumbTintList = ColorStateList.valueOf(0xFFE9F7F6.toInt())
+            progressTintList = ColorStateList.valueOf(0xFFFF4F78.toInt())
+            thumbTintList = ColorStateList.valueOf(Color.WHITE)
             progressBackgroundTintList = ColorStateList.valueOf(0x667F8A98)
             secondaryProgressTintList = ColorStateList.valueOf(0x998F9EAD.toInt())
             minimumHeight = dp(18); setPadding(dp(2), 0, dp(2), 0)
@@ -559,56 +559,58 @@ class PlayerActivity : ComponentActivity() {
         })
         val timeline = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(18), dp(7), dp(18), dp(1))
+            setPadding(dp(28), dp(7), dp(28), dp(1))
             addView(curTime, LinearLayout.LayoutParams(-2, dp(26)))
             addView(seek, LinearLayout.LayoutParams(0, dp(26), 1f).apply { leftMargin = dp(10); rightMargin = dp(10) })
             addView(durTime, LinearLayout.LayoutParams(-2, dp(26)))
         }
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(16), dp(9), dp(16), dp(12)); background = null; clipToPadding = false
-            fun chip(label: String, click: () -> Unit, emphasized: Boolean = false) {
+            setPadding(dp(28), dp(12), dp(28), dp(18)); clipToPadding = false
+            fun pill(label: String, click: () -> Unit, emphasized: Boolean = false, width: Int = 0) {
                 val v = TextView(this@PlayerActivity).apply {
-                    text = label; textSize = 13f; gravity = Gravity.CENTER
-                    setTextColor(if (emphasized) 0xFF210D19.toInt() else Color.WHITE)
+                    text = label; textSize = 14f; gravity = Gravity.CENTER
+                    setTextColor(if (emphasized) 0xFF180D19.toInt() else 0xFFF5F1F8.toInt())
                     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                    setPadding(dp(16), dp(11), dp(16), dp(11))
+                    setPadding(dp(18), dp(13), dp(18), dp(13))
                     background = GradientDrawable().apply {
-                        cornerRadius = dp(28).toFloat()
-                        if (emphasized) setColor(0xFFFF4F78.toInt()) else {
-                            setColor(0x222C243B); setStroke(dp(1), 0x667D718C)
+                        cornerRadius = dp(30).toFloat()
+                        if (emphasized) {
+                            colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
+                            gradientType = GradientDrawable.LINEAR_GRADIENT
+                        } else {
+                            setColor(0x331A1429); setStroke(dp(1), 0x887D718C.toInt())
                         }
                     }
                     setOnClickListener { click() }
                 }
-                addView(v, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                    leftMargin = dp(3); rightMargin = dp(3)
+                addView(v, LinearLayout.LayoutParams(if (width > 0) dp(width) else -2, dp(48)).apply {
+                    rightMargin = dp(8)
                 })
             }
-            chip("▤  Subtitles", { showPlaybackSettings("SUBTITLES") })
-            chip("♫  Audio", { showPlaybackSettings("AUDIO") })
-            chip(speedText(speed), { showPlaybackSettings("SPEED") })
-            chip(qualityText(), { showPlaybackSettings("QUALITY") })
+            pill("▤  Subtitles", { showPlaybackSettings("SUBTITLES") })
+            pill("♫  Audio", { showPlaybackSettings("AUDIO") })
+            pill(speedText(speed), { showPlaybackSettings("SPEED") }, width = 76)
+            pill(qualityText(), { showPlaybackSettings("QUALITY") }, width = 112)
+            addView(View(this@PlayerActivity), LinearLayout.LayoutParams(0, 1, 1f))
             episodesAction = TextView(this@PlayerActivity).apply {
-                text = "☷  Episodes"; textSize = 13f; gravity = Gravity.CENTER
-                setTextColor(Color.WHITE)
+                text = "☷  Episodes"; textSize = 14f; gravity = Gravity.CENTER
+                setTextColor(0xFFF5F1F8.toInt())
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setPadding(dp(16), dp(11), dp(16), dp(11))
+                setPadding(dp(18), dp(13), dp(18), dp(13))
                 background = GradientDrawable().apply {
-                    cornerRadius = dp(28).toFloat()
-                    setColor(0x222C243B); setStroke(dp(1), 0x667D718C)
+                    cornerRadius = dp(30).toFloat(); setColor(0x331A1429)
+                    setStroke(dp(1), 0x887D718C.toInt())
                 }
                 visibility = View.GONE
                 setOnClickListener { showEpisodeSheet() }
             }
-            addView(episodesAction, LinearLayout.LayoutParams(0, -2, 1f).apply {
-                leftMargin = dp(3); rightMargin = dp(3)
-            })
-            chip("☾  Sleep", { showSleepTimerSheet() })
+            addView(episodesAction, LinearLayout.LayoutParams(-2, dp(48)).apply { rightMargin = dp(8) })
+            pill("☾  Sleep", { showSleepTimerSheet() })
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
-                text = "Next ep ›"; textSize = 14f; gravity = Gravity.CENTER
-                setTextColor(0xFF210D19.toInt())
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                text = "Next ep  ›"; textSize = 14f; gravity = Gravity.CENTER
+                setTextColor(0xFF180D19.toInt())
+                typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
                 setPadding(dp(22), dp(13), dp(22), dp(13))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(30).toFloat()
@@ -617,14 +619,12 @@ class PlayerActivity : ComponentActivity() {
                 visibility = View.GONE
                 setOnClickListener { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
             }
-            addView(nextEpisodeAction, LinearLayout.LayoutParams(-2, -2).apply {
-                leftMargin = dp(4); rightMargin = dp(4)
-            })
+            addView(nextEpisodeAction, LinearLayout.LayoutParams(-2, dp(48)))
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             background = GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0x00110C20, 0xD9110C20.toInt(), 0xFF110C20.toInt()))
+                intArrayOf(0x00110C20, 0xE90B0715.toInt(), 0xFF0B0715.toInt()))
             addView(timeline, LinearLayout.LayoutParams(-1, -2))
             addView(utilityDock, LinearLayout.LayoutParams(-1, -2))
         }
@@ -724,8 +724,8 @@ class PlayerActivity : ComponentActivity() {
                     if (active != null) { seekPlaybackTo(active.second); showHud("Intro skipped"); visibility = View.GONE }
                 }
             }
-            addView(skipIntroBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
-                .apply { bottomMargin = dp(118) })
+            addView(skipIntroBtn, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.END)
+                .apply { bottomMargin = dp(128); rightMargin = dp(112) })
             addView(hud, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             addView(lockOverlay, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER_VERTICAL or Gravity.END)
                 .apply { rightMargin = dp(18) })
