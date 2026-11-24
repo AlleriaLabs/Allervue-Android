@@ -79,30 +79,33 @@ fun App() {
         availableUpdate = runCatching { UpdateChecker.checkForUpdate(ctx) }.getOrNull()
     }
 
-    if (splash) {
-        SplashScreen()
-    } else if (loggedIn) {
-        RebuildMainShell(onLogout = { Api.logout(ctx); loggedIn = false })
-    } else if (forgotPassword) {
-        ForgotPasswordScreen(onBack = { forgotPassword = false })
-    } else if (loginSettings) {
-        BackHandler { loginSettings = false }
-        ClientSettingsScreen(back = { loginSettings = false }, onServerChanged = { loginSettings = false }, loggedIn = false)
-    } else {
-        LoginScreen(
-            onDone = { loggedIn = true }, onSettings = { loginSettings = true },
-            onForgot = { forgotPassword = true }
-        )
-    }
+    Box(Modifier.fillMaxSize()) {
+        AllervueAmbientBackground(Modifier.matchParentSize())
+        if (splash) {
+            SplashScreen()
+        } else if (loggedIn) {
+            RebuildMainShell(onLogout = { Api.logout(ctx); loggedIn = false })
+        } else if (forgotPassword) {
+            ForgotPasswordScreen(onBack = { forgotPassword = false })
+        } else if (loginSettings) {
+            BackHandler { loginSettings = false }
+            ClientSettingsScreen(back = { loginSettings = false }, onServerChanged = { loginSettings = false }, loggedIn = false)
+        } else {
+            LoginScreen(
+                onDone = { loggedIn = true }, onSettings = { loginSettings = true },
+                onForgot = { forgotPassword = true }
+            )
+        }
 
-    availableUpdate?.let { update ->
-        UpdateAvailableDialog(
-            update = update,
-            onDismiss = {
-                UpdateChecker.dismissUpdate(ctx, update.tag)
-                availableUpdate = null
-            }
-        )
+        availableUpdate?.let { update ->
+            UpdateAvailableDialog(
+                update = update,
+                onDismiss = {
+                    UpdateChecker.dismissUpdate(ctx, update.tag)
+                    availableUpdate = null
+                }
+            )
+        }
     }
 }
 
