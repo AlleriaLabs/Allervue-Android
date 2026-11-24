@@ -76,9 +76,20 @@ private fun HomeArtwork(
     fallbackModel: String? = null,
     onModelLoaded: (() -> Unit)? = null
 ) {
-    // Use the same direct Coil request path as the catalog thumbnails.
-    // Keep fallback loading conditional so each orbit node starts with one request.
-    var useFallback by remember(model) { mutableStateOf(false) }
+    // Keep the last successfully decoded artwork underneath the next request.
+    // The new image is drawn over it and becomes the displayed model only after
+    // Coil reports success, avoiding a blank/black frame during movie changes.
+    var displayedModel by remember { mutableStateOf(model) }
+    var pendingModel by remember { mutableStateOf<String?>(null) }
+    var pendingUsesFallback by remember { mutableStateOf(false) }
+
+    LaunchedEffect(model) {
+        if (model != displayedModel) {
+            pendingModel = model
+            pendingUsesFallback = false
+        }
+    }
+
     Box(
         modifier.background(
             Brush.radialGradient(
@@ -87,17 +98,42 @@ private fun HomeArtwork(
         )
     ) {
         AsyncImage(
-            model = if (useFallback) fallbackModel ?: model else model,
+            model = displayedModel,
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
-            contentScale = contentScale,
-            onSuccess = { onModelLoaded?.invoke() },
-            onError = {
-                if (!useFallback && !fallbackModel.isNullOrBlank()) {
-                    useFallback = true
-                }
-            }
+            contentScale = contentScale
         )
+
+        val requestModel = pendingModel
+        if (requestModel != null) {
+            val requestFallback = pendingUsesFallback
+            AsyncImage(
+                model = if (requestFallback) fallbackModel ?: requestModel else requestModel,
+                contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = contentScale,
+                onSuccess = {
+                    if (pendingModel == requestModel) {
+                        displayedModel = requestModel
+                        pendingModel = null
+                        pendingUsesFallback = false
+                        onModelLoaded?.invoke()
+                    }
+                },
+                onError = {
+                    if (pendingModel == requestModel) {
+                        if (!requestFallback && !fallbackModel.isNullOrBlank()) {
+                            pendingUsesFallback = true
+                        } else {
+                            // Keep the previous successful artwork if both
+                            // the primary and fallback artwork fail.
+                            pendingModel = null
+                            pendingUsesFallback = false
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
