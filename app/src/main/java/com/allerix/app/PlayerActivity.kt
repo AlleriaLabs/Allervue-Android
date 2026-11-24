@@ -112,6 +112,8 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var playBtn: ImageView
     private lateinit var prevEpisodeBtn: TextView
     private lateinit var nextEpisodeBtn: TextView
+    private lateinit var episodesAction: TextView
+    private var isSeriesEpisode = false
     private lateinit var skipIntroBtn: TextView
     private lateinit var subText: TextView
     private lateinit var speedLabel: TextView
@@ -562,7 +564,21 @@ class PlayerActivity : ComponentActivity() {
             chip("♫  Audio", { showPlaybackSettings("AUDIO") })
             chip(speedText(speed), { showPlaybackSettings("SPEED") })
             chip(qualityText(), { showPlaybackSettings("QUALITY") })
-            chip("☷  Episodes", { showEpisodeSheet() })
+            episodesAction = TextView(this@PlayerActivity).apply {
+                text = "☷  Episodes"; textSize = 13f; gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setPadding(dp(16), dp(11), dp(16), dp(11))
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(28).toFloat()
+                    setColor(0x222C243B); setStroke(dp(1), 0x667D718C)
+                }
+                visibility = View.GONE
+                setOnClickListener { showEpisodeSheet() }
+            }
+            addView(episodesAction, LinearLayout.LayoutParams(0, -2, 1f).apply {
+                leftMargin = dp(3); rightMargin = dp(3)
+            })
             chip("☾  Sleep", { showSleepTimerSheet() })
             chip("Next ep ›", { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }, true)
         }
@@ -677,6 +693,21 @@ class PlayerActivity : ComponentActivity() {
         }
         val left = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         val right = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        // Track lists can exceed the available panel height. Give each settings
+        // column its own real vertical scroll container so touch drags scroll
+        // the options instead of being clipped by the full-height panel.
+        val leftScroll = ScrollView(this).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(left, ScrollView.LayoutParams(-1, -2))
+        }
+        val rightScroll = ScrollView(this).apply {
+            isFillViewport = false
+            isVerticalScrollBarEnabled = true
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            addView(right, ScrollView.LayoutParams(-1, -2))
+        }
         fun label(parent: LinearLayout, text: String) {
             parent.addView(TextView(this).apply {
                 this.text = text; textSize = 13f; letterSpacing = .14f
@@ -750,8 +781,15 @@ class PlayerActivity : ComponentActivity() {
             } }
             right.addView(row)
         }
-        columns.addView(left, LinearLayout.LayoutParams(0, -1, 1.15f).apply { rightMargin = dp(24) })
-        columns.addView(right, LinearLayout.LayoutParams(0, -1, .9f))
+        columns.addView(leftScroll, LinearLayout.LayoutParams(0, 0, 1.15f).apply {
+            height = 0
+            weight = 1.15f
+            rightMargin = dp(24)
+        })
+        columns.addView(rightScroll, LinearLayout.LayoutParams(0, 0, .9f).apply {
+            height = 0
+            weight = .9f
+        })
         panel.addView(columns, LinearLayout.LayoutParams(-1, 0, 1f))
         overlay.addView(panel, FrameLayout.LayoutParams(
             if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) (resources.displayMetrics.widthPixels * .67f).toInt() else -1,
@@ -1489,6 +1527,8 @@ class PlayerActivity : ComponentActivity() {
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received in " + (SystemClock.elapsedRealtime() - metadataStarted) + "ms; mediaSources=" + (item.mediaSources?.size ?: 0))
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
+            isSeriesEpisode = item.type == "Episode"
+            episodesAction.visibility = if (isSeriesEpisode) View.VISIBLE else View.GONE
             if (item.type == "Episode" && item.seriesName != null) {
                 titleView.text = item.seriesName
                 nowTag = "S${item.parentIndex ?: 0}:E${item.index ?: 0} · ${item.name}"
@@ -1557,6 +1597,8 @@ class PlayerActivity : ComponentActivity() {
         report("stop")
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
+        isSeriesEpisode = false
+        if (::episodesAction.isInitialized) episodesAction.visibility = View.GONE
         defaultAudioApplied = false; defaultSubtitleApplied = false
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
