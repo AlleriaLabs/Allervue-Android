@@ -75,7 +75,6 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val top = stack.lastOrNull()
     val showNav = top == null || top is Nav.Detail || top is Nav.Grid
     Box(Modifier.fillMaxSize()) {
-        AllervueAmbientBackground(Modifier.matchParentSize())
         Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (top) {
