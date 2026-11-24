@@ -442,7 +442,7 @@ class PlayerActivity : ComponentActivity() {
         }
         val titleCol = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(3), 0, dp(4), 0)
+            setPadding(0, 0, dp(3), 0)
             addView(titleView)
             addView(subTitle, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
             addView(topPlaybackInfo, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(2) })
@@ -467,8 +467,8 @@ class PlayerActivity : ComponentActivity() {
         }
         val topBar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(12), dp(16), dp(8))
-            addView(backBtn, LinearLayout.LayoutParams(dp(34), dp(36)))
+            setPadding(0, dp(12), dp(16), dp(8))
+            addView(backBtn, LinearLayout.LayoutParams(dp(30), dp(36)))
             addView(titleCol, LinearLayout.LayoutParams(0, -2, 1f))
             addView(badgeRow, LinearLayout.LayoutParams(-2, -2))
             addView(topRight, LinearLayout.LayoutParams(-2, -2))
@@ -588,13 +588,13 @@ class PlayerActivity : ComponentActivity() {
         }
         val utilityDock = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(24), dp(8), dp(24), dp(10)); clipToPadding = false
+            setPadding(dp(16), dp(5), dp(16), dp(6)); clipToPadding = false
             fun pill(label: String, click: () -> Unit, emphasized: Boolean = false, width: Int = 0) {
                 val v = TextView(this@PlayerActivity).apply {
-                    text = label; textSize = 12f; gravity = Gravity.CENTER
+                    text = label; textSize = 10f; gravity = Gravity.CENTER
                     setTextColor(if (emphasized) 0xFF180D19.toInt() else 0xFFF5F1F8.toInt())
                     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                    setPadding(dp(12), dp(8), dp(12), dp(8))
+                    setPadding(dp(9), dp(5), dp(9), dp(5))
                     background = GradientDrawable().apply {
                         cornerRadius = dp(30).toFloat()
                         if (emphasized) {
@@ -606,7 +606,7 @@ class PlayerActivity : ComponentActivity() {
                     }
                     setOnClickListener { click() }
                 }
-                addView(v, LinearLayout.LayoutParams(if (width > 0) dp(width) else -2, dp(40)).apply {
+                addView(v, LinearLayout.LayoutParams(if (width > 0) dp(width) else -2, dp(32)).apply {
                     rightMargin = dp(8)
                 })
             }
@@ -619,7 +619,7 @@ class PlayerActivity : ComponentActivity() {
                 text = "☷  Episodes"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFFF5F1F8.toInt())
                 typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setPadding(dp(18), dp(13), dp(18), dp(13))
+                setPadding(dp(11), dp(6), dp(11), dp(6))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(30).toFloat(); setColor(0x331A1429)
                     setStroke(dp(1), 0x887D718C.toInt())
@@ -627,7 +627,7 @@ class PlayerActivity : ComponentActivity() {
                 visibility = View.GONE
                 setOnClickListener { showEpisodeSheet() }
             }
-            addView(episodesAction, LinearLayout.LayoutParams(-2, dp(40)).apply { rightMargin = dp(6) })
+            addView(episodesAction, LinearLayout.LayoutParams(-2, dp(32)).apply { rightMargin = dp(6) })
             addView(FrameLayout(this@PlayerActivity).apply {
                 background = GradientDrawable().apply {
                     cornerRadius = dp(30).toFloat(); setColor(0x331A1429); setStroke(dp(1), 0x887D718C.toInt())
@@ -636,12 +636,12 @@ class PlayerActivity : ComponentActivity() {
                     setImageResource(R.drawable.ic_aspect_ratio); setColorFilter(0xFFF5F1F8.toInt())
                 }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
                 setOnClickListener { cycleAspectRatio() }
-            }, LinearLayout.LayoutParams(dp(40), dp(40)))
+            }, LinearLayout.LayoutParams(dp(34), dp(34)))
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
                 text = "Next ep  ›"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFF180D19.toInt())
                 typeface = Typeface.create("sans-serif-medium", Typeface.BOLD)
-                setPadding(dp(14), dp(8), dp(14), dp(8))
+                setPadding(dp(10), dp(5), dp(10), dp(5))
                 background = GradientDrawable().apply {
                     cornerRadius = dp(30).toFloat()
                     colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
@@ -649,7 +649,7 @@ class PlayerActivity : ComponentActivity() {
                 visibility = View.GONE
                 setOnClickListener { if (hasNext) switchTo(siblings[siblingIndex + 1].id) }
             }
-            addView(nextEpisodeAction, LinearLayout.LayoutParams(-2, dp(40)))
+            addView(nextEpisodeAction, LinearLayout.LayoutParams(-2, dp(32)).apply { leftMargin = dp(9) })
         }
         val bottomPanel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -729,7 +729,6 @@ class PlayerActivity : ComponentActivity() {
             val railFace = FrameLayout(this).apply {
                 background = GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat(); setColor(0xB3130B20.toInt())
-                    setStroke(dp(1), 0x667F718C)
                 }
                 addView(slider, FrameLayout.LayoutParams(-1, -1))
                 addView(ImageView(this@PlayerActivity).apply {
