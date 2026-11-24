@@ -373,7 +373,7 @@ private fun RebuildCatalog(
             }
 
             val filters = when (type) {
-                "Anime" -> listOf("Unwatched", "Series", "Films", "Mood")
+                "Anime" -> listOf("Unwatched", "Series", "Mood")
                 "Movie" -> listOf("Unwatched", "Films", "Mood")
                 else -> listOf("Unwatched", "Series", "Mood")
             }
