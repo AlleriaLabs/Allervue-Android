@@ -76,7 +76,8 @@ private fun HomeArtwork(
     contentDescription: String?,
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
-    fallbackModel: String? = null
+    fallbackModel: String? = null,
+    onModelLoaded: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     // Keep the last successfully decoded artwork visible while the next random
@@ -106,7 +107,10 @@ private fun HomeArtwork(
     val targetFailed = targetPainter.state is AsyncImagePainter.State.Error
     val fallbackFailed = fallbackPainter.state is AsyncImagePainter.State.Error
     LaunchedEffect(model, targetLoaded) {
-        if (targetLoaded) displayedModel = model
+        if (targetLoaded) {
+            displayedModel = model
+            onModelLoaded?.invoke()
+        }
     }
     Box(modifier, contentAlignment = Alignment.Center) {
         Box(Modifier.fillMaxSize().background(
@@ -335,6 +339,13 @@ internal fun AllervueHome(
         }
     }
     val centerItem = selected ?: centerCandidates.firstOrNull() ?: allItems.firstOrNull()
+    // Keep the center artwork and its title/metadata as one atomic selection.
+    // The text panel changes only after the matching image has decoded.
+    var displayedCenterItem by remember(Api.userId) {
+        mutableStateOf(cachedHome?.picks?.firstOrNull() ?: cachedHome?.featured
+            ?: cachedHome?.resume?.firstOrNull() ?: cachedHome?.recent?.firstOrNull())
+    }
+    val shownCenterItem = displayedCenterItem ?: centerItem
     // Every 8-second center change also reshuffles six outer artwork nodes in the same
     // cycle. Their six slot positions stay anchored while only the titles change.
     val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
@@ -752,14 +763,17 @@ internal fun AllervueHome(
                             Modifier.fillMaxSize().clip(CircleShape)
                                 .background(Color(0xFF100E20))
                                 .border(1.5.dp, Color.White.copy(alpha = .78f), CircleShape)
-                                .clickable { onOpen(centerItem) }
+                                .clickable { shownCenterItem?.let(onOpen) }
                         ) {
                             HomeArtwork(
                                 model = Api.backdrop(centerItem),
                                 contentDescription = centerItem.name,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = ContentScale.Crop,
-                                fallbackModel = Api.heroImage(centerItem)
+                                fallbackModel = Api.heroImage(centerItem),
+                                onModelLoaded = {
+                                    if (selected?.id == centerItem.id) displayedCenterItem = centerItem
+                                }
                             )
                             Box(Modifier.fillMaxSize().background(
                                 Brush.verticalGradient(listOf(Color.Transparent, Color(0x220B0915), Color(0x550B0915)))
@@ -786,12 +800,12 @@ internal fun AllervueHome(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                    Text(centerItem?.name ?: if (loading) "Finding your next story" else "Your library",
+                    Text(shownCenterItem?.name ?: if (loading) "Finding your next story" else "Your library",
                         Modifier.height(58.dp).fillMaxWidth(),
                         color = Color(0xFFF7F3FF), fontSize = 25.sp, lineHeight = 29.sp,
                         fontWeight = FontWeight.ExtraBold, letterSpacing = (-.8).sp,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    val meta = centerItem?.let {
+                    val meta = shownCenterItem?.let {
                         listOfNotNull(it.type, it.year?.toString(), it.officialRating).joinToString(" · ")
                     } ?: "Explore your Jellyfin library"
                     Text(meta, Modifier.height(20.dp).fillMaxWidth(),
@@ -800,7 +814,7 @@ internal fun AllervueHome(
                 Box(
                     Modifier.size(62.dp).clip(CircleShape)
                         .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
-                        .clickable { centerItem?.let(onPlay) },
+                        .clickable { shownCenterItem?.let(onPlay) },
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(Modifier.size(25.dp)) {
@@ -816,7 +830,7 @@ internal fun AllervueHome(
             }
             // Reserve the synopsis slot even when an item has no description so
             // the panel geometry never shifts between featured titles.
-            Text(centerItem?.overview.orEmpty(), Modifier.fillMaxWidth().height(62.dp).padding(top = 6.dp),
+            Text(shownCenterItem?.overview.orEmpty(), Modifier.fillMaxWidth().height(62.dp).padding(top = 6.dp),
                 color = Color(0xFFC7C2D3), fontSize = 13.sp, lineHeight = 18.sp,
                 maxLines = 3, overflow = TextOverflow.Ellipsis)
             Row(
@@ -830,7 +844,7 @@ internal fun AllervueHome(
                 ) {
                     Text("MORE IN THIS MOOD", color = Color(0xFF8CE0E2), fontSize = 9.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
-                    (centerItem?.genres.orEmpty().take(2)).forEach { genre ->
+                    (shownCenterItem?.genres.orEmpty().take(2)).forEach { genre ->
                         Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF302A48)).padding(horizontal = 9.dp, vertical = 5.dp)) {
                             Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
                         }
