@@ -113,7 +113,8 @@ internal fun AllervueHome(
     ) { granted -> hasLocationPermission = granted }
     var homeWeather by remember { mutableStateOf<HomeWeather?>(null) }
     var weatherLoading by remember { mutableStateOf(false) }
-    LaunchedEffect(hasLocationPermission) {
+    var weatherRefresh by remember { mutableIntStateOf(0) }
+    LaunchedEffect(hasLocationPermission, weatherRefresh) {
         if (hasLocationPermission) {
             while (true) {
                 weatherLoading = homeWeather == null
@@ -178,7 +179,7 @@ internal fun AllervueHome(
     var meteor by remember { mutableStateOf<HomeMeteor?>(null) }
     val meteorProgress = remember { Animatable(0f) }
     val meteorWeatherAllowsSky = homeWeather?.kind == null ||
-        homeWeather?.kind in setOf("clear", "partly", "fog")
+        (homeWeather?.kind?.let { it in setOf("clear", "partly", "fog") } == true)
     LaunchedEffect(isDaytime, meteorWeatherAllowsSky) {
         if (isDaytime || !meteorWeatherAllowsSky) {
             meteor = null
@@ -314,7 +315,8 @@ internal fun AllervueHome(
             }
             // Weather changes the actual sky atmosphere, not just the label.
             val weatherKind = homeWeather?.kind
-            if (weatherKind in setOf("cloudy", "fog", "rain", "storm", "snow")) {
+            if (weatherKind == "cloudy" || weatherKind == "fog" || weatherKind == "rain" ||
+                weatherKind == "storm" || weatherKind == "snow") {
                 val cloudAlpha = when (weatherKind) {
                     "rain", "storm" -> .34f
                     "fog" -> .42f
@@ -697,6 +699,7 @@ internal fun AllervueHome(
                             locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                         } else {
                             weatherLoading = true
+                            weatherRefresh++
                         }
                     },
                 verticalAlignment = Alignment.CenterVertically,
