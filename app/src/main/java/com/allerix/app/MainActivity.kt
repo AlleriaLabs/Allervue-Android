@@ -28,6 +28,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
 
 private val detailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 
@@ -54,6 +58,26 @@ sealed class Nav {
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // One process-wide image loader keeps artwork cached when users switch tabs
+        // or leave and return to a page. Ignore restrictive Jellyfin cache headers:
+        // authenticated artwork is safe to cache in this app's private cache folder.
+        Coil.setImageLoader(
+            ImageLoader.Builder(applicationContext)
+                .memoryCache {
+                    MemoryCache.Builder(applicationContext)
+                        .maxSizePercent(0.20)
+                        .build()
+                }
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(applicationContext.cacheDir.resolve("allervue_artwork"))
+                        .maxSizeBytes(512L * 1024L * 1024L)
+                        .build()
+                }
+                .respectCacheHeaders(false)
+                .crossfade(false)
+                .build()
+        )
         DiagnosticLog.install(this)
         DiagnosticLog.record(this, "MainActivity onCreate")
         Api.load(this)
