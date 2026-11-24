@@ -494,7 +494,7 @@ fun ClientSettingsScreen(
         BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
             BiometricManager.BIOMETRIC_SUCCESS
     }
-    val biometricEnabled = remember(ctx) { BiometricLogin.hasSavedCredentials(ctx) }
+    var biometricEnabled by remember { mutableStateOf(BiometricLogin.hasSavedCredentials(ctx)) }
     val colors = appFieldColors()
 
     fun enableBiometricLogin() {
@@ -521,6 +521,7 @@ fun ClientSettingsScreen(
                         runCatching {
                             BiometricLogin.save(ctx, unlockedCipher, bioUser.trim(), bioPassword)
                         }.onSuccess {
+                            biometricEnabled = true
                             bioPassword = ""
                             bioStatus = "Biometric sign-in enabled on this device."
                         }.onFailure {
@@ -650,6 +651,7 @@ fun ClientSettingsScreen(
                     OutlinedButton(
                         onClick = {
                             BiometricLogin.clear(ctx)
+                            biometricEnabled = false
                             bioPassword = ""
                             bioStatus = "Biometric sign-in disabled on this device."
                         },
@@ -676,7 +678,20 @@ fun ClientSettingsScreen(
                         Spacer(Modifier.height(10.dp))
                         Button(
                             enabled = !bioBusy && bioUser.isNotBlank() && bioPassword.isNotBlank(),
-                            onClick = { bioBusy = true; bioStatus = ""; enableBiometricLogin(); bioBusy = false },
+                            onClick = {
+                                bioBusy = true
+                                bioStatus = "Verifying account…"
+                                scope.launch {
+                                    try {
+                                        Api.login(ctx, bioUser.trim(), bioPassword)
+                                        bioStatus = "Confirm with your fingerprint or face."
+                                        enableBiometricLogin()
+                                    } catch (e: Exception) {
+                                        bioStatus = "Couldn't verify that username and password."
+                                    }
+                                    bioBusy = false
+                                }
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)
                         ) { Text("Enable biometric sign-in", fontWeight = FontWeight.Bold) }
