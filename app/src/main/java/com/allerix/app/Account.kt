@@ -457,7 +457,7 @@ fun SettingsMenuScreen(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
             .getOrNull() ?: "Unknown"
     }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader("Settings", back)
         SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
         SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
@@ -523,7 +523,7 @@ fun ClientSettingsScreen(
     var pwBusy by remember { mutableStateOf(false) }
     val colors = appFieldColors()
 
-    Column(Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenHeader("Client settings", back)
         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
             Text("SERVER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
