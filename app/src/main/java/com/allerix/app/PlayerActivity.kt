@@ -618,18 +618,18 @@ class PlayerActivity : ComponentActivity() {
                     override fun onStopTrackingTouch(v: SeekBar) { scheduleHide() }
                 })
             }
-            rail.addView(FrameLayout(this).apply {
+            val railFace = FrameLayout(this).apply {
                 background = GradientDrawable().apply {
                     cornerRadius = dp(28).toFloat(); setColor(0xB3130B20.toInt())
                     setStroke(dp(1), 0x667F718C)
                 }
-                addView(slider, FrameLayout.LayoutParams(dp(220), dp(36), Gravity.CENTER))
-            }, LinearLayout.LayoutParams(dp(54), dp(244)))
-            rail.addView(ImageView(this).apply {
-                setImageResource(iconRes); setColorFilter(Color.WHITE)
-                setPadding(dp(12), dp(12), dp(12), dp(12))
-                background = circleBg(0xB3130B20.toInt(), 0x667F718C)
-            }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { topMargin = dp(12) })
+                addView(slider, FrameLayout.LayoutParams(dp(142), dp(34), Gravity.CENTER))
+                addView(ImageView(this@PlayerActivity).apply {
+                    setImageResource(iconRes); setColorFilter(Color.WHITE)
+                    setPadding(dp(8), dp(8), dp(8), dp(8))
+                }, FrameLayout.LayoutParams(dp(40), dp(40), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
+            }
+            rail.addView(railFace, LinearLayout.LayoutParams(dp(54), dp(150)))
             return rail
         }
         val leftRail = LinearLayout(this).apply {
@@ -651,11 +651,21 @@ class PlayerActivity : ComponentActivity() {
             val maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, value * maxVolume / 100, 0)
         }
+        val rightRailWithFullscreen = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
+            addView(rightRail)
+            addView(ImageView(this@PlayerActivity).apply {
+                setImageResource(R.drawable.ic_fullscreen); setColorFilter(Color.WHITE)
+                setPadding(dp(13), dp(13), dp(13), dp(13))
+                background = circleBg(0xB3130B20.toInt(), 0x667F718C)
+                setOnClickListener { rotateScreen() }
+            }, LinearLayout.LayoutParams(dp(52), dp(52)).apply { topMargin = dp(12) })
+        }
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             addView(centerControls, FrameLayout.LayoutParams(-1, dp(150), Gravity.CENTER))
             addView(leftRail, FrameLayout.LayoutParams(dp(64), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(26) })
-            addView(rightRail, FrameLayout.LayoutParams(dp(64), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(26) })
+            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(64), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(26) })
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
