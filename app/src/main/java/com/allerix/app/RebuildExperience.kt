@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -315,7 +316,13 @@ private fun RebuildCatalog(
     val listIndex = gridIndex
 
     Box(
-        modifier.fillMaxSize()
+        modifier.fillMaxSize().background(
+            Brush.linearGradient(
+                colors = listOf(Color(0xFF4B193C), Color(0xFF291638), Color(0xFF071F27)),
+                start = Offset(0f, 0f),
+                end = Offset(1100f, 1900f)
+            )
+        )
     ) {
         Column(Modifier.fillMaxSize()) {
             Row(
