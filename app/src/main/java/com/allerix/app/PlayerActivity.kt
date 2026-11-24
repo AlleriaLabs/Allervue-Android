@@ -781,15 +781,10 @@ class PlayerActivity : ComponentActivity() {
             } }
             right.addView(row)
         }
-        columns.addView(leftScroll, LinearLayout.LayoutParams(0, 0, 1.15f).apply {
-            height = 0
-            weight = 1.15f
+        columns.addView(leftScroll, LinearLayout.LayoutParams(0, -1, 1.15f).apply {
             rightMargin = dp(24)
         })
-        columns.addView(rightScroll, LinearLayout.LayoutParams(0, 0, .9f).apply {
-            height = 0
-            weight = .9f
-        })
+        columns.addView(rightScroll, LinearLayout.LayoutParams(0, -1, .9f))
         panel.addView(columns, LinearLayout.LayoutParams(-1, 0, 1f))
         overlay.addView(panel, FrameLayout.LayoutParams(
             if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) (resources.displayMetrics.widthPixels * .67f).toInt() else -1,
