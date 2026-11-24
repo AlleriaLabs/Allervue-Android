@@ -1,7 +1,10 @@
 package com.allerix.app
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
@@ -38,6 +41,7 @@ object Api {
     const val RESET_PASSWORD_URL = "$JFA_URL/my/account/password/reset"
 
     private val http = OkHttpClient()
+    private val loginBackgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     fun load(ctx: Context) {
@@ -103,9 +107,11 @@ object Api {
         val r = json.decodeFromString<AuthResult>(call("POST", "/Users/AuthenticateByName", body))
         token = r.token; userId = r.user.id; username = user
         save(ctx)
-        // Reuse the credentials from the primary Jellyfin sign-in to establish
-        // the request-service session. A request-service outage must not block playback sign-in.
-        runCatching { SeerrApi.login(ctx, user, pw) }
+        // Request-service authentication is optional and must never delay the
+        // primary Jellyfin login or first Home render. Connect in the background.
+        loginBackgroundScope.launch {
+            runCatching { SeerrApi.login(ctx.applicationContext, user, pw) }
+        }
     }
 
     // ---- account ----
@@ -344,6 +350,21 @@ object Api {
     // Jellyfin image requests therefore need the API token in the URL.
     private fun authenticatedImage(path: String): String =
         base + path + (if (token.isNotBlank()) (if (path.contains("?")) "&" else "?") + "api_key=$token" else "")
+
+    /** Lightweight artwork for small Home orbit nodes; avoid downloading full posters. */
+    fun orbitPoster(i: Item): String {
+        val imageId = if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id
+        val imageType = when {
+            i.imageTags?.containsKey("Primary") == true -> "Primary"
+            i.imageTags?.containsKey("Thumb") == true -> "Thumb"
+            !i.backdropTags.isNullOrEmpty() -> "Backdrop/0"
+            !i.parentBackdropItemId.isNullOrBlank() -> return authenticatedImage(
+                "/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=192&quality=65"
+            )
+            else -> "Primary"
+        }
+        return authenticatedImage("/Items/$imageId/Images/$imageType?maxWidth=192&quality=65")
+    }
 
     fun poster(i: Item): String {
         // Episodes often have no poster of their own; use series artwork in that case.
