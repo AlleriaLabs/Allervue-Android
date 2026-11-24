@@ -105,14 +105,35 @@ internal fun AllervueHome(
     val visiblePlanetCount = (
         6 + (((orbitZoom.floatValue - .72f) / (1.28f - .72f)) * 9f).toInt()
     ).coerceIn(6, 15)
-    var deviceHour by remember { mutableIntStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
+    // Track local device time to the second so the celestial bodies move
+    // continuously along their daily arcs and resume at the correct position.
+    var deviceMinuteOfDay by remember {
+        mutableFloatStateOf(
+            Calendar.getInstance().let {
+                it.get(Calendar.HOUR_OF_DAY) * 60f +
+                    it.get(Calendar.MINUTE) + it.get(Calendar.SECOND) / 60f
+            }
+        )
+    }
     LaunchedEffect(Unit) {
         while (true) {
-            deviceHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-            delay(60_000)
+            val now = Calendar.getInstance()
+            deviceMinuteOfDay = now.get(Calendar.HOUR_OF_DAY) * 60f +
+                now.get(Calendar.MINUTE) + now.get(Calendar.SECOND) / 60f
+            delay(1_000)
         }
     }
-    val isDaytime = deviceHour in 6..17
+    val isDaytime = deviceMinuteOfDay >= 360f && deviceMinuteOfDay < 1080f
+    val celestialProgress = if (isDaytime) {
+        ((deviceMinuteOfDay - 360f) / 720f).coerceIn(0f, 1f)
+    } else {
+        val nightMinutes = if (deviceMinuteOfDay >= 1080f) {
+            deviceMinuteOfDay - 1080f
+        } else {
+            deviceMinuteOfDay + 360f
+        }
+        (nightMinutes / 720f).coerceIn(0f, 1f)
+    }
 
     val orbitMotion = rememberInfiniteTransition(label = "home-orbit-motion")
     val automaticRotation by orbitMotion.animateFloat(
@@ -186,7 +207,18 @@ internal fun AllervueHome(
                 )
             )
             // A visible sun or moon is part of the ambient background, not a UI icon.
-            val skyBody = androidx.compose.ui.geometry.Offset(size.width * .79f, size.height * .23f)
+            // Day arc runs east-to-west from 06:00 to 18:00. The moon
+            // follows the same sky arc in reverse from sunset to sunrise.
+            val arc = kotlin.math.sin(Math.PI * celestialProgress).toFloat()
+            val skyX = if (isDaytime) {
+                .08f + .84f * celestialProgress
+            } else {
+                .92f - .84f * celestialProgress
+            }
+            val skyBody = androidx.compose.ui.geometry.Offset(
+                size.width * skyX,
+                size.height * (.43f - .29f * arc)
+            )
             val skyRadius = size.minDimension * .105f
             if (isDaytime) {
                 drawCircle(
