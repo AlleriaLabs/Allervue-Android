@@ -80,35 +80,51 @@ private fun HomeArtwork(
     onModelLoaded: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
-    // Keep the last successfully decoded artwork visible while the next random
-    // title downloads. The gradient is always underneath, so an empty painter
-    // can never expose a black frame during a model switch.
-    var displayedModel by remember { mutableStateOf(model) }
+    // One request per visible circle: the previous implementation started a
+    // target, duplicate display, and fallback request for every orbit node.
+    // That multiplied startup image traffic and left the circles black while
+    // dozens of identical/oversized requests competed for the connection pool.
+    var displayedModel by remember { mutableStateOf<String?>(null) }
     val targetRequest = remember(model, context) {
         ImageRequest.Builder(context).data(model)
             .memoryCacheKey(model).diskCacheKey(model)
             .crossfade(false).build()
     }
-    val displayedRequest = remember(displayedModel, context) {
-        ImageRequest.Builder(context).data(displayedModel)
-            .memoryCacheKey(displayedModel).diskCacheKey(displayedModel)
-            .crossfade(false).build()
-    }
     val targetPainter = rememberAsyncImagePainter(model = targetRequest)
-    val displayedPainter = rememberAsyncImagePainter(model = displayedRequest)
+    val targetLoaded = targetPainter.state is AsyncImagePainter.State.Success
+    val targetFailed = targetPainter.state is AsyncImagePainter.State.Error
+
+    // Only keep a painter for the last successful image when changing titles.
+    // On first launch this is null, so we do not issue a duplicate request.
+    val previousModel = displayedModel?.takeIf { it != model }
+    val previousRequest = remember(previousModel, context) {
+        previousModel?.let {
+            ImageRequest.Builder(context).data(it)
+                .memoryCacheKey(it).diskCacheKey(it).crossfade(false).build()
+        }
+    }
+    val previousPainter = if (previousRequest != null) {
+        rememberAsyncImagePainter(model = previousRequest)
+    } else null
+    val previousLoaded = previousPainter?.state is AsyncImagePainter.State.Success
+
+    // The fallback is requested only if the primary image actually fails.
     val fallbackRequest = remember(fallbackModel, context) {
         fallbackModel?.let {
             ImageRequest.Builder(context).data(it)
                 .memoryCacheKey(it).diskCacheKey(it).crossfade(false).build()
         }
     }
-    val fallbackPainter = rememberAsyncImagePainter(model = fallbackRequest)
-    val targetLoaded = targetPainter.state is AsyncImagePainter.State.Success
-    val targetFailed = targetPainter.state is AsyncImagePainter.State.Error
-    val fallbackFailed = fallbackPainter.state is AsyncImagePainter.State.Error
-    LaunchedEffect(model, targetLoaded) {
+    val fallbackPainter = if (targetFailed && fallbackRequest != null) {
+        rememberAsyncImagePainter(model = fallbackRequest)
+    } else null
+    val fallbackLoaded = fallbackPainter?.state is AsyncImagePainter.State.Success
+
+    LaunchedEffect(model, targetLoaded, targetFailed, fallbackLoaded) {
         if (targetLoaded) {
             displayedModel = model
+            onModelLoaded?.invoke()
+        } else if (targetFailed && fallbackLoaded) {
             onModelLoaded?.invoke()
         }
     }
@@ -117,15 +133,23 @@ private fun HomeArtwork(
             Brush.linearGradient(listOf(Color(0xFF392746), Color(0xFF172D3B), Color(0xFF202039)))
         ))
         when {
-            targetLoaded || !targetFailed -> Image(
-                painter = displayedPainter, contentDescription = contentDescription,
+            targetLoaded -> Image(
+                painter = targetPainter, contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(), contentScale = contentScale
             )
-            fallbackRequest != null && !fallbackFailed -> Image(
+            previousLoaded && previousPainter != null -> Image(
+                painter = previousPainter, contentDescription = contentDescription,
+                modifier = Modifier.fillMaxSize(), contentScale = contentScale
+            )
+            fallbackLoaded && fallbackPainter != null -> Image(
                 painter = fallbackPainter, contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(), contentScale = contentScale
             )
-            else -> Text("✦", color = Color.White.copy(alpha = .72f), fontSize = 25.sp)
+            else -> Box(
+                Modifier.fillMaxSize().background(
+                    Brush.radialGradient(listOf(Color(0xFF59435F), Color(0xFF263E50), Color(0xFF17152C)))
+                )
+            )
         }
     }
 }
@@ -735,7 +759,7 @@ internal fun AllervueHome(
                                 .padding(2.dp)
                         ) {
                             HomeArtwork(
-                                model = Api.poster(item),
+                                model = Api.orbitPoster(item),
                                 contentDescription = item.name,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF25213A)),
                                 contentScale = ContentScale.Crop,
