@@ -48,8 +48,6 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
     var pw by remember { mutableStateOf("") }
     var err by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var setupBiometric by remember { mutableStateOf(false) }
-    var pendingCredentials by remember { mutableStateOf<Pair<String, String>?>(null) }
     val biometricAvailable = remember(ctx) {
         BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
             BiometricManager.BIOMETRIC_SUCCESS
@@ -227,10 +225,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                             try {
                                 val name = user.trim()
                                 Api.login(ctx, name, pw)
-                                if (biometricAvailable && activity != null) {
-                                    pendingCredentials = name to pw
-                                    setupBiometric = true
-                                } else onDone()
+                                onDone()
                             } catch (e: Exception) {
                                 err = "Couldn't sign in. Check your username and password."
                             }
@@ -278,29 +273,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
         }
     }
 
-    if (setupBiometric) {
-        AlertDialog(
-            onDismissRequest = { setupBiometric = false; onDone() },
-            containerColor = Color(0xFF181818),
-            title = { Text("Enable biometric sign-in?", color = Color.White) },
-            text = {
-                Text(
-                    "Save this account securely on this device so you can sign in next time with an enrolled fingerprint or supported face unlock. Your password is encrypted with Android Keystore and requires biometric authentication to decrypt.",
-                    color = Grey
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { setupBiometric = false; showBiometricPrompt(true) }) {
-                    Text("Enable", color = Red)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { setupBiometric = false; onDone() }) {
-                    Text("Not now", color = Grey)
-                }
-            }
-        )
-    }
+
 }
 
 
@@ -521,7 +494,69 @@ fun ClientSettingsScreen(
     var new2 by remember { mutableStateOf("") }
     var pwStatus by remember { mutableStateOf("") }
     var pwBusy by remember { mutableStateOf(false) }
+    var bioUser by remember { mutableStateOf("") }
+    var bioPassword by remember { mutableStateOf("") }
+    var bioStatus by remember { mutableStateOf("") }
+    var bioBusy by remember { mutableStateOf(false) }
+    val activity = ctx as? FragmentActivity
+    val biometricAvailable = remember(ctx) {
+        BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+            BiometricManager.BIOMETRIC_SUCCESS
+    }
+    val biometricEnabled = remember(ctx) { BiometricLogin.hasSavedCredentials(ctx) }
     val colors = appFieldColors()
+
+    fun enableBiometricLogin() {
+        val host = activity
+        if (host == null) {
+            bioStatus = "Biometric sign-in isn't available on this screen."
+            return
+        }
+        if (bioUser.isBlank() || bioPassword.isBlank()) {
+            bioStatus = "Enter your Jellyfin username and password first."
+            return
+        }
+        try {
+            val cipher = BiometricLogin.newEncryptCipher()
+            val prompt = BiometricPrompt(
+                host, host.mainExecutor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        val unlockedCipher = result.cryptoObject?.cipher
+                        if (unlockedCipher == null) {
+                            bioStatus = "Secure biometric setup failed."
+                            return
+                        }
+                        runCatching {
+                            BiometricLogin.save(ctx, unlockedCipher, bioUser.trim(), bioPassword)
+                        }.onSuccess {
+                            bioPassword = ""
+                            bioStatus = "Biometric sign-in enabled on this device."
+                        }.onFailure {
+                            bioStatus = "Couldn't enable biometric sign-in."
+                        }
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        bioStatus = "Biometric setup cancelled. You can try again anytime."
+                    }
+
+                    override fun onAuthenticationFailed() {
+                        bioStatus = "Biometric not recognized. Try again."
+                    }
+                }
+            )
+            val info = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Enable Allervue biometric sign-in")
+                .setSubtitle("Use your enrolled fingerprint or supported face authentication")
+                .setNegativeButtonText("Cancel")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .build()
+            prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
+        } catch (e: Exception) {
+            bioStatus = "Biometric sign-in isn't available. Use your password."
+        }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         ScreenHeader("Client settings", back)
@@ -606,6 +641,59 @@ fun ClientSettingsScreen(
                     }
                 ) { Text("Change password", fontWeight = FontWeight.Bold) }
                 if (pwStatus.isNotEmpty()) Text(pwStatus, color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            }
+
+            if (loggedIn) {
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider(color = Color(0xFF333333))
+                Spacer(Modifier.height(16.dp))
+                Text("BIOMETRIC SIGN-IN", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (biometricEnabled) "Biometric sign-in is enabled on this device."
+                    else "Optional. Enable fingerprint or supported face authentication for quicker sign-in next time.",
+                    color = Grey, fontSize = 13.sp
+                )
+                if (biometricEnabled) {
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            BiometricLogin.clear(ctx)
+                            bioPassword = ""
+                            bioStatus = "Biometric sign-in disabled on this device."
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Disable biometric sign-in", color = Color.White) }
+                } else {
+                    if (!biometricAvailable) {
+                        Text("No supported strong biometric is enrolled on this device.",
+                            color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    } else {
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            bioUser, { bioUser = it; bioStatus = "" },
+                            label = { Text("Jellyfin username") }, singleLine = true,
+                            colors = colors, modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            bioPassword, { bioPassword = it; bioStatus = "" },
+                            label = { Text("Jellyfin password") }, singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            colors = colors, modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Button(
+                            enabled = !bioBusy && bioUser.isNotBlank() && bioPassword.isNotBlank(),
+                            onClick = { bioBusy = true; bioStatus = ""; enableBiometricLogin(); bioBusy = false },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)
+                        ) { Text("Enable biometric sign-in", fontWeight = FontWeight.Bold) }
+                    }
+                }
+                if (bioStatus.isNotEmpty()) {
+                    Text(bioStatus, color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                }
             }
 
             if (loggedIn && Api.JFA_URL.isNotEmpty()) {
