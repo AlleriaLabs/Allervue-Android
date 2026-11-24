@@ -384,12 +384,12 @@ object Api {
     fun heroImage(i: Item): String =
         authenticatedImage("/Items/${if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id}/Images/Primary?maxHeight=640&quality=75")
 
-    /** Center artwork is rendered in a ~200dp circle; 640px is ample on HD phones. */
+    /** Center artwork is displayed in a ~200dp circle; cap requests to reduce swap latency. */
     fun homeCenterImage(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=640&quality=75")
-        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=640&quality=75")
-        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=640&quality=75")
-        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=640&quality=75")
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=480&quality=70")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=480&quality=70")
+        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=480&quality=70")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=480&quality=70")
     }
 
     fun landscape(i: Item): String = when {
