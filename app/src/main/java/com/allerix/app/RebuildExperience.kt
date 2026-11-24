@@ -73,7 +73,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     BackHandler(enabled = stack.isEmpty() && tab != RebuildTab.HOME) { tab = RebuildTab.HOME }
 
     val top = stack.lastOrNull()
-    val showNav = top == null || top is Nav.Detail || top is Nav.Grid
+    val showNav = (top == null && tab !in setOf(RebuildTab.MOVIES, RebuildTab.SHOWS, RebuildTab.ANIME)) || top is Nav.Detail || top is Nav.Grid
     Box(Modifier.fillMaxSize()) {
         // RebuildHome owns the complete weather/time-driven sky for this route.
         // Keep it as the only animated full-screen Canvas behind Home artwork.
@@ -82,9 +82,9 @@ fun RebuildMainShell(onLogout: () -> Unit) {
             when (top) {
                 null -> when (tab) {
                     RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
-                    RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) })
-                    RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) })
-                    RebuildTab.ANIME -> RebuildCatalog("Anime", "Anime", onOpen, { stack.add(Nav.Search) })
+                    RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
+                    RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
+                    RebuildTab.ANIME -> RebuildCatalog("Anime", "Anime", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
                     RebuildTab.COLLECTION -> RebuildCollection(onOpen, onPlay)
                 }
                 is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
@@ -242,7 +242,7 @@ private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
 @Composable
 private fun RebuildCatalog(
     title: String, type: String, onOpen: (Item) -> Unit, onSearch: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier, onBack: () -> Unit = {}
 ) {
     val scope = rememberCoroutineScope()
     var entries by remember(type) { mutableStateOf(emptyList<Item>()) }
@@ -319,9 +319,15 @@ private fun RebuildCatalog(
     ) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+                Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                Box(Modifier.size(44.dp).clip(CircleShape).background(Color(0x44251B31))
+                    .border(1.dp, Color(0x66D6BBD6), CircleShape).clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center) {
+                    Text("‹", color = Color.White, fontSize = 32.sp)
+                }
                 OutlinedTextField(
                     value = query, onValueChange = { query = it },
                     modifier = Modifier.weight(1f).height(54.dp),
@@ -334,11 +340,18 @@ private fun RebuildCatalog(
                         cursorColor = Color(0xFFFF657D)
                     )
                 )
-                Spacer(Modifier.width(10.dp))
                 Box(
-                    Modifier.size(48.dp).clip(CircleShape).background(Color(0x44251B31))
+                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x44251B31))
+                        .border(1.dp, Color(0x66D6BBD6), CircleShape)
                         .clickable { onSearch() }, contentAlignment = Alignment.Center
-                ) { Text("☷", color = Color.White, fontSize = 25.sp) }
+                ) {
+                    Text("☷", color = Color.White, fontSize = 25.sp)
+                    Box(Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
+                        .size(17.dp).clip(CircleShape).background(Color(0xFFFF5575)),
+                        contentAlignment = Alignment.Center) {
+                        Text("1", color = Color(0xFF210D19), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
 
             Row(
@@ -375,12 +388,12 @@ private fun RebuildCatalog(
             }
 
             val filters = when (type) {
-                "Anime" -> listOf("Unwatched", "Series", "Mood")
-                "Movie" -> listOf("Unwatched", "Films", "Mood")
-                else -> listOf("Unwatched", "Series", "Mood")
+                "Anime" -> listOf("Unwatched", "Series", "Films", "Mood")
+                "Movie" -> listOf("Unwatched", "Films", "Series", "Mood")
+                else -> listOf("Unwatched", "Series", "Films", "Mood")
             }
             Row(
-                Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 2.dp, bottom = 6.dp),
+                Modifier.fillMaxWidth().padding(start = 18.dp, end = 8.dp, top = 2.dp, bottom = 6.dp).horizontalScroll(androidx.compose.foundation.rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 filters.forEach { label ->
@@ -542,10 +555,10 @@ private fun RebuildCatalog(
                 listOf("List", "Grid").forEach { mode ->
                     val active = view == mode
                     Box(
-                        Modifier.weight(1f).clip(CircleShape)
+                        Modifier.weight(if (mode == "List") 1.1f else 1.25f).clip(CircleShape)
                             .background(if (active) Brush.horizontalGradient(listOf(Color(0xFFFF784F), Color(0xFFFF3D7E))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
                             .clickable { view = mode }
-                            .padding(vertical = 12.dp),
+                            .padding(vertical = 13.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(if (mode == "List") "☰  List" else "▦  Grid",
@@ -553,11 +566,13 @@ private fun RebuildCatalog(
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Medium, fontSize = 14.sp)
                     }
                 }
+                Box(Modifier.size(44.dp).clip(CircleShape).clickable { genreExpanded = true },
+                    contentAlignment = Alignment.Center) { Text("☷", color = Color.White, fontSize = 22.sp) }
                 Box(
-                    Modifier.weight(1.5f).clip(CircleShape).background(Color(0x332E2944))
-                        .clickable { filtered.randomOrNull()?.let(onOpen) }.padding(vertical = 12.dp),
+                    Modifier.weight(1.7f).clip(CircleShape).background(Color(0x332E2944))
+                        .clickable { filtered.randomOrNull()?.let(onOpen) }.padding(vertical = 13.dp),
                     contentAlignment = Alignment.Center
-                ) { Text("↗  Surprise me", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
+                ) { Text("⤨  Surprise me", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold) }
             }
         }
     }
