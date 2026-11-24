@@ -1,5 +1,11 @@
 package com.allerix.app
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.infiniteRepeatable
@@ -96,6 +102,30 @@ internal fun AllervueHome(
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
+    var hasLocationPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasLocationPermission = granted }
+    var homeWeather by remember { mutableStateOf<HomeWeather?>(null) }
+    var weatherLoading by remember { mutableStateOf(false) }
+    LaunchedEffect(hasLocationPermission) {
+        if (hasLocationPermission) {
+            while (true) {
+                weatherLoading = homeWeather == null
+                homeWeather = HomeWeatherRepository.load(context)
+                weatherLoading = false
+                delay(30 * 60 * 1000L)
+            }
+        } else {
+            homeWeather = null
+            weatherLoading = false
+        }
+    }
     var featured by remember { mutableStateOf<Item?>(null) }
     var resume by remember { mutableStateOf(emptyList<Item>()) }
     var recent by remember { mutableStateOf(emptyList<Item>()) }
@@ -147,8 +177,10 @@ internal fun AllervueHome(
     }
     var meteor by remember { mutableStateOf<HomeMeteor?>(null) }
     val meteorProgress = remember { Animatable(0f) }
-    LaunchedEffect(isDaytime) {
-        if (isDaytime) {
+    val meteorWeatherAllowsSky = homeWeather?.kind == null ||
+        homeWeather?.kind in setOf("clear", "partly", "fog")
+    LaunchedEffect(isDaytime, meteorWeatherAllowsSky) {
+        if (isDaytime || !meteorWeatherAllowsSky) {
             meteor = null
             meteorProgress.snapTo(0f)
         } else {
@@ -235,8 +267,12 @@ internal fun AllervueHome(
             // Daylight is bright and airy rather than a slightly warmer version of night.
             drawRect(
                 Brush.verticalGradient(
-                    if (isDaytime) listOf(Color(0xFFB9A17F), Color(0xFF668E9A), Color(0xFF294B60))
-                    else listOf(Color(0xFF10182F), Color(0xFF17152D), Color(0xFF071522))
+                    when (homeWeather?.kind) {
+                        "rain", "storm" -> if (isDaytime) listOf(Color(0xFF71818C), Color(0xFF465B70), Color(0xFF24384E)) else listOf(Color(0xFF111B2B), Color(0xFF172236), Color(0xFF091421))
+                        "cloudy", "fog" -> if (isDaytime) listOf(Color(0xFF9AA9AC), Color(0xFF647C89), Color(0xFF344B5D)) else listOf(Color(0xFF182234), Color(0xFF1B2235), Color(0xFF0C1826))
+                        "snow" -> if (isDaytime) listOf(Color(0xFFB8C9D0), Color(0xFF829BAA), Color(0xFF4A6579)) else listOf(Color(0xFF202B40), Color(0xFF1B263A), Color(0xFF101C2B))
+                        else -> if (isDaytime) listOf(Color(0xFFB9A17F), Color(0xFF668E9A), Color(0xFF294B60)) else listOf(Color(0xFF10182F), Color(0xFF17152D), Color(0xFF071522))
+                    }
                 )
             )
             // A visible sun or moon is part of the ambient background, not a UI icon.
@@ -276,6 +312,41 @@ internal fun AllervueHome(
                 drawCircle(Color(0xFF17203A), skyRadius * .88f,
                     androidx.compose.ui.geometry.Offset(skyBody.x + skyRadius * .42f, skyBody.y - skyRadius * .24f))
             }
+            // Weather changes the actual sky atmosphere, not just the label.
+            val weatherKind = homeWeather?.kind
+            if (weatherKind in setOf("cloudy", "fog", "rain", "storm", "snow")) {
+                val cloudAlpha = when (weatherKind) {
+                    "rain", "storm" -> .34f
+                    "fog" -> .42f
+                    else -> .27f
+                }
+                for (cloud in 0 until 7) {
+                    val cloudX = size.width * ((cloud * .19f + .08f) % 1f)
+                    val cloudY = size.height * (.12f + (cloud % 3) * .075f)
+                    val cloudRadius = size.width * (.15f + (cloud % 2) * .035f)
+                    drawCircle(
+                        Brush.radialGradient(
+                            listOf(Color(0xFFDCE5EF).copy(alpha = cloudAlpha), Color(0xFFB9C8D8).copy(alpha = cloudAlpha * .34f), Color.Transparent),
+                            center = androidx.compose.ui.geometry.Offset(cloudX, cloudY),
+                            radius = cloudRadius
+                        ),
+                        radius = cloudRadius,
+                        center = androidx.compose.ui.geometry.Offset(cloudX, cloudY)
+                    )
+                }
+            }
+            if (weatherKind == "rain" || weatherKind == "storm") {
+                for (drop in 0 until 58) {
+                    val x = (drop * 83f + automaticRotation * 2.2f) % size.width
+                    val y = (drop * 59f + automaticRotation * 3.4f) % (size.height * .76f)
+                    drawLine(
+                        Color(0xFFBBD8EF).copy(alpha = if (weatherKind == "storm") .28f else .20f),
+                        androidx.compose.ui.geometry.Offset(x, y),
+                        androidx.compose.ui.geometry.Offset(x - 5.dp.toPx(), y + 13.dp.toPx()),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                }
+            }
             if (!isDaytime) {
                 // Stars have individually phased, restrained twinkle.
                 starField.forEachIndexed { index, star ->
@@ -283,7 +354,11 @@ internal fun AllervueHome(
                         Math.toRadians((automaticRotation * (1.1f + star.third * 1.8f) + index * 47f).toDouble())
                     ).toFloat()).coerceIn(.12f, .82f)
                     drawCircle(
-                        Color(0xFFEAF2FF).copy(alpha = twinkle),
+                        Color(0xFFEAF2FF).copy(alpha = twinkle * when (weatherKind) {
+                            "cloudy", "fog" -> .58f
+                            "rain", "storm", "snow" -> .18f
+                            else -> 1f
+                        }),
                         radius = .65f + star.third * 1.15f,
                         center = androidx.compose.ui.geometry.Offset(size.width * star.first, size.height * star.second)
                     )
@@ -612,6 +687,52 @@ internal fun AllervueHome(
                             Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
                         }
                     }
+                }
+            }
+            Row(
+                Modifier.fillMaxWidth().height(32.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .clickable {
+                        if (!hasLocationPermission) {
+                            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                        } else {
+                            weatherLoading = true
+                        }
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (homeWeather != null) {
+                    val weather = homeWeather!!
+                    Text(
+                        when (weather.kind) {
+                            "rain", "storm" -> "🌧"
+                            "cloudy", "fog" -> "☁"
+                            "snow" -> "❄"
+                            "partly" -> "⛅"
+                            else -> if (weather.isDay) "☀" else "☾"
+                        },
+                        fontSize = 17.sp
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("${weather.city}  ·  ${weather.condition}",
+                            color = Color(0xFFE5E5F0), fontSize = 10.sp, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                        Text("Feels like ${weather.apparentTemperature}°C",
+                            color = Color(0xFFB7B2C7), fontSize = 9.sp, maxLines = 1)
+                    }
+                    Text("${weather.temperature}°",
+                        color = Color.White, fontSize = 23.sp, fontWeight = FontWeight.SemiBold)
+                } else {
+                    Text(
+                        when {
+                            weatherLoading -> "Finding local weather…"
+                            hasLocationPermission -> "Weather unavailable · Tap to retry"
+                            else -> "Tap to enable local weather"
+                        },
+                        color = Color(0xFFB7DDE0), fontSize = 11.sp, fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
