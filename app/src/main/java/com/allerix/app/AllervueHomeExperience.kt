@@ -280,6 +280,15 @@ internal fun AllervueHome(
                 failure = featured == null && resume.isEmpty() && recent.isEmpty()
                 if (failure) return@coroutineScope
 
+                // Persist the usable first-paint data immediately; do not make
+                // the next Home visit wait for the slower taste-ranking request.
+                if (Api.userId == accountId) {
+                    HomeSnapshotCache.snapshot = HomeSnapshot(
+                        userId = accountId, featured = featured, resume = resume,
+                        recent = recent, picks = picks
+                    )
+                }
+
                 val loadedPicks = runCatching {
                     Api.personalizedPicks((resume + recent).map { it.id }.toSet())
                 }.getOrDefault(emptyList())
