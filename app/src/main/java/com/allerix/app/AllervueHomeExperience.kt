@@ -379,10 +379,13 @@ internal fun AllervueHome(
             displayedCenterItem = centerItem
         }
     }
-    // Every 8-second center change also reshuffles six outer artwork nodes in the same
-    // cycle. Their six slot positions stay anchored while only the titles change.
-    val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
-        allItems.filter { it.id != centerItem?.id }.shuffled().take(15)
+    // Keep the orbit's artwork stable across the 8-second center rotation.
+    // Previously every center change reshuffled all six visible nodes, forcing
+    // six new remote image downloads even though most titles were already shown.
+    // Only replace the node that becomes the new center item.
+    val orbitPool = remember(allItems) { allItems.shuffled() }
+    val visibleOrbitItems = remember(orbitPool, centerItem?.id) {
+        orbitPool.filter { it.id != centerItem?.id }.take(15)
     }
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
@@ -799,7 +802,7 @@ internal fun AllervueHome(
                                 .clickable { shownCenterItem?.let(onOpen) }
                         ) {
                             HomeArtwork(
-                                model = Api.backdrop(centerItem),
+                                model = Api.homeCenterImage(centerItem),
                                 contentDescription = centerItem.name,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape),
                                 contentScale = ContentScale.Crop,
