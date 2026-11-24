@@ -626,7 +626,15 @@ class PlayerActivity : ComponentActivity() {
                 setOnClickListener { showEpisodeSheet() }
             }
             addView(episodesAction, LinearLayout.LayoutParams(-2, dp(40)).apply { rightMargin = dp(6) })
-            aspectRatioAction()
+            addView(FrameLayout(this@PlayerActivity).apply {
+                background = GradientDrawable().apply {
+                    cornerRadius = dp(30).toFloat(); setColor(0x331A1429); setStroke(dp(1), 0x887D718C.toInt())
+                }
+                addView(ImageView(this@PlayerActivity).apply {
+                    setImageResource(R.drawable.ic_aspect_ratio); setColorFilter(0xFFF5F1F8.toInt())
+                }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
+                setOnClickListener { cycleAspectRatio() }
+            }, LinearLayout.LayoutParams(dp(40), dp(40)))
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
                 text = "Next ep  ›"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFF180D19.toInt())
@@ -648,15 +656,6 @@ class PlayerActivity : ComponentActivity() {
             addView(timeline, LinearLayout.LayoutParams(-1, -2))
             addView(utilityDock, LinearLayout.LayoutParams(-1, -2))
         }
-        fun aspectRatioAction(): View = FrameLayout(this).apply {
-            background = GradientDrawable().apply {
-                cornerRadius = dp(30).toFloat(); setColor(0x331A1429); setStroke(dp(1), 0x887D718C.toInt())
-            }
-            addView(ImageView(this@PlayerActivity).apply {
-                setImageResource(R.drawable.ic_aspect_ratio); setColorFilter(0xFFF5F1F8.toInt())
-            }, FrameLayout.LayoutParams(dp(32), dp(32), Gravity.CENTER))
-            setOnClickListener { cycleAspectRatio() }
-        }.also { addView(it, LinearLayout.LayoutParams(dp(40), dp(40))) }
         fun sideRail(iconRes: Int, initial: Int, onValue: (Int) -> Unit): LinearLayout {
             val rail = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER }
             val slider = SeekBar(this).apply {
