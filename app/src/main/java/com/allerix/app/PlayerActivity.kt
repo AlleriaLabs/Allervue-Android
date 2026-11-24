@@ -824,7 +824,9 @@ class PlayerActivity : ComponentActivity() {
         }
         fun option(parent: LinearLayout, text: String, selected: Boolean, action: () -> Unit) {
             val v = TextView(this).apply {
-                this.text = (if (selected) "●   " else "○   ") + text
+                val label = SpannableString((if (selected) "●" else "○") + "   " + text)
+                if (selected) label.setSpan(ForegroundColorSpan(0xFFFF4F78.toInt()), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                this.text = label
                 textSize = 14f; setTextColor(Color.WHITE); gravity = Gravity.CENTER_VERTICAL
                 minHeight = dp(48); setPadding(dp(18), dp(8), dp(12), dp(8))
                 background = GradientDrawable().apply {
