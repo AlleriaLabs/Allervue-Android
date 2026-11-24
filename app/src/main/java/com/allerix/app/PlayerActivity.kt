@@ -589,7 +589,7 @@ class PlayerActivity : ComponentActivity() {
             setPadding(dp(24), dp(8), dp(24), dp(10)); clipToPadding = false
             fun pill(label: String, click: () -> Unit, emphasized: Boolean = false, width: Int = 0) {
                 val v = TextView(this@PlayerActivity).apply {
-                    text = label; textSize = 12f; gravity = Gravity.CENTER
+                    text = label; textSize = if (label == "⤢") 19f else 12f; gravity = Gravity.CENTER
                     setTextColor(if (emphasized) 0xFF180D19.toInt() else 0xFFF5F1F8.toInt())
                     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                     setPadding(dp(12), dp(8), dp(12), dp(8))
@@ -626,7 +626,7 @@ class PlayerActivity : ComponentActivity() {
                 setOnClickListener { showEpisodeSheet() }
             }
             addView(episodesAction, LinearLayout.LayoutParams(-2, dp(40)).apply { rightMargin = dp(6) })
-            pill("⤢", { cycleAspectRatio() }).apply { textSize = 19f; minWidth = dp(40) }
+            pill("⤢", { cycleAspectRatio() }, width = 40)
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
                 text = "Next ep  ›"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFF180D19.toInt())
