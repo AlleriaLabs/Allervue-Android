@@ -420,7 +420,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun buildUi() {
-        val backBtn = icon(R.drawable.ic_back, 30, 7).apply {
+        val backBtn = icon(R.drawable.ic_back, 30, 0).apply {
             background = null
             setColorFilter(0xFFF4F5F7.toInt())
         }
