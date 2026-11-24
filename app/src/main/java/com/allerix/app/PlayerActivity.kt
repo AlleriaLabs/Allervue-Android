@@ -783,7 +783,8 @@ class PlayerActivity : ComponentActivity() {
             visibility = View.GONE
         }
         lockOverlay = ImageView(this).apply {
-            setImageResource(R.drawable.ic_lock); setColorFilter(Color.WHITE)
+            setImageResource(R.drawable.ic_lock_open)
+            setColorFilter(accent)
             setPadding(dp(12), dp(12), dp(12), dp(12))
             background = GradientDrawable().apply { setColor(0xFF17212B.toInt()); cornerRadius = dp(24).toFloat() }
             visibility = View.GONE
