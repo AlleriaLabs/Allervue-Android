@@ -628,15 +628,9 @@ class PlayerActivity : ComponentActivity() {
                 setOnClickListener { showEpisodeSheet() }
             }
             addView(episodesAction, LinearLayout.LayoutParams(-2, dp(32)).apply { rightMargin = dp(6) })
-            addView(FrameLayout(this@PlayerActivity).apply {
-                background = GradientDrawable().apply {
-                    cornerRadius = dp(30).toFloat(); setColor(0x331A1429); setStroke(dp(1), 0x887D718C.toInt())
-                }
-                addView(ImageView(this@PlayerActivity).apply {
-                    setImageResource(R.drawable.ic_aspect_ratio); setColorFilter(0xFFF5F1F8.toInt())
-                }, FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER))
-                setOnClickListener { cycleAspectRatio() }
-            }, LinearLayout.LayoutParams(dp(34), dp(34)))
+            addView(lockAction, LinearLayout.LayoutParams(dp(42), -2).apply {
+                leftMargin = dp(2)
+            })
             nextEpisodeAction = TextView(this@PlayerActivity).apply {
                 text = "Next ep  ›"; textSize = 12f; gravity = Gravity.CENTER
                 setTextColor(0xFF180D19.toInt())
@@ -736,21 +730,12 @@ class PlayerActivity : ComponentActivity() {
                     setPadding(dp(6), dp(6), dp(6), dp(6))
                 }, FrameLayout.LayoutParams(dp(28), dp(28), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             }
-            rail.addView(railFace, LinearLayout.LayoutParams(dp(48), dp(124)))
+            rail.addView(railFace, LinearLayout.LayoutParams(dp(34), dp(124)))
             return rail
         }
-        val leftRail = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            addView(sideRail(R.drawable.ic_brightness, 55) { value ->
-                brightness = (value / 100f).coerceIn(.05f, 1f)
-                window.attributes = window.attributes.also { it.screenBrightness = brightness }
-            })
-            addView(ImageView(this@PlayerActivity).apply {
-                setImageResource(R.drawable.ic_lock); setColorFilter(Color.WHITE)
-                setPadding(dp(9), dp(9), dp(9), dp(9))
-                background = circleBg(0xB3130B20.toInt(), 0x667F718C)
-                setOnClickListener { toggleLock() }
-            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { topMargin = dp(8) })
+        val leftRail = sideRail(R.drawable.ic_brightness, 55) { value ->
+            brightness = (value / 100f).coerceIn(.05f, 1f)
+            window.attributes = window.attributes.also { it.screenBrightness = brightness }
         }
         val rightRail = sideRail(R.drawable.ic_volume,
             (audio.getStreamVolume(AudioManager.STREAM_MUSIC) * 100 /
@@ -758,21 +743,12 @@ class PlayerActivity : ComponentActivity() {
             val maxVolume = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
             audio.setStreamVolume(AudioManager.STREAM_MUSIC, value * maxVolume / 100, 0)
         }
-        val rightRailWithFullscreen = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL; gravity = Gravity.CENTER
-            addView(rightRail)
-            addView(ImageView(this@PlayerActivity).apply {
-                setImageResource(R.drawable.ic_fullscreen); setColorFilter(Color.WHITE)
-                setPadding(dp(9), dp(9), dp(9), dp(9))
-                background = circleBg(0xB3130B20.toInt(), 0x667F718C)
-                setOnClickListener { rotateScreen() }
-            }, LinearLayout.LayoutParams(dp(40), dp(40)).apply { topMargin = dp(8) })
-        }
+        val rightRailWithFullscreen = rightRail
         controls = FrameLayout(this).apply {
             addView(topPanel, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
             addView(centerControls, FrameLayout.LayoutParams(-1, dp(150), Gravity.CENTER))
-            addView(leftRail, FrameLayout.LayoutParams(dp(56), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(14); topMargin = -dp(22) })
-            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(56), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(14); topMargin = -dp(22) })
+            addView(leftRail, FrameLayout.LayoutParams(dp(44), -2, Gravity.START or Gravity.CENTER_VERTICAL).apply { leftMargin = dp(22); topMargin = -dp(22) })
+            addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(44), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(22); topMargin = -dp(22) })
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
         subText = TextView(this).apply { gravity = Gravity.CENTER; visibility = View.GONE }
