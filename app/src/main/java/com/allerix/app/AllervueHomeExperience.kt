@@ -345,7 +345,7 @@ internal fun AllervueHome(
         mutableStateOf(cachedHome?.picks?.firstOrNull() ?: cachedHome?.featured
             ?: cachedHome?.resume?.firstOrNull() ?: cachedHome?.recent?.firstOrNull())
     }
-    val shownCenterItem = displayedCenterItem ?: centerItem
+    val shownCenterItem = displayedCenterItem
     // Every 8-second center change also reshuffles six outer artwork nodes in the same
     // cycle. Their six slot positions stay anchored while only the titles change.
     val visibleOrbitItems = remember(allItems, centerItem?.id, synchronizedCycle) {
