@@ -56,6 +56,31 @@ private val APanel = Color(0xFF17152C)
 
 private data class HomeMeteor(val startX: Float, val startY: Float)
 
+private fun sampleArtworkGlow(drawable: android.graphics.drawable.Drawable): Color? {
+    val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: return null
+    if (bitmap.width <= 0 || bitmap.height <= 0) return null
+    var red = 0L
+    var green = 0L
+    var blue = 0L
+    var samples = 0L
+    val stepX = (bitmap.width / 8).coerceAtLeast(1)
+    val stepY = (bitmap.height / 8).coerceAtLeast(1)
+    for (y in stepY until bitmap.height step stepY) {
+        for (x in stepX until bitmap.width step stepX) {
+            val pixel = bitmap.getPixel(x, y)
+            red += android.graphics.Color.red(pixel)
+            green += android.graphics.Color.green(pixel)
+            blue += android.graphics.Color.blue(pixel)
+            samples++
+        }
+    }
+    if (samples == 0L) return null
+    return Color(android.graphics.Color.rgb(
+        (red / samples).toInt(), (green / samples).toInt(), (blue / samples).toInt()
+    ))
+}
+
+
 private data class HomeSnapshot(
     val userId: String,
     val featured: Item?,
@@ -103,7 +128,10 @@ private fun HomeArtwork(
             model = displayedModel,
             contentDescription = contentDescription,
             modifier = Modifier.fillMaxSize(),
-            contentScale = contentScale
+            contentScale = contentScale,
+            onSuccess = { state ->
+                sampleArtworkGlow(state.result.drawable)?.let { onArtworkColor?.invoke(it) }
+            }
         )
 
         val requestModel = pendingModel
@@ -115,22 +143,7 @@ private fun HomeArtwork(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = contentScale,
                 onSuccess = { state ->
-                    val bitmap = (state.result.drawable as? BitmapDrawable)?.bitmap
-                    if (bitmap != null && onArtworkColor != null) {
-                        var red = 0L; var green = 0L; var blue = 0L; var samples = 0L
-                        val stepX = (bitmap.width / 8).coerceAtLeast(1)
-                        val stepY = (bitmap.height / 8).coerceAtLeast(1)
-                        for (y in stepY until bitmap.height step stepY) {
-                            for (x in stepX until bitmap.width step stepX) {
-                                val pixel = bitmap.getPixel(x, y)
-                                val saturation = android.graphics.Color.colorToHSV(pixel, FloatArray(3)).let { 0f }
-                                red += android.graphics.Color.red(pixel); green += android.graphics.Color.green(pixel); blue += android.graphics.Color.blue(pixel); samples++
-                            }
-                        }
-                        if (samples > 0) onArtworkColor(Color(
-                            android.graphics.Color.rgb((red / samples).toInt(), (green / samples).toInt(), (blue / samples).toInt())
-                        ))
-                    }
+                    sampleArtworkGlow(state.result.drawable)?.let { onArtworkColor?.invoke(it) }
                     if (pendingModel == requestModel) {
                         displayedModel = requestModel
                         pendingModel = null
