@@ -2,6 +2,7 @@ package com.allerix.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.drawable.BitmapDrawable
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
@@ -74,7 +75,8 @@ private fun HomeArtwork(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
     fallbackModel: String? = null,
-    onModelLoaded: (() -> Unit)? = null
+    onModelLoaded: (() -> Unit)? = null,
+    onArtworkColor: ((Color) -> Unit)? = null
 ) {
     // Keep the last successfully decoded artwork underneath the next request.
     // The new image is drawn over it and becomes the displayed model only after
@@ -112,7 +114,23 @@ private fun HomeArtwork(
                 contentDescription = contentDescription,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = contentScale,
-                onSuccess = {
+                onSuccess = { state ->
+                    val bitmap = (state.result.drawable as? BitmapDrawable)?.bitmap
+                    if (bitmap != null && onArtworkColor != null) {
+                        var red = 0L; var green = 0L; var blue = 0L; var samples = 0L
+                        val stepX = (bitmap.width / 8).coerceAtLeast(1)
+                        val stepY = (bitmap.height / 8).coerceAtLeast(1)
+                        for (y in stepY until bitmap.height step stepY) {
+                            for (x in stepX until bitmap.width step stepX) {
+                                val pixel = bitmap.getPixel(x, y)
+                                val saturation = android.graphics.Color.colorToHSV(pixel, FloatArray(3)).let { 0f }
+                                red += android.graphics.Color.red(pixel); green += android.graphics.Color.green(pixel); blue += android.graphics.Color.blue(pixel); samples++
+                            }
+                        }
+                        if (samples > 0) onArtworkColor(Color(
+                            android.graphics.Color.rgb((red / samples).toInt(), (green / samples).toInt(), (blue / samples).toInt())
+                        ))
+                    }
                     if (pendingModel == requestModel) {
                         displayedModel = requestModel
                         pendingModel = null
@@ -734,28 +752,35 @@ internal fun AllervueHome(
                         .coerceIn(6.dp, (w - nodeOuterSize - 6.dp).coerceAtLeast(6.dp))
                     val y = (orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeOuterSize / 2)
                         .coerceIn(112.dp, (h - nodeOuterSize - 10.dp).coerceAtLeast(112.dp))
+                    var artworkGlow by remember(item.id) { mutableStateOf(Color(0xFF9B6AB5)) }
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeOuterSize)
                             .clickable { selected = item; synchronizedCycle++ },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
-                            Modifier.size(nodeOuterSize).clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(Color(0xFF63D8DE), Color(0xFF9B6AB5), Color(0xFFFF7B86))))
-                                .padding(2.dp)
+                            Modifier.size(nodeOuterSize)
+                                .background(Brush.radialGradient(listOf(artworkGlow.copy(alpha = .72f), artworkGlow.copy(alpha = .24f), Color.Transparent))) ,
+                            contentAlignment = Alignment.Center
                         ) {
+                            Box(Modifier.size(nodeOuterSize - 8.dp).clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(artworkGlow.copy(alpha = .95f), artworkGlow.copy(alpha = .55f), Color(0xFF17152C))))
+                                .padding(2.dp)) {
                             HomeArtwork(
                                 model = Api.orbitPoster(item),
                                 contentDescription = item.name,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF25213A)),
                                 contentScale = ContentScale.Crop,
-                                fallbackModel = Api.heroImage(item)
+                                fallbackModel = Api.heroImage(item),
+                                onArtworkColor = { artworkGlow = it }
                             )
+                            }
                         }
                     }
                 }
 
                 if (centerItem != null) {
+                    var centerArtworkGlow by remember(centerItem.id) { mutableStateOf(Color(0xFF9B6AB5)) }
                     // The central star/moon follows the device's local clock.
                     Box(
                         Modifier.offset(
@@ -764,8 +789,7 @@ internal fun AllervueHome(
                         ).size(centerSize + 42.dp).clip(CircleShape)
                             .background(
                                 Brush.radialGradient(
-                                    if (isDaytime) listOf(Color(0xFFFFC65C).copy(alpha = .36f), Color(0xFFFF8A4C).copy(alpha = .12f), Color.Transparent)
-                                    else listOf(Color(0xFFB9D8FF).copy(alpha = .30f), Color(0xFF8795D8).copy(alpha = .12f), Color.Transparent)
+                                    listOf(centerArtworkGlow.copy(alpha = .48f), centerArtworkGlow.copy(alpha = .16f), Color.Transparent)
                                 )
                             )
                     )
@@ -792,7 +816,8 @@ internal fun AllervueHome(
                                 fallbackModel = Api.heroImage(centerItem),
                                 onModelLoaded = {
                                     if (selected?.id == centerItem.id) displayedCenterItem = centerItem
-                                }
+                                },
+                                onArtworkColor = { centerArtworkGlow = it }
                             )
                             Box(Modifier.fillMaxSize().background(
                                 Brush.verticalGradient(listOf(Color.Transparent, Color(0x220B0915), Color(0x550B0915)))
@@ -811,7 +836,21 @@ internal fun AllervueHome(
         Column(
             Modifier.fillMaxWidth().height(254.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .background(Brush.verticalGradient(if (isDaytime) listOf(Color(0xF22B293D), Color(0xE61B3040)) else listOf(Color(0xF2141930), Color(0xE60D1D2B))))
+                .drawBehind {
+                    drawRect(Brush.verticalGradient(if (isDaytime) listOf(Color(0xF22B293D), Color(0xE61B3040)) else listOf(Color(0xF2141930), Color(0xE60D1D2B))))
+                    val phase = Math.toRadians((automaticRotation * .52f).toDouble())
+                    val glowA = androidx.compose.ui.geometry.Offset(
+                        size.width * (.22f + .58f * ((kotlin.math.sin(phase).toFloat() + 1f) / 2f)),
+                        size.height * (.18f + .42f * ((kotlin.math.cos(phase * .7).toFloat() + 1f) / 2f))
+                    )
+                    val glowB = androidx.compose.ui.geometry.Offset(
+                        size.width * (.78f - .48f * ((kotlin.math.sin(phase + 1.8).toFloat() + 1f) / 2f)),
+                        size.height * (.82f - .35f * ((kotlin.math.cos(phase + 1.2).toFloat() + 1f) / 2f))
+                    )
+                    val radius = size.maxDimension * .72f
+                    drawCircle(Brush.radialGradient(listOf(Color(0xFFFF6E9D).copy(alpha = .22f), Color(0xFFB56CFF).copy(alpha = .08f), Color.Transparent), glowA, radius), radius, glowA)
+                    drawCircle(Brush.radialGradient(listOf(Color(0xFF53D8D5).copy(alpha = .18f), Color(0xFF668BFF).copy(alpha = .07f), Color.Transparent), glowB, radius * .82f), radius * .82f, glowB)
+                }
                 .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 14.dp)
         ) {
             Row(
@@ -830,6 +869,9 @@ internal fun AllervueHome(
                     Text(meta, Modifier.height(20.dp).fillMaxWidth(),
                         color = Color(0xFFB7B2C7), fontSize = 12.sp, maxLines = 1)
                 }
+                Box(Modifier.size(82.dp).background(
+                    Brush.radialGradient(listOf(AHot.copy(alpha = .58f), AHot.copy(alpha = .20f), Color.Transparent)), CircleShape
+                ), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier.size(62.dp).clip(CircleShape)
                         .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
@@ -845,6 +887,7 @@ internal fun AllervueHome(
                         }
                         drawPath(play, Color(0xFF170D1B))
                     }
+                }
                 }
             }
             // Reserve the synopsis slot even when an item has no description so
