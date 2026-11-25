@@ -57,26 +57,28 @@ private val APanel = Color(0xFF17152C)
 private data class HomeMeteor(val startX: Float, val startY: Float)
 
 private fun sampleArtworkGlow(drawable: android.graphics.drawable.Drawable): Color? = runCatching {
-    val source = (drawable as? BitmapDrawable)?.bitmap ?: return@runCatching null
-    if (source.width <= 0 || source.height <= 0) return@runCatching null
-
-    // Coil may return a hardware-accelerated bitmap. Android forbids getPixel()
-    // on HARDWARE configs, so sample a small software copy instead.
-    val bitmap = if (source.config == android.graphics.Bitmap.Config.HARDWARE) {
-        source.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
-            ?: return@runCatching null
-    } else {
-        source
+    // Draw any Coil drawable (BitmapDrawable, wrapped/crossfade drawable, etc.)
+    // into a small software bitmap. This avoids HARDWARE bitmap pixel access
+    // and does not depend on Coil's concrete drawable type.
+    val sampleSize = 48
+    val bitmap = android.graphics.Bitmap.createBitmap(
+        sampleSize, sampleSize, android.graphics.Bitmap.Config.ARGB_8888
+    )
+    val oldBounds = android.graphics.Rect(drawable.bounds)
+    try {
+        drawable.setBounds(0, 0, sampleSize, sampleSize)
+        drawable.draw(android.graphics.Canvas(bitmap))
+    } finally {
+        drawable.bounds = oldBounds
     }
 
     var red = 0L
     var green = 0L
     var blue = 0L
     var samples = 0L
-    val stepX = (bitmap.width / 8).coerceAtLeast(1)
-    val stepY = (bitmap.height / 8).coerceAtLeast(1)
-    for (y in stepY until bitmap.height step stepY) {
-        for (x in stepX until bitmap.width step stepX) {
+    val step = 6
+    for (y in step until sampleSize step step) {
+        for (x in step until sampleSize step step) {
             val pixel = bitmap.getPixel(x, y)
             red += android.graphics.Color.red(pixel)
             green += android.graphics.Color.green(pixel)
@@ -84,7 +86,7 @@ private fun sampleArtworkGlow(drawable: android.graphics.drawable.Drawable): Col
             samples++
         }
     }
-    if (bitmap !== source && !bitmap.isRecycled) bitmap.recycle()
+    bitmap.recycle()
     if (samples == 0L) return@runCatching null
     Color(android.graphics.Color.rgb(
         (red / samples).toInt(), (green / samples).toInt(), (blue / samples).toInt()
@@ -754,7 +756,7 @@ internal fun AllervueHome(
                         val baseAngle = -90f + slot * (360f / count)
                         val phaseJitter = kotlin.random.Random.nextFloat() * 34f - 17f
                         val planetSize = planetSizes[slot % planetSizes.size]
-                        val outerSize = planetSize + 8.dp
+                        val outerSize = planetSize + 24.dp
                         val radiusX = (w * (.25f + kotlin.random.Random.nextFloat() * .18f))
                             .coerceAtMost((w - outerSize) / 2 - 6.dp)
                         val radiusY = (h * (.13f + kotlin.random.Random.nextFloat() * .20f))
@@ -766,7 +768,7 @@ internal fun AllervueHome(
                 visibleOrbitItems.take(visiblePlanetCount).forEachIndexed { index, item ->
                     val lane = orbitSlots[index]
                     val nodeSize = planetSizes[index % planetSizes.size]
-                    val nodeOuterSize = nodeSize + 8.dp
+                    val nodeOuterSize = nodeSize + 24.dp
                     val angle = Math.toRadians(
                         (lane.first + automaticRotation * lane.third + orbitRotation.floatValue).toDouble()
                     )
@@ -784,10 +786,10 @@ internal fun AllervueHome(
                     ) {
                         Box(
                             Modifier.size(nodeOuterSize)
-                                .background(Brush.radialGradient(listOf(artworkGlow.copy(alpha = .72f), artworkGlow.copy(alpha = .24f), Color.Transparent))) ,
+                                .background(Brush.radialGradient(listOf(artworkGlow.copy(alpha = .98f), artworkGlow.copy(alpha = .62f), artworkGlow.copy(alpha = .22f), Color.Transparent))) ,
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(Modifier.size(nodeOuterSize - 8.dp).clip(CircleShape)
+                            Box(Modifier.size(nodeSize).clip(CircleShape)
                                 .background(Brush.linearGradient(listOf(artworkGlow.copy(alpha = .95f), artworkGlow.copy(alpha = .55f), Color(0xFF17152C))))
                                 .padding(2.dp)) {
                             HomeArtwork(
@@ -808,21 +810,21 @@ internal fun AllervueHome(
                     // The central star/moon follows the device's local clock.
                     Box(
                         Modifier.offset(
-                            x = orbitCenterX - (centerSize + 42.dp) / 2,
-                            y = orbitCenterY - (centerSize + 42.dp) / 2
-                        ).size(centerSize + 42.dp).clip(CircleShape)
+                            x = orbitCenterX - (centerSize + 84.dp) / 2,
+                            y = orbitCenterY - (centerSize + 84.dp) / 2
+                        ).size(centerSize + 84.dp)
                             .background(
                                 Brush.radialGradient(
-                                    listOf(centerArtworkGlow.copy(alpha = .48f), centerArtworkGlow.copy(alpha = .16f), Color.Transparent)
+                                    listOf(centerArtworkGlow.copy(alpha = .92f), centerArtworkGlow.copy(alpha = .54f), centerArtworkGlow.copy(alpha = .18f), Color.Transparent)
                                 )
                             )
                     )
                     Box(
                         Modifier.offset(
-                            x = orbitCenterX - (centerSize + 14.dp) / 2,
-                            y = orbitCenterY - (centerSize + 14.dp) / 2
+                            x = orbitCenterX - (centerSize + 18.dp) / 2,
+                            y = orbitCenterY - (centerSize + 18.dp) / 2
                         )
-                            .size(centerSize + 14.dp).clip(CircleShape)
+                            .size(centerSize + 18.dp).clip(CircleShape)
                             .background(Brush.linearGradient(listOf(Color(0xFF74E0E1), Color(0xFFAB75C4), Color(0xFFFF8A8A))))
                             .padding(3.dp)
                     ) {
@@ -893,8 +895,8 @@ internal fun AllervueHome(
                     Text(meta, Modifier.height(20.dp).fillMaxWidth(),
                         color = Color(0xFFB7B2C7), fontSize = 12.sp, maxLines = 1)
                 }
-                Box(Modifier.size(82.dp).background(
-                    Brush.radialGradient(listOf(AHot.copy(alpha = .58f), AHot.copy(alpha = .20f), Color.Transparent)), CircleShape
+                Box(Modifier.size(108.dp).background(
+                    Brush.radialGradient(listOf(AHot.copy(alpha = .96f), AHot.copy(alpha = .58f), AHot.copy(alpha = .20f), Color.Transparent)), CircleShape
                 ), contentAlignment = Alignment.Center) {
                 Box(
                     Modifier.size(62.dp).clip(CircleShape)
