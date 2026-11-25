@@ -13,6 +13,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -264,6 +266,63 @@ fun BottomBar(selected: NavTab, onTab: (NavTab) -> Unit) {
                 SmallIcon(t.icon, if (on) Red else Dim, 24)
                 Text(t.label, color = if (on) Red else Dim, fontSize = 10.sp)
             }
+        }
+    }
+}
+
+
+@Composable
+fun CrashRecoveryScreen(report: String, onContinue: () -> Unit) {
+    val context = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().background(BgDark).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Spacer(Modifier.height(24.dp))
+        Text(
+            "Allervue recovered from a crash",
+            color = Color.White,
+            fontSize = 23.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(12.dp))
+        Text(
+            "A crash report was saved locally. Share it so we can identify why the app closed. The report does not include your password or Jellyfin token.",
+            color = Dim,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(20.dp))
+        Surface(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            color = Color(0xFF17171D),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Text(
+                report,
+                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
+                color = Color(0xFFD8D8DE),
+                fontSize = 11.sp
+            )
+        }
+        Spacer(Modifier.height(18.dp))
+        Button(
+            onClick = {
+                val send = Intent(Intent.ACTION_SEND).apply {
+                    type = "text/plain"
+                    putExtra(Intent.EXTRA_SUBJECT, "Allervue crash report")
+                    putExtra(Intent.EXTRA_TEXT, report)
+                }
+                context.startActivity(Intent.createChooser(send, "Share crash report"))
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Red)
+        ) {
+            Text("Share crash report", color = Color.White)
+        }
+        TextButton(onClick = onContinue, modifier = Modifier.fillMaxWidth()) {
+            Text("Continue to Allervue", color = Color.White)
         }
     }
 }
