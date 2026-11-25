@@ -104,6 +104,8 @@ class PlayerActivity : ComponentActivity() {
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
+    /** Stable video-surface slot shared by every playback engine; controls remain siblings above it. */
+    private lateinit var videoHost: FrameLayout
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var aspectHud: TextView
@@ -361,6 +363,18 @@ class PlayerActivity : ComponentActivity() {
     }
 
     // ================================================================= UI building
+    /**
+     * Replaces only the decoder's rendering surface. The Allervue control layer, gestures,
+     * subtitle overlay, HUD and progress UI stay attached to the same root and are never rebuilt.
+     * Every engine adapter must expose a View that can be placed in this host.
+     */
+    private fun attachEngineSurface(surface: View) {
+        if (!::videoHost.isInitialized) return
+        (surface.parent as? ViewGroup)?.removeView(surface)
+        videoHost.removeAllViews()
+        videoHost.addView(surface, FrameLayout.LayoutParams(-1, -1))
+    }
+
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
     private fun circleBg(color: Int = 0x99181E30.toInt(), stroke: Int = 0) = GradientDrawable().apply {
@@ -827,9 +841,14 @@ class PlayerActivity : ComponentActivity() {
             background = GradientDrawable().apply { setColor(0xFF17212B.toInt()); cornerRadius = dp(24).toFloat() }
             visibility = View.GONE
         }
+        videoHost = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+        }
+        attachEngineSurface(playerView)
+
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
-            addView(playerView, FrameLayout.LayoutParams(-1, -1))
+            addView(videoHost, FrameLayout.LayoutParams(-1, -1))
             addView(subText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
             addView(aspectHud, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(28) })
@@ -2100,7 +2119,7 @@ class PlayerActivity : ComponentActivity() {
 
             override fun onDoubleTap(e: MotionEvent): Boolean {
                 if (locked) return true
-                val w = playerView.width
+                val w = videoHost.width
                 when {
                     e.x < w / 3f -> { seekBy(-10_000); showHud("-10s") }
                     e.x > w * 2 / 3f -> { seekBy(10_000); showHud("+10s") }
@@ -2120,7 +2139,7 @@ class PlayerActivity : ComponentActivity() {
                 if (mode == Mode.NONE) {
                     mode = when {
                         abs(dx) > abs(dy) -> { startPos = playbackPositionMs(); Mode.SEEK }
-                        e1.x < playerView.width / 2f -> {
+                        e1.x < videoHost.width / 2f -> {
                             val b = window.attributes.screenBrightness
                             brightness = if (b < 0) 0.5f else b; Mode.BRIGHT
                         }
@@ -2129,12 +2148,12 @@ class PlayerActivity : ComponentActivity() {
                 }
                 when (mode) {
                     Mode.SEEK -> {
-                        seekTarget = (startPos + (e2.x - e1.x) * 120_000f / playerView.width).toLong().coerceIn(0L, duration)
+                        seekTarget = (startPos + (e2.x - e1.x) * 120_000f / videoHost.width).toLong().coerceIn(0L, duration)
                         val sign = if (seekTarget >= startPos) "+" else "-"
                         showHud("${fmt(seekTarget)}  ($sign${fmt(abs(seekTarget - startPos))})", 1500)
                     }
                     Mode.BRIGHT -> {
-                        brightness = (brightness + dy / playerView.height).coerceIn(0.01f, 1f)
+                        brightness = (brightness + dy / videoHost.height).coerceIn(0.01f, 1f)
                         window.attributes = window.attributes.also { it.screenBrightness = brightness }
                         brightnessRailLevel?.invoke((brightness * 100).toInt())
                         showHud("Brightness ${(brightness * 100).toInt()}%")
@@ -2150,7 +2169,7 @@ class PlayerActivity : ComponentActivity() {
                 return true
             }
         })
-        playerView.setOnTouchListener { _, ev ->
+        videoHost.setOnTouchListener { _, ev ->
             if (handleSubtitleTouch(ev)) return@setOnTouchListener true
             scale.onTouchEvent(ev)
             gd.onTouchEvent(ev)
