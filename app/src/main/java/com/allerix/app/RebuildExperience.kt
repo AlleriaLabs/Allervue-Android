@@ -118,27 +118,41 @@ fun RebuildMainShell(onLogout: () -> Unit) {
 private fun RebuildBottomNav(selected: RebuildTab, onSelect: (RebuildTab) -> Unit) {
     Row(
         Modifier.fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .background(Color(0xF20D0B14))
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         RebuildTab.values().forEach { destination ->
             val active = destination == selected
-            Column(
+            Row(
                 Modifier.weight(1f)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (active) VCyan.copy(alpha = 0.13f) else Color.Transparent)
+                    .height(42.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (active) Brush.horizontalGradient(
+                            listOf(Color(0xFFFF794E), Color(0xFFFF397C))
+                        ) else Brush.horizontalGradient(
+                            listOf(Color(0x332D243B), Color(0x332D243B))
+                        )
+                    )
                     .clickable { onSelect(destination) }
-                    .padding(vertical = 7.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 3.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                SmallIcon(destination.icon, if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant, 21)
-                Spacer(Modifier.height(3.dp))
+                SmallIcon(
+                    destination.icon,
+                    if (active) Color(0xFF170C16) else Color.White,
+                    17
+                )
+                Spacer(Modifier.width(4.dp))
                 Text(
                     destination.label,
-                    color = if (active) VCyan else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (active) Color(0xFF170C16) else Color.White,
                     fontSize = 10.sp,
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium
+                    fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1
                 )
             }
         }
