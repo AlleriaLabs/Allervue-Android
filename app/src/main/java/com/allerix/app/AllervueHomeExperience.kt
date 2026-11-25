@@ -911,20 +911,43 @@ internal fun AllervueHome(
                 .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 14.dp)
         ) {
             Row(
-                Modifier.fillMaxWidth().height(78.dp),
+                Modifier.fillMaxWidth().height(82.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.Center) {
-                    Text(shownCenterItem?.name ?: if (loading) "Finding your next story" else "Your library",
-                        Modifier.height(58.dp).fillMaxWidth(),
-                        color = Color(0xFFF7F3FF), fontSize = 25.sp, lineHeight = 29.sp,
-                        fontWeight = FontWeight.ExtraBold, letterSpacing = (-.8).sp,
-                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().padding(end = 10.dp),
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    val title = shownCenterItem?.name ?: if (loading) "Finding your next story" else "Your library"
+                    val titleSize = when {
+                        title.length >  30 -> 19.sp
+                        title.length > 22 -> 21.sp
+                        else -> 25.sp
+                    }
+                    Text(
+                        title,
+                        Modifier.fillMaxWidth(),
+                        color = Color(0xFFF7F3FF),
+                        fontSize = titleSize,
+                        lineHeight = (titleSize.value * 1.12f).sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        letterSpacing = (-.55).sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(5.dp))
                     val meta = shownCenterItem?.let {
-                        listOfNotNull(it.type, it.year?.toString(), it.officialRating).joinToString(" · ")
+                        listOfNotNull(it.type, it.year?.toString(), it.officialRating).joinToString("  •  ")
                     } ?: "Explore your Jellyfin library"
-                    Text(meta, Modifier.height(20.dp).fillMaxWidth(),
-                        color = Color(0xFFB7B2C7), fontSize = 12.sp, maxLines = 1)
+                    Text(
+                        meta,
+                        Modifier.fillMaxWidth(),
+                        color = Color(0xFFB7B2C7),
+                        fontSize = 11.sp,
+                        lineHeight = 14.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
                 Box(
                     Modifier.size(116.dp).drawBehind {
@@ -968,9 +991,16 @@ internal fun AllervueHome(
             }
             // Reserve the synopsis slot even when an item has no description so
             // the panel geometry never shifts between featured titles.
-            Text(shownCenterItem?.overview.orEmpty(), Modifier.fillMaxWidth().height(62.dp).padding(top = 6.dp),
-                color = Color(0xFFC7C2D3), fontSize = 13.sp, lineHeight = 18.sp,
-                maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(
+                shownCenterItem?.overview?.takeIf { it.isNotBlank() }
+                    ?: "Explore a story selected from your library.",
+                Modifier.fillMaxWidth().height(60.dp).padding(top = 7.dp),
+                color = Color(0xFFD0CBDA),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis
+            )
             Row(
                 Modifier.fillMaxWidth().height(32.dp),
                 horizontalArrangement = Arrangement.Center,
