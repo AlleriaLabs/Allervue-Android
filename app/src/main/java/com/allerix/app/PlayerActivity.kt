@@ -106,6 +106,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var playerView: PlayerView
     /** Stable video-surface slot shared by every playback engine; controls remain siblings above it. */
     private lateinit var videoHost: FrameLayout
+    private lateinit var gestureLayer: View
     private lateinit var root: FrameLayout
     private lateinit var hud: TextView
     private lateinit var aspectHud: TextView
@@ -846,9 +847,13 @@ class PlayerActivity : ComponentActivity() {
         }
         attachEngineSurface(playerView)
 
+        gestureLayer = View(this).apply { setBackgroundColor(Color.TRANSPARENT) }
         root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(videoHost, FrameLayout.LayoutParams(-1, -1))
+            // A single transparent input layer keeps swipe/tap gestures independent of the
+            // currently selected engine's rendering view implementation.
+            addView(gestureLayer, FrameLayout.LayoutParams(-1, -1))
             addView(subText, FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL))
             addView(spinner, FrameLayout.LayoutParams(dp(48), dp(48), Gravity.CENTER))
             addView(aspectHud, FrameLayout.LayoutParams(-2, -2, Gravity.TOP or Gravity.CENTER_HORIZONTAL).apply { topMargin = dp(28) })
@@ -2169,7 +2174,7 @@ class PlayerActivity : ComponentActivity() {
                 return true
             }
         })
-        videoHost.setOnTouchListener { _, ev ->
+        gestureLayer.setOnTouchListener { _, ev ->
             if (handleSubtitleTouch(ev)) return@setOnTouchListener true
             scale.onTouchEvent(ev)
             gd.onTouchEvent(ev)
