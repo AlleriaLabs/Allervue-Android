@@ -77,6 +77,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -86,6 +87,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.util.Locale
 import java.util.UUID
 import kotlin.math.abs
@@ -146,6 +148,7 @@ class PlayerActivity : ComponentActivity() {
     private var introSegments: List<Pair<Long, Long>> = emptyList()
     private var plan: PlaybackPlan? = null
     private var autoRetried = false
+    private val playbackOrchestrator = PlaybackOrchestrator()
 
     // subtitles (own engine)
     private var subStreams: List<MediaStream> = emptyList()
@@ -1735,21 +1738,84 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onAudioSessionIdChanged(audioSessionId: Int) { attachEnhancer(audioSessionId) }
             override fun onPlayerError(error: PlaybackException) {
-                DiagnosticLog.record(this@PlayerActivity, "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
+                DiagnosticLog.record(this@PlayerActivity,
+                    "ExoPlayer onPlayerError code=${error.errorCode} name=${error.errorCodeName}: ${error.message}", error)
                 val http = generateSequence<Throwable>(error) { it.cause }
                     .filterIsInstance<HttpDataSource.InvalidResponseCodeException>().firstOrNull()
-                                val directPlayFailure = plan?.transcoding != true && offlinePath == null && !autoRetried
-                if (directPlayFailure) {
-                    DiagnosticLog.record(this@PlayerActivity, "ExoPlayer direct-play failed; attempting Jellyfin H.264 fallback")
-                    fallbackTranscode()
-                    return
+                val kind = classifyPlaybackFailure(error)
+                val action = playbackOrchestrator.decide(kind)
+                val detail = http?.let { " [HTTP ${it.responseCode} ${it.dataSpec.uri.lastPathSegment}]" } ?: ""
+                DiagnosticLog.record(this@PlayerActivity,
+                    "PLAYBACK_POLICY engine=EXOPLAYER failure=$kind action=$action")
+
+                when (action) {
+                    PlaybackAction.RETRY_SAME_ENGINE -> {
+                        retryCurrentEngine(error.errorCodeName)
+                        return
+                    }
+                    PlaybackAction.TRY_FORMAT_VARIATION -> {
+                        if (offlinePath == null && !autoRetried) {
+                            DiagnosticLog.record(this@PlayerActivity,
+                                "ExoPlayer codec/container failure; trying HLS format variation on ExoPlayer")
+                            fallbackTranscode()
+                        } else {
+                            showHud("Format retry unavailable for this item", 5000)
+                        }
+                        return
+                    }
+                    PlaybackAction.SWITCH_TO_NEXT_ENGINE -> {
+                        val next = playbackOrchestrator.currentEngine
+                        DiagnosticLog.record(this@PlayerActivity,
+                            "Engine switch requested: EXOPLAYER -> $next; adapter availability must be checked")
+                        showHud("ExoPlayer failed. $next fallback is not installed yet.", 7000)
+                        return
+                    }
+                    PlaybackAction.STOP -> {
+                        val hint = if (kind == PlaybackFailureKind.CODEC_OR_CONTAINER)
+                            " This format needs another playback engine." else " Check the connection and try again."
+                        showHud("Playback error: ${error.errorCodeName}$detail$hint", 8000)
+                    }
                 }
-                val detail = http?.let { " [HTTP ${it.responseCode} ${it.dataSpec.uri.lastPathSegment}]" } ?: "";
-                val hint = if (error.errorCodeName.contains("DECOD")) " Try another decoder (HW / HW+ / SW)." else ""
-                showHud(if (isTranscoding) "Transcode failed: ${error.errorCodeName}$detail"
-                        else "Playback error: ${error.errorCodeName}$detail$hint", 8000)
             }
         })
+    }
+
+    private fun classifyPlaybackFailure(error: PlaybackException): PlaybackFailureKind {
+        val causes = generateSequence<Throwable>(error) { it.cause }.toList()
+        val ioFailure = causes.any { it is IOException || it is HttpDataSource.HttpDataSourceException }
+        if (error.errorCodeName.startsWith("ERROR_CODE_IO_") || ioFailure) {
+            return PlaybackFailureKind.NETWORK
+        }
+        val exo = error as? ExoPlaybackException
+        val codecOrContainer = error.errorCodeName.contains("DECODER", true) ||
+            error.errorCodeName.contains("DECODING", true) ||
+            error.errorCodeName.contains("PARSING_CONTAINER", true) ||
+            error.errorCodeName.contains("PARSING_MANIFEST", true) ||
+            exo?.type == ExoPlaybackException.TYPE_RENDERER
+        if (codecOrContainer) return PlaybackFailureKind.CODEC_OR_CONTAINER
+        return PlaybackFailureKind.AMBIGUOUS
+    }
+
+    private fun retryCurrentEngine(reason: String) {
+        if (!::player.isInitialized || player.currentMediaItem == null) {
+            showHud("Playback retry unavailable", 4000)
+            return
+        }
+        val resumeAt = playbackPositionMs()
+        val wasPlaying = player.playWhenReady
+        DiagnosticLog.record(this, "Retrying ExoPlayer on same engine reason=$reason at=${resumeAt}ms")
+        showHud("Connection/playback interrupted. Retrying…", 2500)
+        handler.postDelayed({
+            if (isFinishing || isDestroyed || !::player.isInitialized) return@postDelayed
+            runCatching {
+                player.seekTo(resumeAt)
+                player.prepare()
+                player.playWhenReady = wasPlaying
+            }.onFailure {
+                DiagnosticLog.record(this, "Same-engine retry failed: ${it.message}", it)
+                showHud("Retry failed: ${it.message}", 5000)
+            }
+        }, 1200)
     }
 
     private fun loadAndPlay() = lifecycleScope.launch {
