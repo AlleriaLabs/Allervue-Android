@@ -1181,34 +1181,191 @@ private fun RebuildSettingsScreen(
     onPlayback: () -> Unit, onDiagnostics: () -> Unit, onSignOut: () -> Unit,
     onWeb: (String, String) -> Unit
 ) {
-    Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("‹", color = MaterialTheme.colorScheme.onBackground, fontSize = 28.sp, modifier = Modifier.clickable(onClick = back).padding(end = 12.dp))
-            Column { Text("Settings", color = MaterialTheme.colorScheme.onBackground, fontSize = 25.sp, fontWeight = FontWeight.Bold); Text("Your Allervue experience", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp) }
+    val context = LocalContext.current
+    val playerPrefs = remember { context.getSharedPreferences("player", 0) }
+    val downloadPrefs = remember { context.getSharedPreferences("downloads", 0) }
+    var autoplay by remember { mutableStateOf(playerPrefs.getBoolean("autoplay", true)) }
+    var dataSaver by remember { mutableStateOf(playerPrefs.getBoolean("data_saver", false)) }
+    var wifiOnly by remember { mutableStateOf(downloadPrefs.getBoolean("wifi_only", true)) }
+    val storage = remember {
+        runCatching {
+            val stat = android.os.StatFs(android.os.Environment.getDataDirectory().absolutePath)
+            val used = (stat.totalBytes - stat.availableBytes).coerceAtLeast(0L)
+            "%.1f GB used".format(used / 1_000_000_000.0)
+        }.getOrDefault("Unavailable")
+    }
+    val displayName = Api.username.ifBlank { "Jellyfin user" }
+
+    Box(Modifier.fillMaxSize().background(Color(0xFF080A11))) {
+        Canvas(Modifier.fillMaxSize()) {
+            val radius = size.maxDimension * .72f
+            drawRect(Brush.radialGradient(listOf(Color(0xFF54201F).copy(alpha = .78f), Color.Transparent),
+                Offset(size.width * .12f, size.height * .10f), radius))
+            drawRect(Brush.radialGradient(listOf(Color(0xFF392078).copy(alpha = .72f), Color.Transparent),
+                Offset(size.width * .98f, size.height * .48f), radius * .90f))
+            drawRect(Brush.radialGradient(listOf(Color(0xFF003D3D).copy(alpha = .62f), Color.Transparent),
+                Offset(size.width * .06f, size.height * .88f), radius * .86f))
+            val stars = listOf(
+                .05f to .04f, .51f to .04f, .97f to .08f, .23f to .15f, .69f to .15f,
+                .05f to .28f, .98f to .29f, .23f to .39f, .69f to .40f, .05f to .57f,
+                .98f to .60f, .23f to .73f, .69f to .76f, .05f to .91f, .97f to .91f,
+                .51f to .98f
+            )
+            stars.forEachIndexed { index, point ->
+                drawCircle(Color.White.copy(alpha = if (index % 3 == 0) .48f else .28f),
+                    if (index % 4 == 0) 1.5.dp.toPx() else 1.dp.toPx(),
+                    Offset(size.width * point.first, size.height * point.second))
+            }
         }
-        LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 28.dp)) {
-            item { RebuildSectionLabel("ACCOUNT & SERVER") }
-            item { RebuildSettingRow("Server and account", "Connection, profile and sign-in", onClient) }
-            item { RebuildSettingRow("Request a title", "Ask your library administrator to add media", onRequest) }
-            item { RebuildSectionLabel("PLAYBACK") }
-            item { RebuildSettingRow("Playback preferences", "Quality, audio, subtitles and behavior", onPlayback) }
-            item { RebuildSettingRow("Automatic playback", "The player chooses Media3 or libmpv when needed", onPlayback) }
-            item { RebuildSectionLabel("SUPPORT") }
-            item { RebuildSettingRow("Diagnostics", "Connection checks and playback logs", onDiagnostics) }
-            item { RebuildSettingRow("Allervue website", "Product information and updates") {
-                onWeb("https://www.alleriafilmotheque.fyi", "Allervue")
-            } }
-            item { Spacer(Modifier.height(16.dp)) }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 22.dp, bottom = 34.dp)
+        ) {
             item {
-                Text("Sign out", color = Color(0xFFFF8D8D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surface)
-                        .clickable(onClick = onSignOut).padding(17.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 28.dp)) {
+                    Box(Modifier.size(48.dp).clip(CircleShape)
+                        .background(Color(0x5520182C)).border(1.dp, Color(0x66FFFFFF), CircleShape)
+                        .clickable(onClick = back), contentAlignment = Alignment.Center) {
+                        SmallIcon(R.drawable.ic_back, Color.White, 23)
+                    }
+                    Text("Settings", color = Color(0xFFF7F3FA), fontSize = 30.sp,
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
+                }
             }
             item {
-                Text("ALLERVUE  ·  1.4.0", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp,
-                    modifier = Modifier.fillMaxWidth().padding(top = 22.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
+                        .background(Color(0xCC1A1228)).border(1.dp, Color(0x553F354D), RoundedCornerShape(30.dp))
+                        .clickable(onClick = onClient).padding(horizontal = 18.dp, vertical = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(Modifier.size(66.dp).border(3.dp,
+                        Brush.sweepGradient(listOf(Color(0xFF31D5D0), Color(0xFFFF9A55), Color(0xFFFF3D83), Color(0xFF754BFF), Color(0xFF31D5D0))),
+                        CircleShape).padding(5.dp).clip(CircleShape).background(Color(0xFF24152F)),
+                        contentAlignment = Alignment.Center) {
+                        androidx.compose.foundation.Image(
+                            painter = androidx.compose.ui.res.painterResource(R.drawable.ic_allervue_emblem),
+                            contentDescription = "Allervue profile", modifier = Modifier.fillMaxSize()
+                        )
+                    }
+                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                        Text(displayName, color = Color(0xFFF5F0FA), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Jellyfin account", color = Color(0xFFB7AFC3), fontSize = 13.sp)
+                    }
+                    Text("›", color = Color(0xFFA79CB5), fontSize = 30.sp)
+                }
+            }
+            item { RebuildSettingsLabel("PLAYBACK") }
+            item {
+                RebuildSettingsGroup {
+                    RebuildSettingsSwitchRow("Autoplay next episode", autoplay) { enabled ->
+                        autoplay = enabled
+                        playerPrefs.edit().putBoolean("autoplay", enabled).apply()
+                    }
+                    RebuildSettingsDivider()
+                    RebuildSettingsActionRow("Streaming quality", "Auto", onPlayback)
+                    RebuildSettingsDivider()
+                    RebuildSettingsSwitchRow("Data saver", dataSaver) { enabled ->
+                        dataSaver = enabled
+                        val edit = playerPrefs.edit().putBoolean("data_saver", enabled)
+                        if (enabled) {
+                            val current = playerPrefs.getString("quality", "AUTO") ?: "AUTO"
+                            if (current != "P720") edit.putString("data_saver_previous_quality", current).putString("quality", "P720")
+                        } else {
+                            val previous = playerPrefs.getString("data_saver_previous_quality", "AUTO") ?: "AUTO"
+                            edit.putString("quality", previous)
+                        }
+                        edit.apply()
+                    }
+                }
+            }
+            item { RebuildSettingsLabel("DOWNLOADS") }
+            item {
+                RebuildSettingsGroup {
+                    RebuildSettingsActionRow("Download quality", "High", onPlayback)
+                    RebuildSettingsDivider()
+                    RebuildSettingsSwitchRow("Wi-Fi only", wifiOnly) { enabled ->
+                        wifiOnly = enabled
+                        downloadPrefs.edit().putBoolean("wifi_only", enabled).apply()
+                    }
+                    RebuildSettingsDivider()
+                    RebuildSettingsActionRow("Storage", storage, onDiagnostics)
+                }
+            }
+            item { RebuildSettingsLabel("ACCOUNT") }
+            item {
+                RebuildSettingsGroup {
+                    RebuildSettingsActionRow("Manage profiles", null, onClient)
+                    RebuildSettingsDivider()
+                    RebuildSettingsActionRow("Notifications", null, onDiagnostics)
+                    RebuildSettingsDivider()
+                    RebuildSettingsActionRow("Request a title", null, onRequest)
+                    RebuildSettingsDivider()
+                    RebuildSettingsActionRow("Diagnostics", null, onDiagnostics)
+                    RebuildSettingsDivider()
+                    RebuildSettingsActionRow("Allervue website", null) {
+                        onWeb("https://www.alleriafilmotheque.fyi", "Allervue")
+                    }
+                }
+            }
+            item {
+                Spacer(Modifier.height(22.dp))
+                Box(
+                    Modifier.fillMaxWidth().height(58.dp).clip(CircleShape)
+                        .border(1.dp, Color(0xFFB56E60), CircleShape)
+                        .clickable(onClick = onSignOut),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Sign out", color = Color(0xFFFF9A82), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            item {
+                Text("ALLERVUE  ·  1.4.0", color = Color(0x88D0C7D7), fontSize = 10.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 24.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
         }
+    }
+}
+
+@Composable
+private fun RebuildSettingsLabel(text: String) {
+    Text(text, color = Color(0xFFB7B0C0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+        letterSpacing = 2.sp, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp))
+}
+
+@Composable
+private fun RebuildSettingsGroup(content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
+        .background(Color(0xCC171329)).border(1.dp, Color(0x553F354D), RoundedCornerShape(30.dp)),
+        content = content)
+}
+
+@Composable
+private fun RebuildSettingsDivider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x333F354D)))
+}
+
+@Composable
+private fun RebuildSettingsActionRow(title: String, value: String?, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().height(55.dp).clickable(onClick = onClick)
+        .padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = Color(0xFFF0ECF5), fontSize = 15.sp, modifier = Modifier.weight(1f),
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (!value.isNullOrBlank()) Text(value, color = Color(0xFFB7AFC3), fontSize = 14.sp)
+        Text("›", color = Color(0xFFA79CB5), fontSize = 26.sp, modifier = Modifier.padding(start = 10.dp))
+    }
+}
+
+@Composable
+private fun RebuildSettingsSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().height(56.dp).padding(start = 20.dp, end = 18.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Text(title, color = Color(0xFFF0ECF5), fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Switch(checked = checked, onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFFF5A70),
+                uncheckedThumbColor = Color.White, uncheckedTrackColor = Color(0xFF514966),
+                uncheckedBorderColor = Color.Transparent, checkedBorderColor = Color.Transparent))
     }
 }
 
