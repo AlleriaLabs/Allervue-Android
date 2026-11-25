@@ -261,10 +261,10 @@ fun SplashScreen() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
-                Text("drift", color = Color(0xFFF8F4FF), fontSize = 60.sp,
-                    fontWeight = FontWeight.Black, letterSpacing = (-3).sp, lineHeight = 66.sp)
-                Text(".", color = Color(0xFFFF4D78), fontSize = 60.sp,
-                    fontWeight = FontWeight.Black, lineHeight = 66.sp)
+                Text("Allervue", color = Color(0xFFF8F4FF), fontSize = 43.sp,
+                    fontWeight = FontWeight.Black, letterSpacing = (-1.8).sp, lineHeight = 52.sp)
+                Text(".", color = Color(0xFFFF4D78), fontSize = 48.sp,
+                    fontWeight = FontWeight.Black, lineHeight = 52.sp)
             }
             Spacer(Modifier.height(12.dp))
             Text("Find what fits tonight", color = Color(0xFFB9B4C8), fontSize = 16.sp,
