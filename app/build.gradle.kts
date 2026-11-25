@@ -45,6 +45,13 @@ android {
         }
     }
     buildFeatures { compose = true }
+    // LibVLC and libmpvKt both bundle the same C++ shared runtime.
+    // Package one copy to avoid duplicate native-library merge failures.
+    packaging {
+        jniLibs {
+            pickFirsts += "**/libc++_shared.so"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
