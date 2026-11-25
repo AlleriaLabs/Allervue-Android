@@ -2,13 +2,13 @@ package com.allerix.app
 
 import android.content.Context
 import android.view.View
-import io.github.yuroyami.libmpv.EndFileReason
-import io.github.yuroyami.libmpv.HwdecMode
-import io.github.yuroyami.libmpv.MpvEvent
-import io.github.yuroyami.libmpv.MpvPlaybackState
-import io.github.yuroyami.libmpv.TrackSelection
-import io.github.yuroyami.libmpv.view.MpvOptions
-import io.github.yuroyami.libmpv.view.MpvView
+import io.github.yuroyami.libmpvkt.EndFileReason
+import io.github.yuroyami.libmpvkt.HwdecMode
+import io.github.yuroyami.libmpvkt.MpvEvent
+import io.github.yuroyami.libmpvkt.MpvPlaybackState
+import io.github.yuroyami.libmpvkt.TrackSelection
+import io.github.yuroyami.libmpvkt.view.MpvOptions
+import io.github.yuroyami.libmpvkt.view.MpvView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
