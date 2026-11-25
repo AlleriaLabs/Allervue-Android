@@ -1701,6 +1701,9 @@ class PlayerActivity : ComponentActivity() {
                 spinner.visibility = if (state == Player.STATE_BUFFERING) View.VISIBLE else View.GONE
                 if (state == Player.STATE_READY) {
                     if (player.playWhenReady) hasPlayedOnce = true
+                    // Duration is only reliable after the media is prepared; render
+                    // chapter markers now, not only during the earlier metadata request.
+                    renderChapterDots()
                     updateProgress()
                     if (startupStartedAt > 0L) {
                         DiagnosticLog.record(this@PlayerActivity,
