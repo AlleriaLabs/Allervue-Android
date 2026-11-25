@@ -1573,31 +1573,48 @@ class PlayerActivity : ComponentActivity() {
             chapterDots.getOrNull(index)?.background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
                 setColor(if (chapterMs <= positionMs) accent else Color.WHITE)
+                setStroke(dp(1), 0xCC17131D.toInt())
             }
         }
     }
 
     private fun renderChapterDots() {
+        if (!::seekHost.isInitialized) return
         seekHost.post {
             chapterDots.forEach { seekHost.removeView(it) }
             chapterDots.clear()
             val dur = duration
-            if (dur <= 0L || seekHost.width <= dp(8)) return@post
-            val usableWidth = seekHost.width - dp(8)
-            chapterPositions.filter { it in 1 until dur }.forEach { chapterMs ->
+            val validChapters = chapterPositions.filter { it in 1 until dur }
+            DiagnosticLog.record(
+                this@PlayerActivity,
+                "chapter markers: received=${chapterPositions.size}, valid=${validChapters.size}, durationMs=$dur, hostWidth=${seekHost.width}"
+            )
+            if (dur <= 0L || seekHost.width <= dp(8) || validChapters.isEmpty()) return@post
+
+            // Match the SeekBar's 4dp horizontal padding plus thumb inset so
+            // chapter dots sit directly on the timeline rather than its outer frame.
+            val inset = dp(8)
+            val usableWidth = (seekHost.width - inset * 2).coerceAtLeast(1)
+            validChapters.forEach { chapterMs ->
+                val dotSize = dp(8)
                 val dot = View(this).apply {
                     isClickable = false
+                    importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                    elevation = dp(3).toFloat()
                     background = GradientDrawable().apply {
                         shape = GradientDrawable.OVAL
                         setColor(if (chapterMs <= playbackPositionMs()) accent else Color.WHITE)
+                        setStroke(dp(1), 0xCC17131D.toInt())
                     }
                 }
-                val x = dp(4) + (usableWidth * (chapterMs.toFloat() / dur)).toInt() - dp(3)
-                seekHost.addView(dot, FrameLayout.LayoutParams(dp(6), dp(6), Gravity.CENTER_VERTICAL).apply {
-                    leftMargin = x.coerceIn(0, seekHost.width - dp(6))
+                val centerX = inset + (usableWidth * (chapterMs.toDouble() / dur)).toInt()
+                seekHost.addView(dot, FrameLayout.LayoutParams(dotSize, dotSize, Gravity.CENTER_VERTICAL).apply {
+                    leftMargin = (centerX - dotSize / 2).coerceIn(0, seekHost.width - dotSize)
                 })
                 chapterDots += dot
             }
+            updateChapterDotColors(playbackPositionMs())
+            DiagnosticLog.record(this@PlayerActivity, "chapter markers: rendered=${chapterDots.size}")
         }
     }
 
@@ -1790,6 +1807,7 @@ class PlayerActivity : ComponentActivity() {
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
             chapterPositions = Api.chapterPositions(itemId)
+            DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: chapter metadata returned ${chapterPositions.size} positions")
             renderChapterDots()
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received in " + (SystemClock.elapsedRealtime() - metadataStarted) + "ms; mediaSources=" + (item.mediaSources?.size ?: 0))
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
