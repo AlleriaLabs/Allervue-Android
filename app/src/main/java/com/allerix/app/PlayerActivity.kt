@@ -113,6 +113,9 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var badgeRow: LinearLayout
     private lateinit var topPlaybackInfo: TextView
     private lateinit var seek: SeekBar
+    private lateinit var seekHost: FrameLayout
+    private var chapterPositions: List<Long> = emptyList()
+    private val chapterDots = mutableListOf<View>()
     private lateinit var curTime: TextView
     private lateinit var durTime: TextView
     private lateinit var playBtn: ImageView
@@ -573,52 +576,52 @@ class PlayerActivity : ComponentActivity() {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            // Slim cinematic track with distinct buffered and played segments.
-            val track = GradientDrawable().apply {
+            // Hairline-white timeline; the played portion is coral.
+            fun timelineTrack(color: Int) = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dp(2).toFloat()
-                setColor(0x663B3542)
+                cornerRadius = dp(1).toFloat()
+                setColor(color)
+                setSize(-1, dp(2))
             }
-            val buffered = ClipDrawable(
-                GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(2).toFloat()
-                    setColor(0x998F9EAD.toInt())
-                }, Gravity.LEFT, ClipDrawable.HORIZONTAL
-            )
-            val played = ClipDrawable(
-                GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = dp(2).toFloat()
-                    setColor(0xFFFF4F78.toInt())
-                }, Gravity.LEFT, ClipDrawable.HORIZONTAL
-            )
+            val track = timelineTrack(0xDDFFFFFF.toInt())
+            val buffered = ClipDrawable(timelineTrack(0x66FFFFFF), Gravity.LEFT, ClipDrawable.HORIZONTAL)
+            val played = ClipDrawable(timelineTrack(0xFFFF4F78.toInt()), Gravity.LEFT, ClipDrawable.HORIZONTAL)
             progressDrawable = LayerDrawable(arrayOf(track, buffered, played)).apply {
                 setId(0, android.R.id.background)
                 setId(1, android.R.id.secondaryProgress)
                 setId(2, android.R.id.progress)
+                for (index in 0..2) {
+                    setLayerGravity(index, Gravity.CENTER_VERTICAL)
+                    setLayerHeight(index, dp(2))
+                }
             }
             thumb = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(0xFFFF4F78.toInt())
-                setStroke(dp(2), Color.WHITE)
-                setSize(dp(12), dp(12))
+                setColor(Color.WHITE)
+                setSize(dp(7), dp(7))
             }
-            thumbOffset = dp(6)
-            minimumHeight = dp(22)
-            setPadding(dp(6), 0, dp(6), 0)
+            thumbOffset = dp(4)
+            minimumHeight = dp(18)
+            setPadding(dp(4), 0, dp(4), 0)
             background = null
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) { if (fromUser) curTime.text = fmt(p.toLong()) }
+            override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) {
+                if (fromUser) curTime.text = fmt(p.toLong())
+                updateChapterDotColors(p.toLong())
+            }
             override fun onStartTrackingTouch(s: SeekBar) { scrubbing = true; handler.removeCallbacks(autoHide) }
             override fun onStopTrackingTouch(s: SeekBar) { scrubbing = false; seekPlaybackTo(s.progress.toLong()); scheduleHide() }
         })
+        seekHost = FrameLayout(this).apply {
+            clipChildren = false
+            addView(seek, FrameLayout.LayoutParams(-1, dp(26), Gravity.CENTER))
+        }
         val timeline = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(28), dp(7), dp(28), dp(1))
             addView(curTime, LinearLayout.LayoutParams(-2, dp(26)))
-            addView(seek, LinearLayout.LayoutParams(0, dp(26), 1f).apply { leftMargin = dp(10); rightMargin = dp(10) })
+            addView(seekHost, LinearLayout.LayoutParams(0, dp(26), 1f).apply { leftMargin = dp(10); rightMargin = dp(10) })
             addView(durTime, LinearLayout.LayoutParams(-2, dp(26)))
         }
         val utilityDock = LinearLayout(this).apply {
@@ -1565,6 +1568,39 @@ class PlayerActivity : ComponentActivity() {
         if (isPlaybackPlaying()) handler.postDelayed(autoHide, 4000)
     }
 
+    private fun updateChapterDotColors(positionMs: Long) {
+        chapterPositions.forEachIndexed { index, chapterMs ->
+            chapterDots.getOrNull(index)?.background = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (chapterMs <= positionMs) accent else Color.WHITE)
+            }
+        }
+    }
+
+    private fun renderChapterDots() {
+        seekHost.post {
+            chapterDots.forEach { seekHost.removeView(it) }
+            chapterDots.clear()
+            val dur = duration
+            if (dur <= 0L || seekHost.width <= dp(8)) return@post
+            val usableWidth = seekHost.width - dp(8)
+            chapterPositions.filter { it in 1 until dur }.forEach { chapterMs ->
+                val dot = View(this).apply {
+                    isClickable = false
+                    background = GradientDrawable().apply {
+                        shape = GradientDrawable.OVAL
+                        setColor(if (chapterMs <= playbackPositionMs()) accent else Color.WHITE)
+                    }
+                }
+                val x = dp(4) + (usableWidth * (chapterMs.toFloat() / dur)).toInt() - dp(3)
+                seekHost.addView(dot, FrameLayout.LayoutParams(dp(6), dp(6), Gravity.CENTER_VERTICAL).apply {
+                    leftMargin = x.coerceIn(0, seekHost.width - dp(6))
+                })
+                chapterDots += dot
+            }
+        }
+    }
+
     private fun updateProgress() {
         val pos = playbackPositionMs()
         val dur = duration
@@ -1572,6 +1608,7 @@ class PlayerActivity : ComponentActivity() {
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val buffered = player.bufferedPosition
         seek.secondaryProgress = buffered.coerceAtLeast(pos).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        updateChapterDotColors(pos)
         curTime.text = fmt(pos)
         durTime.text = if (dur > 0) "-${fmt((dur - pos).coerceAtLeast(0L))}" else "--:--"
         progressRing?.invalidate()
@@ -1749,6 +1786,8 @@ class PlayerActivity : ComponentActivity() {
             val metadataStarted = SystemClock.elapsedRealtime()
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: requesting item metadata")
             val item = Api.item(itemId)
+            chapterPositions = Api.chapterPositions(itemId)
+            renderChapterDots()
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: metadata received in " + (SystemClock.elapsedRealtime() - metadataStarted) + "ms; mediaSources=" + (item.mediaSources?.size ?: 0))
             val src = item.mediaSources?.firstOrNull() ?: error("No media source")
             sourceId = src.id
