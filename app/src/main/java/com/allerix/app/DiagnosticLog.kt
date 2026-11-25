@@ -47,6 +47,17 @@ object DiagnosticLog {
         }
     }
 
+    fun pendingFatalReport(context: Context): String? = runCatching {
+        val content = read(context)
+        val fatalIndex = content.lastIndexOf("FATAL uncaught exception")
+        val acknowledgedIndex = content.lastIndexOf("Crash report acknowledged")
+        if (fatalIndex < 0 || fatalIndex < acknowledgedIndex) null else content.substring(fatalIndex).take(12000)
+    }.getOrNull()
+
+    fun acknowledgeCrashReport(context: Context) {
+        record(context, "Crash report acknowledged")
+    }
+
     fun read(context: Context): String = runCatching {
         val file = File(context.applicationContext.filesDir, FILE_NAME)
         if (file.exists()) file.readText(Charsets.UTF_8) else ""
