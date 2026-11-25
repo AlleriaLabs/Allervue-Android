@@ -573,8 +573,7 @@ class PlayerActivity : ComponentActivity() {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            // Slim, cinematic timeline: charcoal remainder, muted buffered track,
-            // coral played section, and a compact coral thumb with a white rim.
+            // Slim cinematic track with distinct buffered and played segments.
             val track = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
                 cornerRadius = dp(2).toFloat()
@@ -631,6 +630,7 @@ class PlayerActivity : ComponentActivity() {
                     setTextColor(if (emphasized) 0xFF180D19.toInt() else 0xFFF5F1F8.toInt())
                     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                     setPadding(dp(9), dp(5), dp(9), dp(5))
+                    background = GradientDrawable().apply {
                         cornerRadius = dp(30).toFloat()
                         if (emphasized) {
                             colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
@@ -1230,6 +1230,7 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onStartTrackingTouch(s: SeekBar) {}
             override fun onStopTrackingTouch(s: SeekBar) {}
+        })
         box.addView(label); box.addView(bar)
         box.addView(noteText("Above 100% the volume is boosted by software, up to 200%. Very loud audio may distort."))
     }
@@ -1569,7 +1570,7 @@ class PlayerActivity : ComponentActivity() {
         val dur = duration
         if (dur > 0) seek.max = dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        val buffered = if (::player.isInitialized) player.bufferedPosition else 0L
+        val buffered = player.bufferedPosition
         seek.secondaryProgress = buffered.coerceAtLeast(pos).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         curTime.text = fmt(pos)
         durTime.text = if (dur > 0) "-${fmt((dur - pos).coerceAtLeast(0L))}" else "--:--"
@@ -1831,6 +1832,7 @@ class PlayerActivity : ComponentActivity() {
 
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
+        setNativeText(null)
         player.stop(); player.clearMediaItems()
         loadAndPlay()
     }
