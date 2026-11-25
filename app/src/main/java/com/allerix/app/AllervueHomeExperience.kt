@@ -756,11 +756,17 @@ internal fun AllervueHome(
                         val baseAngle = -90f + slot * (360f / count)
                         val phaseJitter = kotlin.random.Random.nextFloat() * 34f - 17f
                         val planetSize = planetSizes[slot % planetSizes.size]
-                        val outerSize = planetSize + 24.dp
+                        // Use the rendered outer-node diameter for orbit clearance.
+                        // The vertical orbit must reach at least the top tangent of
+                        // the center artwork instead of stopping short above it.
+                        val outerSize = planetSize + 40.dp
                         val radiusX = (w * (.25f + kotlin.random.Random.nextFloat() * .18f))
                             .coerceAtMost((w - outerSize) / 2 - 6.dp)
+                        val minimumVerticalRadius = centerSize / 2 + outerSize / 2 + 8.dp
+                        val maximumVerticalRadius = (h - outerSize) / 2 - 12.dp
                         val radiusY = (h * (.13f + kotlin.random.Random.nextFloat() * .20f))
-                            .coerceAtMost((h - outerSize) / 2 - 12.dp)
+                            .coerceAtLeast(minimumVerticalRadius)
+                            .coerceAtMost(maximumVerticalRadius)
                         val speed = .65f + kotlin.random.Random.nextFloat() * .7f
                         Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
                     }
@@ -777,7 +783,7 @@ internal fun AllervueHome(
                     val x = (orbitCenterX + radiusX * kotlin.math.cos(angle).toFloat() - nodeOuterSize / 2)
                         .coerceIn(6.dp, (w - nodeOuterSize - 6.dp).coerceAtLeast(6.dp))
                     val y = (orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeOuterSize / 2)
-                        .coerceIn(112.dp, (h - nodeOuterSize - 10.dp).coerceAtLeast(112.dp))
+                        .coerceIn(8.dp, (h - nodeOuterSize - 10.dp).coerceAtLeast(8.dp))
                     val artworkGlow = AHot
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeOuterSize)
