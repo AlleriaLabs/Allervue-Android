@@ -778,7 +778,7 @@ internal fun AllervueHome(
                         .coerceIn(6.dp, (w - nodeOuterSize - 6.dp).coerceAtLeast(6.dp))
                     val y = (orbitCenterY + radiusY * kotlin.math.sin(angle).toFloat() - nodeOuterSize / 2)
                         .coerceIn(112.dp, (h - nodeOuterSize - 10.dp).coerceAtLeast(112.dp))
-                    var artworkGlow by remember(item.id) { mutableStateOf(Color(0xFF9B6AB5)) }
+                    val artworkGlow = AHot
                     Column(
                         Modifier.offset(x = x, y = y).width(nodeOuterSize)
                             .clickable { selected = item; synchronizedCycle++ },
@@ -790,15 +790,15 @@ internal fun AllervueHome(
                             contentAlignment = Alignment.Center
                         ) {
                             Box(Modifier.size(nodeSize).clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(artworkGlow.copy(alpha = .95f), artworkGlow.copy(alpha = .55f), Color(0xFF17152C))))
-                                .padding(2.dp)) {
+                                
+                                ) {
                             HomeArtwork(
                                 model = Api.orbitPoster(item),
                                 contentDescription = item.name,
                                 modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF25213A)),
                                 contentScale = ContentScale.Crop,
                                 fallbackModel = Api.heroImage(item),
-                                onArtworkColor = { artworkGlow = it }
+                                onArtworkColor = { }
                             )
                             }
                         }
@@ -806,7 +806,7 @@ internal fun AllervueHome(
                 }
 
                 if (centerItem != null) {
-                    var centerArtworkGlow by remember(centerItem.id) { mutableStateOf(Color(0xFF9B6AB5)) }
+                    val centerArtworkGlow = AHot
                     // The central star/moon follows the device's local clock.
                     Box(
                         Modifier.offset(
@@ -825,13 +825,11 @@ internal fun AllervueHome(
                             y = orbitCenterY - (centerSize + 18.dp) / 2
                         )
                             .size(centerSize + 18.dp).clip(CircleShape)
-                            .background(Brush.linearGradient(listOf(Color(0xFF74E0E1), Color(0xFFAB75C4), Color(0xFFFF8A8A))))
+                            .background(AHot)
                             .padding(3.dp)
                     ) {
                         Box(
                             Modifier.fillMaxSize().clip(CircleShape)
-                                .background(Color(0xFF100E20))
-                                .border(1.5.dp, Color.White.copy(alpha = .78f), CircleShape)
                                 .clickable { shownCenterItem?.let(onOpen) }
                         ) {
                             HomeArtwork(
@@ -843,7 +841,7 @@ internal fun AllervueHome(
                                 onModelLoaded = {
                                     if (selected?.id == centerItem.id) displayedCenterItem = centerItem
                                 },
-                                onArtworkColor = { centerArtworkGlow = it }
+                                onArtworkColor = { }
                             )
                             Box(Modifier.fillMaxSize().background(
                                 Brush.verticalGradient(listOf(Color.Transparent, Color(0x220B0915), Color(0x550B0915)))
