@@ -10,7 +10,7 @@ dependencyResolutionManagement {
         mavenCentral()
         // libmpv artifacts are also published through the upstream GitHub Pages Maven repository.
         maven("https://yuroyami.github.io/maven") {
-            content { includeGroup("io.github.yuroyami") }
+            content { includeModuleByRegex("io\\.github\\.yuroyami", "libmpvkt.*") }
         }
     }
 }
