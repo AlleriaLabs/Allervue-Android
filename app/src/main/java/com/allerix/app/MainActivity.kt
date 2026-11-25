@@ -255,7 +255,7 @@ fun SplashScreen() {
         }
 
         Column(
-            Modifier.fillMaxWidth().offset(y = h * .28f).alpha(entrance),
+            Modifier.fillMaxWidth().offset(y = h * .60f).alpha(entrance),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
