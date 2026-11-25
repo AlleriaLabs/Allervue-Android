@@ -94,7 +94,7 @@ fun App() {
     var splash by remember { mutableStateOf(true) }
     var loggedIn by remember { mutableStateOf(Api.token.isNotEmpty()) }
     var loginSettings by remember { mutableStateOf(false) }
-    var forgotPassword by remember { mutableStateOf(false) }
+    var forgotPassword by remember { mutableStateOf(false) }\n    var pendingCrashReport by remember { mutableStateOf(DiagnosticLog.pendingFatalReport(ctx)) }
     LaunchedEffect(Unit) { delay(900); splash = false }
 
     var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
@@ -106,7 +106,7 @@ fun App() {
     Box(Modifier.fillMaxSize()) {
         if (splash) {
             SplashScreen()
-        } else if (loggedIn) {
+        } else if (pendingCrashReport != null) {\n            CrashRecoveryScreen(\n                report = pendingCrashReport.orEmpty(),\n                onContinue = {\n                    DiagnosticLog.acknowledgeCrashReport(ctx)\n                    pendingCrashReport = null\n                }\n            )\n        } else if (loggedIn) {
             RebuildMainShell(onLogout = { Api.logout(ctx); loggedIn = false })
         } else if (forgotPassword) {
             ForgotPasswordScreen(onBack = { forgotPassword = false })
