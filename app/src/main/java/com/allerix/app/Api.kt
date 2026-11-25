@@ -281,6 +281,19 @@ object Api {
         ).items
     }
 
+    /** Chapter start positions supplied by Jellyfin item metadata. */
+    suspend fun chapterPositions(id: String): List<Long> = runCatching {
+        val root = json.parseToJsonElement(call("GET", "/Users/$userId/Items/$id?Fields=Chapters"))
+        val chapters = (root as? kotlinx.serialization.json.JsonObject)?.get("Chapters")
+            as? kotlinx.serialization.json.JsonArray ?: return@runCatching emptyList()
+        chapters.mapNotNull { element ->
+            val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+            val ticks = obj["StartPositionTicks"]?.toString()?.toLongOrNull()
+                ?: return@mapNotNull null
+            (ticks / 10_000L).takeIf { it > 0L }
+        }.distinct().sorted()
+    }.getOrDefault(emptyList())
+
     /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */
     suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
         val root = json.parseToJsonElement(call("GET", "/MediaSegments/$id"))
