@@ -18,8 +18,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * libmpv fallback. MpvView owns its native core and rendering surface; Allervue's
- * PlayerActivity remains responsible for the common controls and gesture layer.
+ * libmpv fallback renderer. The activity continues to own the shared controls,
+ * gesture layer and overlays; this adapter only owns decoding and its video surface.
  */
 class MpvPlayerEngine(context: Context) : PlayerEngine {
     private val videoView = MpvView(context)
@@ -31,7 +31,6 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     private var listener: PlayerEngine.Listener? = null
     private var requestedAudioTrackId: String? = null
     private var requestedSubtitleTrackId: String? = null
-    private var lastRequest: PlaybackRequest? = null
     private var initialized = false
     private var generation = 0
 
@@ -40,22 +39,19 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     }
 
     override fun play(request: PlaybackRequest) {
-        lastRequest = request
         val requestGeneration = ++generation
+        requestedAudioTrackId = request.audioTrackId
+        requestedSubtitleTrackId = request.subtitleTrackId
         scope.launch {
             try {
                 if (!initialized) {
                     val headers = request.headers.map { (key, value) -> "$key: $value" }
-                        .joinToString(",")
                     val options = MpvOptions(
                         hwdec = HwdecMode.Auto,
-                        audioLanguages = emptyList(),
-                        subtitleLanguages = emptyList(),
+                        inputDefaultBindings = false,
                         extra = buildMap {
-                            if (headers.isNotBlank()) put("http-header-fields", headers)
-                            put("input-default-bindings", "no")
+                            if (headers.isNotEmpty()) put("http-header-fields", headers.joinToString(","))
                             put("osc", "no")
-                            put("sub-auto", "fuzzy")
                             put("sub-ass-override", "no")
                         }
                     )
@@ -139,17 +135,20 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     }
 
     override fun snapshot(): PlaybackSnapshot {
-        if (!initialized) return PlaybackSnapshot(0L, 0L, false, false, requestedAudioTrackId, requestedSubtitleTrackId)
+        if (!initialized) {
+            return PlaybackSnapshot(0L, 0L, false, false, requestedAudioTrackId, requestedSubtitleTrackId)
+        }
         val position = ((videoView.timePos ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
         val duration = ((videoView.duration ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
+        val buffering = videoView.playback?.value?.status in setOf(
+            MpvPlaybackState.Status.Loading,
+            MpvPlaybackState.Status.Buffering
+        )
         return PlaybackSnapshot(
             positionMs = position,
             durationMs = duration,
             isPlaying = !videoView.paused,
-            isBuffering = videoView.playback?.value?.status in setOf(
-                MpvPlaybackState.Status.Loading,
-                MpvPlaybackState.Status.Buffering
-            ),
+            isBuffering = buffering,
             audioTrackId = requestedAudioTrackId,
             subtitleTrackId = requestedSubtitleTrackId
         )
