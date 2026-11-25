@@ -56,9 +56,19 @@ private val APanel = Color(0xFF17152C)
 
 private data class HomeMeteor(val startX: Float, val startY: Float)
 
-private fun sampleArtworkGlow(drawable: android.graphics.drawable.Drawable): Color? {
-    val bitmap = (drawable as? BitmapDrawable)?.bitmap ?: return null
-    if (bitmap.width <= 0 || bitmap.height <= 0) return null
+private fun sampleArtworkGlow(drawable: android.graphics.drawable.Drawable): Color? = runCatching {
+    val source = (drawable as? BitmapDrawable)?.bitmap ?: return@runCatching null
+    if (source.width <= 0 || source.height <= 0) return@runCatching null
+
+    // Coil may return a hardware-accelerated bitmap. Android forbids getPixel()
+    // on HARDWARE configs, so sample a small software copy instead.
+    val bitmap = if (source.config == android.graphics.Bitmap.Config.HARDWARE) {
+        source.copy(android.graphics.Bitmap.Config.ARGB_8888, false)
+            ?: return@runCatching null
+    } else {
+        source
+    }
+
     var red = 0L
     var green = 0L
     var blue = 0L
@@ -74,11 +84,12 @@ private fun sampleArtworkGlow(drawable: android.graphics.drawable.Drawable): Col
             samples++
         }
     }
-    if (samples == 0L) return null
-    return Color(android.graphics.Color.rgb(
+    if (bitmap !== source && !bitmap.isRecycled) bitmap.recycle()
+    if (samples == 0L) return@runCatching null
+    Color(android.graphics.Color.rgb(
         (red / samples).toInt(), (green / samples).toInt(), (blue / samples).toInt()
     ))
-}
+}.getOrNull()
 
 
 private data class HomeSnapshot(
