@@ -104,6 +104,7 @@ class PlayerActivity : ComponentActivity() {
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
+    private lateinit var exoEngine: ExoPlayerEngine
     /** Stable video-surface slot shared by every playback engine; controls remain siblings above it. */
     private lateinit var videoHost: FrameLayout
     private lateinit var gestureLayer: View
@@ -260,6 +261,7 @@ class PlayerActivity : ComponentActivity() {
             useController = false
             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
         }
+        exoEngine = ExoPlayerEngine(this, player, playerView)
         buildUi()
         DiagnosticLog.record(this, "PlayerActivity: UI built")
         setupGestures()
@@ -845,7 +847,7 @@ class PlayerActivity : ComponentActivity() {
         videoHost = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
         }
-        attachEngineSurface(playerView)
+        attachEngineSurface(exoEngine.view)
 
         gestureLayer = View(this).apply { setBackgroundColor(Color.TRANSPARENT) }
         root = FrameLayout(this).apply {
@@ -2377,6 +2379,7 @@ class PlayerActivity : ComponentActivity() {
             CoroutineScope(Dispatchers.IO).launch { Api.report("stop", id, src, pos, true, tc, sid) }
         }
         try { enhancer?.release() } catch (e: Exception) { }
+        if (::exoEngine.isInitialized) exoEngine.release()
         player.release()
         super.onDestroy()
     }
