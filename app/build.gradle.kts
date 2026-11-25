@@ -64,6 +64,8 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.11.1")
     // Last-resort playback backend for unusual containers and network streams.
     implementation("org.videolan.android:libvlc-all:3.6.0")
+    // libmpv with libass for ASS/SSA subtitle-heavy playback.
+    implementation("io.github.yuroyami:libmpv-kmp-view:0.4.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("io.coil-kt:coil-compose:2.6.0")
