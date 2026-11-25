@@ -98,7 +98,7 @@ fun App() {
     var loginSettings by remember { mutableStateOf(false) }
     var forgotPassword by remember { mutableStateOf(false) }
     var pendingCrashReport by remember { mutableStateOf(DiagnosticLog.pendingFatalReport(ctx)) }
-    LaunchedEffect(Unit) { delay(900); splash = false }
+    LaunchedEffect(Unit) { delay(1800); splash = false }
 
     var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
     LaunchedEffect(Unit) {
@@ -147,40 +147,133 @@ fun App() {
 fun SplashScreen() {
     var started by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { started = true }
-    val logoScale by animateFloatAsState(
-        if (started) 1f else 0.6f, tween(1000, easing = FastOutSlowInEasing), label = "logoScale"
-    )
-    val logoAlpha by animateFloatAsState(if (started) 1f else 0f, tween(900), label = "logoAlpha")
-    val tagAlpha by animateFloatAsState(if (started) 1f else 0f, tween(900, delayMillis = 800), label = "tagAlpha")
-    val pulse = rememberInfiniteTransition(label = "pulse")
-    val glow by pulse.animateFloat(
-        0.15f, 0.40f, infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "glow"
-    )
-    val slide by pulse.animateFloat(
-        0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "slide"
-    )
-    Box(
-        Modifier.fillMaxSize().background(Brush.radialGradient(listOf(Color(0xFF65D6D0).copy(alpha = glow), BgDark), radius = 1100f)),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AllervueWordmark(
-                emblemSize = 104.dp,
-                textSize = 60.sp,
-                modifier = Modifier.scale(logoScale).alpha(logoAlpha)
+    val entrance by animateFloatAsState(if (started) 1f else 0f,
+        tween(900, easing = FastOutSlowInEasing), label = "splashEntrance")
+    val orbitPulse = rememberInfiniteTransition(label = "splashOrbit")
+    val orbitRotation by orbitPulse.animateFloat(0f, 360f,
+        infiniteRepeatable(tween(24000, easing = LinearEasing)), label = "orbitRotation")
+    val progress by orbitPulse.animateFloat(.43f, .49f,
+        infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "splashProgress")
+
+    BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF080A11))) {
+        val w = maxWidth
+        val h = maxHeight
+        Canvas(Modifier.fillMaxSize()) {
+            val radius = size.maxDimension * .82f
+            drawRect(Brush.radialGradient(listOf(Color(0xFF63251F).copy(alpha = .88f), Color.Transparent),
+                Offset(size.width * .13f, size.height * .13f), radius))
+            drawRect(Brush.radialGradient(listOf(Color(0xFF3D217D).copy(alpha = .82f), Color.Transparent),
+                Offset(size.width * 1.02f, size.height * .49f), radius * .88f))
+            drawRect(Brush.radialGradient(listOf(Color(0xFF004C4B).copy(alpha = .72f), Color.Transparent),
+                Offset(size.width * .13f, size.height * .91f), radius * .86f))
+            val starPoints = listOf(
+                .05f to .035f, .51f to .035f, .975f to .035f, .23f to .071f, .85f to .071f,
+                .39f to .11f, .05f to .27f, .975f to .27f, .23f to .38f, .69f to .38f,
+                .05f to .51f, .975f to .51f, .23f to .62f, .69f to .64f, .05f to .75f,
+                .975f to .75f, .39f to .84f, .23f to .91f, .69f to .91f, .05f to .975f,
+                .975f to .975f, .51f to .78f, .39f to .035f
             )
-            Spacer(Modifier.height(24.dp))
-            Text(
-                "SEE IT ALL", color = Color(0xFFB9B4C8), fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold, letterSpacing = 5.sp,
-                textAlign = TextAlign.Center, modifier = Modifier.alpha(tagAlpha)
-            )
+            starPoints.forEachIndexed { index, p ->
+                drawCircle(Color.White.copy(alpha = if (index % 4 == 0) .52f else .30f),
+                    if (index % 4 == 0) 1.45.dp.toPx() else 1.dp.toPx(),
+                    Offset(size.width * p.first, size.height * p.second))
+            }
+
+            val cx = size.width * .5f
+            val cy = size.height * .402f
+            val orbitRadii = listOf(size.width * .385f, size.width * .585f, size.width * .755f)
+            orbitRadii.forEachIndexed { index, r ->
+                drawCircle(Color.White.copy(alpha = if (index == 0) .28f else .12f),
+                    r, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 1.dp.toPx(), pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(
+                            floatArrayOf(2.dp.toPx(), 11.dp.toPx()), orbitRotation * (index + 1) / 3f)))
+            }
+
+            val mainR = size.width * .202f
+            drawCircle(Color(0xFFFF8B62).copy(alpha = .17f), mainR * 1.23f, Offset(cx, cy))
+            drawCircle(Brush.sweepGradient(listOf(Color(0xFF58D8CF), Color(0xFFFFA45E),
+                Color(0xFFFF4D83), Color(0xFF7547E8), Color(0xFF58D8CF)), Offset(cx, cy)),
+                mainR * 1.035f, Offset(cx, cy))
+            drawCircle(Color(0xFF27132F), mainR * .985f, Offset(cx, cy))
+            drawCircle(Brush.linearGradient(listOf(Color(0xFF3C176C), Color(0xFFB84283),
+                Color(0xFFFF8750), Color(0xFF251039)), Offset(cx-mainR,cy-mainR), Offset(cx+mainR,cy+mainR)),
+                mainR * .94f, Offset(cx, cy))
+            drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF0BB).copy(alpha=.95f),
+                Color(0xFFFFB36C).copy(alpha=.42f), Color.Transparent), Offset(cx+mainR*.40f,cy-mainR*.43f), mainR*.53f),
+                mainR*.58f, Offset(cx+mainR*.12f,cy-mainR*.17f))
+            val horizonY = cy + mainR * .48f
+            val horizon = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx-mainR*.94f,horizonY)
+                lineTo(cx+mainR*.94f,horizonY)
+                lineTo(cx+mainR*.94f,cy+mainR*.94f)
+                lineTo(cx-mainR*.94f,cy+mainR*.94f)
+                close()
+            }
+            drawPath(horizon, Brush.verticalGradient(listOf(Color(0xFF310B39), Color(0xFF120B25)),
+                horizonY, cy+mainR))
+            val tower = androidx.compose.ui.graphics.Path().apply {
+                moveTo(cx+mainR*.28f,horizonY)
+                lineTo(cx+mainR*.35f,cy-mainR*.23f)
+                lineTo(cx+mainR*.47f,cy-mainR*.23f)
+                lineTo(cx+mainR*.55f,horizonY)
+                close()
+            }
+            drawPath(tower, Color(0xFF10091B))
+            drawCircle(Color(0xFF10091B), mainR*.94f, Offset(cx,cy),
+                style=androidx.compose.ui.graphics.drawscope.Stroke(width=1.2.dp.toPx()))
+
+            fun satellite(x: Float, y: Float, r: Float, colors: List<Color>) {
+                drawCircle(colors.first().copy(alpha=.24f), r*1.1f, Offset(x,y))
+                drawCircle(Brush.linearGradient(colors, Offset(x-r,y-r), Offset(x+r,y+r)), r, Offset(x,y))
+                drawCircle(Color.White.copy(alpha=.22f), r, Offset(x,y),
+                    style=androidx.compose.ui.graphics.drawscope.Stroke(width=1.dp.toPx()))
+            }
+            satellite(cx-size.width*.36f, cy-size.width*.125f, size.width*.054f,
+                listOf(Color(0xFFFFB15F),Color(0xFFE94D31),Color(0xFF3A1427)))
+            satellite(cx+size.width*.295f, cy-size.width*.245f, size.width*.047f,
+                listOf(Color(0xFF43C9C1),Color(0xFF144B56),Color(0xFF13243A)))
+            drawCircle(Color(0xFFFF72B5), size.width*.027f, Offset(cx+size.width*.283f,cy-size.width*.25f))
+            drawCircle(Color(0xFFFFD17A), size.width*.018f, Offset(cx+size.width*.332f,cy-size.width*.22f))
+            satellite(cx+size.width*.36f, cy+size.width*.135f, size.width*.058f,
+                listOf(Color(0xFF282A76),Color(0xFF121A48),Color(0xFF080D27)))
+            drawCircle(Color(0xFFD6D9FF), size.width*.014f,
+                Offset(cx+size.width*.385f,cy+size.width*.105f))
+            satellite(cx-size.width*.245f, cy+size.width*.30f, size.width*.046f,
+                listOf(Color(0xFF7EA8E8),Color(0xFF344E9A),Color(0xFF162E5C)))
+            drawCircle(Color(0xFFB7C9F6), size.width*.029f,
+                Offset(cx-size.width*.245f,cy+size.width*.30f),
+                style=androidx.compose.ui.graphics.drawscope.Stroke(width=2.dp.toPx()))
+            satellite(cx-size.width*.19f, cy-size.width*.53f, size.width*.038f,
+                listOf(Color(0xFF8A6048),Color(0xFF342033),Color(0xFF171020)))
+            drawCircle(Color(0xFFFFD59A).copy(alpha=.8f), size.width*.013f,
+                Offset(cx-size.width*.20f,cy-size.width*.545f))
+            satellite(cx+size.width*.30f, cy+size.width*.49f, size.width*.032f,
+                listOf(Color(0xFF7544D5),Color(0xFF321A73)))
+            satellite(cx-size.width*.32f, cy+size.width*.59f, size.width*.025f,
+                listOf(Color(0xFFE84D91),Color(0xFF76285E)))
         }
-        Box(
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 64.dp).width(120.dp).height(3.dp)
-                .clip(RoundedCornerShape(2.dp)).background(Color(0x33FFFFFF))
+
+        Column(
+            Modifier.fillMaxWidth().offset(y = h * .28f).alpha(entrance),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(Modifier.offset(x = 80.dp * slide).width(40.dp).fillMaxHeight().background(Color(0xFF65D6D0)))
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
+                Text("drift", color = Color(0xFFF8F4FF), fontSize = 60.sp,
+                    fontWeight = FontWeight.Black, letterSpacing = (-3).sp, lineHeight = 66.sp)
+                Text(".", color = Color(0xFFFF4D78), fontSize = 60.sp,
+                    fontWeight = FontWeight.Black, lineHeight = 66.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("Find what fits tonight", color = Color(0xFFB9B4C8), fontSize = 16.sp,
+                fontWeight = FontWeight.Normal, textAlign = TextAlign.Center)
+        }
+
+        Box(Modifier.align(Alignment.BottomCenter).padding(bottom = h * .10f)
+            .width(120.dp).height(4.dp).clip(RoundedCornerShape(4.dp))
+            .background(Color(0x554D5360))) {
+            Box(Modifier.fillMaxHeight().fillMaxWidth(progress).clip(RoundedCornerShape(4.dp))
+                .background(Brush.horizontalGradient(listOf(Color(0xFFFF824D), Color(0xFFFF3D85)))))
         }
     }
 }
