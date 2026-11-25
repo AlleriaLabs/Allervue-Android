@@ -16,6 +16,8 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ClipDrawable
+import android.graphics.drawable.LayerDrawable
 import android.media.AudioManager
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
@@ -571,11 +573,42 @@ class PlayerActivity : ComponentActivity() {
             typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL); gravity = Gravity.CENTER_VERTICAL
         }
         seek = SeekBar(this).apply {
-            progressTintList = ColorStateList.valueOf(0xFFFF4F78.toInt())
-            thumbTintList = ColorStateList.valueOf(Color.WHITE)
-            progressBackgroundTintList = ColorStateList.valueOf(0x667F8A98)
-            secondaryProgressTintList = ColorStateList.valueOf(0x998F9EAD.toInt())
-            minimumHeight = dp(18); setPadding(dp(2), 0, dp(2), 0)
+            // Slim, cinematic timeline: charcoal remainder, muted buffered track,
+            // coral played section, and a compact coral thumb with a white rim.
+            val track = GradientDrawable().apply {
+                shape = GradientDrawable.RECTANGLE
+                cornerRadius = dp(2).toFloat()
+                setColor(0x663B3542)
+            }
+            val buffered = ClipDrawable(
+                GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(2).toFloat()
+                    setColor(0x998F9EAD.toInt())
+                }, Gravity.LEFT, ClipDrawable.HORIZONTAL
+            )
+            val played = ClipDrawable(
+                GradientDrawable().apply {
+                    shape = GradientDrawable.RECTANGLE
+                    cornerRadius = dp(2).toFloat()
+                    setColor(0xFFFF4F78.toInt())
+                }, Gravity.LEFT, ClipDrawable.HORIZONTAL
+            )
+            progressDrawable = LayerDrawable(arrayOf(track, buffered, played)).apply {
+                setId(0, android.R.id.background)
+                setId(1, android.R.id.secondaryProgress)
+                setId(2, android.R.id.progress)
+            }
+            thumb = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(0xFFFF4F78.toInt())
+                setStroke(dp(2), Color.WHITE)
+                setSize(dp(12), dp(12))
+            }
+            thumbOffset = dp(6)
+            minimumHeight = dp(22)
+            setPadding(dp(6), 0, dp(6), 0)
+            background = null
         }
         seek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(s: SeekBar, p: Int, fromUser: Boolean) { if (fromUser) curTime.text = fmt(p.toLong()) }
@@ -598,7 +631,6 @@ class PlayerActivity : ComponentActivity() {
                     setTextColor(if (emphasized) 0xFF180D19.toInt() else 0xFFF5F1F8.toInt())
                     typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
                     setPadding(dp(9), dp(5), dp(9), dp(5))
-                    background = GradientDrawable().apply {
                         cornerRadius = dp(30).toFloat()
                         if (emphasized) {
                             colors = intArrayOf(0xFFFF704F.toInt(), 0xFFFF3F7B.toInt())
@@ -1198,7 +1230,6 @@ class PlayerActivity : ComponentActivity() {
             }
             override fun onStartTrackingTouch(s: SeekBar) {}
             override fun onStopTrackingTouch(s: SeekBar) {}
-        })
         box.addView(label); box.addView(bar)
         box.addView(noteText("Above 100% the volume is boosted by software, up to 200%. Very loud audio may distort."))
     }
@@ -1538,8 +1569,10 @@ class PlayerActivity : ComponentActivity() {
         val dur = duration
         if (dur > 0) seek.max = dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val buffered = if (::player.isInitialized) player.bufferedPosition else 0L
+        seek.secondaryProgress = buffered.coerceAtLeast(pos).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         curTime.text = fmt(pos)
-        durTime.text = if (dur > 0) fmt(dur) else "--:--"
+        durTime.text = if (dur > 0) "-${fmt((dur - pos).coerceAtLeast(0L))}" else "--:--"
         progressRing?.invalidate()
 
     }
@@ -1798,7 +1831,6 @@ class PlayerActivity : ComponentActivity() {
 
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
-        setNativeText(null)
         player.stop(); player.clearMediaItems()
         loadAndPlay()
     }
