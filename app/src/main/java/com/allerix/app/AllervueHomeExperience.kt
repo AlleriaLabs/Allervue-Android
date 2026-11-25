@@ -768,7 +768,7 @@ internal fun AllervueHome(
                 visibleOrbitItems.take(visiblePlanetCount).forEachIndexed { index, item ->
                     val lane = orbitSlots[index]
                     val nodeSize = planetSizes[index % planetSizes.size]
-                    val nodeOuterSize = nodeSize + 24.dp
+                    val nodeOuterSize = nodeSize + 64.dp
                     val angle = Math.toRadians(
                         (lane.first + automaticRotation * lane.third + orbitRotation.floatValue).toDouble()
                     )
@@ -785,8 +785,24 @@ internal fun AllervueHome(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
-                            Modifier.size(nodeOuterSize)
-                                .background(Brush.radialGradient(listOf(artworkGlow.copy(alpha = .98f), artworkGlow.copy(alpha = .62f), artworkGlow.copy(alpha = .22f), Color.Transparent))) ,
+                            Modifier.size(nodeOuterSize).drawBehind {
+                                val glowRadius = size.minDimension * .50f
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            artworkGlow.copy(alpha = .92f),
+                                            artworkGlow.copy(alpha = .68f),
+                                            artworkGlow.copy(alpha = .34f),
+                                            artworkGlow.copy(alpha = .12f),
+                                            Color.Transparent
+                                        ),
+                                        center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f),
+                                        radius = glowRadius
+                                    ),
+                                    radius = glowRadius,
+                                    center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                )
+                            },
                             contentAlignment = Alignment.Center
                         ) {
                             Box(Modifier.size(nodeSize).clip(CircleShape)
@@ -810,23 +826,34 @@ internal fun AllervueHome(
                     // The central star/moon follows the device's local clock.
                     Box(
                         Modifier.offset(
-                            x = orbitCenterX - (centerSize + 84.dp) / 2,
-                            y = orbitCenterY - (centerSize + 84.dp) / 2
-                        ).size(centerSize + 84.dp)
-                            .background(
-                                Brush.radialGradient(
-                                    listOf(centerArtworkGlow.copy(alpha = .92f), centerArtworkGlow.copy(alpha = .54f), centerArtworkGlow.copy(alpha = .18f), Color.Transparent)
-                                )
+                            x = orbitCenterX - (centerSize + 112.dp) / 2,
+                            y = orbitCenterY - (centerSize + 112.dp) / 2
+                        ).size(centerSize + 112.dp).drawBehind {
+                            val glowCenter = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                            val glowRadius = size.minDimension * .50f
+                            drawCircle(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        centerArtworkGlow.copy(alpha = .98f),
+                                        centerArtworkGlow.copy(alpha = .76f),
+                                        centerArtworkGlow.copy(alpha = .42f),
+                                        centerArtworkGlow.copy(alpha = .16f),
+                                        Color.Transparent
+                                    ),
+                                    center = glowCenter,
+                                    radius = glowRadius
+                                ),
+                                radius = glowRadius,
+                                center = glowCenter
                             )
+                        }
                     )
                     Box(
                         Modifier.offset(
-                            x = orbitCenterX - (centerSize + 18.dp) / 2,
-                            y = orbitCenterY - (centerSize + 18.dp) / 2
+                            x = orbitCenterX - centerSize / 2,
+                            y = orbitCenterY - centerSize / 2
                         )
-                            .size(centerSize + 18.dp).clip(CircleShape)
-                            .background(AHot)
-                            .padding(3.dp)
+                            .size(centerSize).clip(CircleShape)
                     ) {
                         Box(
                             Modifier.fillMaxSize().clip(CircleShape)
@@ -893,9 +920,28 @@ internal fun AllervueHome(
                     Text(meta, Modifier.height(20.dp).fillMaxWidth(),
                         color = Color(0xFFB7B2C7), fontSize = 12.sp, maxLines = 1)
                 }
-                Box(Modifier.size(108.dp).background(
-                    Brush.radialGradient(listOf(AHot.copy(alpha = .96f), AHot.copy(alpha = .58f), AHot.copy(alpha = .20f), Color.Transparent)), CircleShape
-                ), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.size(140.dp).drawBehind {
+                        val glowCenter = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                        val glowRadius = size.minDimension * .50f
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    AHot.copy(alpha = .98f),
+                                    AHot.copy(alpha = .78f),
+                                    AHot.copy(alpha = .48f),
+                                    AHot.copy(alpha = .20f),
+                                    Color.Transparent
+                                ),
+                                center = glowCenter,
+                                radius = glowRadius
+                            ),
+                            radius = glowRadius,
+                            center = glowCenter
+                        )
+                    },
+                    contentAlignment = Alignment.Center
+                ) {
                 Box(
                     Modifier.size(62.dp).clip(CircleShape)
                         .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
