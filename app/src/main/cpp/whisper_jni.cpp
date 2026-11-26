@@ -105,9 +105,9 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         return env->NewStringUTF("");
     }
 
-    whisper_context_params context_params = whisper_context_default_params();
+    struct whisper_context_params context_params = whisper_context_default_params();
     context_params.use_gpu = false;
-    whisper_context *ctx = whisper_init_from_file_with_params(model.c_str(), context_params);
+    struct whisper_context *ctx = whisper_init_from_file_with_params(model.c_str(), context_params);
     if (!ctx) {
         LOGE("Unable to load Whisper model: %s", model.c_str());
         return env->NewStringUTF("");
@@ -122,7 +122,7 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         const size_t count = std::min(chunk_samples, audio.size() - offset);
         if (count < static_cast<size_t>(WHISPER_SAMPLE_RATE / 2)) break;
 
-        whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
+        struct whisper_full_params params = whisper_full_default_params(WHISPER_SAMPLING_GREEDY);
         params.n_threads = threads;
         params.translate = false;
         params.language = lang == "auto" ? "auto" : lang.c_str();
