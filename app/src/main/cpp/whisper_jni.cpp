@@ -134,7 +134,7 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         params.print_timestamps = false;
         params.print_special = false;
         params.suppress_blank = true;
-        params.suppress_non_speech_tokens = true;
+        params.suppress_nst = true;
 
         if (whisper_full(ctx, params, audio.data() + offset, static_cast<int>(count)) != 0) {
             LOGE("Whisper inference failed at sample offset %zu", offset);
