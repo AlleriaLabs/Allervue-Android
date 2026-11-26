@@ -1023,6 +1023,17 @@ class PlayerActivity : ComponentActivity() {
             })
         }
         label(left, "SUBTITLES")
+        val savedAiSubtitle = aiSubtitleFileFor(itemId)
+        if (savedAiSubtitle.isFile) {
+            option(left, "AI generated subtitles", subOn && activeSub == -2) {
+                loadSavedAiSubtitles()
+                root.removeView(overlay); showControls()
+            }
+        }
+        option(left, "Generate AI subtitles", false) {
+            root.removeView(overlay)
+            generateAiSubtitlesForCurrentItem()
+        }
         option(left, "Off", !subOn) { subtitlesOff(); root.removeView(overlay); showControls() }
         subStreams.forEachIndexed { i, stream ->
             val selected = if (stream.isText) subOn && activeSub == i
@@ -1610,6 +1621,29 @@ class PlayerActivity : ComponentActivity() {
                 "between lines, and drag it up or down to move it."))
     }
 
+    private fun aiSubtitleFileFor(id: String): File {
+        val documents = getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS) ?: filesDir
+        return File(File(documents, "AI Subtitles"), id.replace(Regex("[^A-Za-z0-9._-]"), "_") + "_AI_Subtitles.srt")
+    }
+
+    private fun loadSavedAiSubtitles() {
+        val file = aiSubtitleFileFor(itemId)
+        val parsed = runCatching { SubParser.parse(file.readText(Charsets.UTF_8)) }.getOrNull()
+        if (parsed.isNullOrEmpty()) {
+            showHud("Saved AI subtitles could not be read", 2500)
+            return
+        }
+        setNativeText(null)
+        selectedImageSubtitleStreamIndex = null
+        playbackEngineManager.selectSubtitleTrack(null)
+        cues = parsed
+        subOn = true
+        activeSub = -2
+        shownText = "~"
+        updateSubtitle()
+        showHud("AI subtitles · saved", 1800)
+    }
+
     private fun generateAiSubtitlesForCurrentItem() {
         if (aiSubtitleJob?.isActive == true) {
             aiSubtitleJob?.cancel()
@@ -1639,8 +1673,7 @@ class PlayerActivity : ComponentActivity() {
             ?: audioStreams.firstOrNull()
         val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getString("language", "auto") ?: "auto"
-        val outputName = (titleView.text?.toString().orEmpty().ifBlank { "Allervue" })
-            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+        val outputName = requestedItemId
         showHud("Preparing AI subtitles", 3500)
         aiSubtitleJob = lifecycleScope.launch {
             try {
@@ -2133,6 +2166,19 @@ class PlayerActivity : ComponentActivity() {
         startupStartedAt = SystemClock.elapsedRealtime()
         DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: begin; offline=" + (offlinePath != null))
         val file = offlinePath
+        if (file == null) {
+            val savedAi = aiSubtitleFileFor(itemId)
+            if (savedAi.isFile) {
+                val parsed = runCatching { SubParser.parse(savedAi.readText(Charsets.UTF_8)) }.getOrNull()
+                if (!parsed.isNullOrEmpty()) {
+                    cues = parsed
+                    subOn = true
+                    activeSub = -2
+                    shownText = "~"
+                    updateSubtitle()
+                }
+            }
+        }
         if (file != null) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(file))))
             val savedSubs = Downloads.subtitles(this@PlayerActivity, itemId)
