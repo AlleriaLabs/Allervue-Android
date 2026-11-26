@@ -177,6 +177,7 @@ class PlayerActivity : ComponentActivity() {
     private var subDownY = 0f
     private var subStartPos = 0f
     private var aiSubtitleJob: Job? = null
+    private var autoSubtitleAttemptedItemId: String? = null
 
     // volume boost
     private var enhancer: LoudnessEnhancer? = null
@@ -1644,8 +1645,9 @@ class PlayerActivity : ComponentActivity() {
         showHud("AI subtitles · saved", 1800)
     }
 
-    private fun generateAiSubtitlesForCurrentItem() {
+    private fun generateAiSubtitlesForCurrentItem(automatic: Boolean = false) {
         if (aiSubtitleJob?.isActive == true) {
+            if (automatic) return
             aiSubtitleJob?.cancel()
             aiSubtitleJob = null
             showHud("AI subtitle generation cancelled")
@@ -1674,7 +1676,7 @@ class PlayerActivity : ComponentActivity() {
         val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getString("language", "auto") ?: "auto"
         val outputName = requestedItemId
-        showHud("Preparing AI subtitles", 3500)
+        showHud(if (automatic) "AI subtitles generating in background" else "Preparing AI subtitles", 2500)
         aiSubtitleJob = lifecycleScope.launch {
             try {
                 val result = AiSubtitlePlaybackGenerator.generate(
@@ -1945,8 +1947,35 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun maybeStartAutomaticAiSubtitles() {
+        val currentId = itemId
+        if (currentId.isBlank() || offlinePath != null) return
+        if (autoSubtitleAttemptedItemId == currentId) return
+        val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getBoolean("auto_generate", true)
+        if (!enabled) return
+        val saved = aiSubtitleFileFor(currentId)
+        if (saved.isFile && saved.length() > 0L) {
+            val parsed = runCatching { SubParser.parse(saved.readText(Charsets.UTF_8)) }.getOrNull()
+            if (!parsed.isNullOrEmpty()) return
+        }
+        if (!AiSubtitleEngineStatus.NATIVE_RUNTIME_READY) return
+        val modelInstalled = AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this, it) }
+        if (!modelInstalled) {
+            showHud("Download a Whisper model to enable automatic AI subtitles", 3500)
+            return
+        }
+        autoSubtitleAttemptedItemId = currentId
+        generateAiSubtitlesForCurrentItem(automatic = true)
+    }
+
     private fun applyDefaultSubtitle() {
-        if (defaultSubtitleApplied || subStreams.isEmpty()) return
+        if (defaultSubtitleApplied) return
+        if (subStreams.isEmpty()) {
+            defaultSubtitleApplied = true
+            maybeStartAutomaticAiSubtitles()
+            return
+        }
         val englishText = subStreams.indexOfFirst {
             it.isText && (it.language?.startsWith("en", true) == true ||
                 languageName(it.language).equals("English", true))
@@ -2345,6 +2374,7 @@ class PlayerActivity : ComponentActivity() {
         if (::episodesAction.isInitialized) episodesAction.visibility = View.GONE
         if (::nextEpisodeAction.isInitialized) nextEpisodeAction.visibility = View.GONE
         defaultAudioApplied = false; defaultSubtitleApplied = false
+        autoSubtitleAttemptedItemId = null
         selectedAudioStreamIndex = null; selectedImageSubtitleStreamIndex = null
         playbackOrchestrator.resetForNewItem()
         updateIntroSkip()
