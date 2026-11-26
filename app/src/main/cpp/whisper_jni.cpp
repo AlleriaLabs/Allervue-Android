@@ -16,7 +16,7 @@
 
 namespace {
 static std::mutex g_whisper_mutex;
-static whisper_context *g_cached_context = nullptr;
+static struct whisper_context *g_cached_context = nullptr;
 static std::string g_cached_model_path;
 
 static uint16_t read_u16(const unsigned char *p) {
