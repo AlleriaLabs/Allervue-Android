@@ -31,13 +31,29 @@ interface AiSubtitleEngine {
     ): List<AiSubtitleSegment>
 }
 
-class WhisperCppEngine : AiSubtitleEngine {
+class WhisperCppEngine : AiSubtitleEngine, CaptionCorrectionEngine {
     override val isAvailable: Boolean
         get() = WhisperNative.available
 
     // A live-caption session reuses this engine for every short window. Verify the
     // large model once per file version rather than hashing 75–142 MB every few seconds.
     private var verifiedModelKey: String? = null
+
+    override suspend fun correct(
+        audioWindow: LiveSubtitleAudioWindow,
+        modelFile: File,
+        workDirectory: File,
+        language: String
+    ): List<AiSubtitleSegment> = withContext(Dispatchers.IO) {
+        workDirectory.mkdirs()
+        val wav = File.createTempFile("allervue_live_correction_", ".wav", workDirectory)
+        try {
+            LiveSubtitleWav.write(audioWindow.samples, wav)
+            transcribe(wav, modelFile, language)
+        } finally {
+            wav.delete()
+        }
+    }
 
     override suspend fun transcribe(
         audioFile: File,
