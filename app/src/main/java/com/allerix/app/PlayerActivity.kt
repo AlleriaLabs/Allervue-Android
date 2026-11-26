@@ -274,13 +274,23 @@ class PlayerActivity : ComponentActivity() {
             onSurfaceChanged = { engine -> attachEngineSurface(engine.view) },
             onFailure = { engineId, error ->
                 DiagnosticLog.record(this, "Playback engine $engineId failed: ${error.message}", error)
-                showHud("$engineId playback failed: ${error.message ?: "unknown error"}", 6000)
+                if (engineId == PlaybackEngineId.EXOPLAYER) {
+                    showHud("$engineId playback failed: ${error.message ?: "unknown error"}", 6000)
+                } else {
+                    handleFallbackEngineFailure(engineId, error)
+                }
             },
             onReady = { engineId ->
                 DiagnosticLog.record(this, "Playback engine ready: $engineId")
                 showHud("Playing with $engineId", 1800)
             },
-            onBuffering = { buffering -> spinner.visibility = if (buffering) View.VISIBLE else View.GONE }
+            onBuffering = { buffering -> spinner.visibility = if (buffering) View.VISIBLE else View.GONE },
+            onEnded = { engineId ->
+                if (engineId != PlaybackEngineId.EXOPLAYER) {
+                    if (offlinePath != null) saveOfflinePosition()
+                    if (autoPlayNext && hasNext) switchTo(siblings[siblingIndex + 1].id) else finish()
+                }
+            }
         )
         DiagnosticLog.record(this, "PlayerActivity: UI built")
         setupGestures()
@@ -1838,6 +1848,72 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         })
+    }
+
+    /**
+     * Applies the same fallback policy to libmpv and LibVLC failures.
+     * Jellyfin stream URLs already carry the api_key query parameter, so the
+     * fallback engines can reopen the same authenticated URL without losing auth.
+     */
+    private fun handleFallbackEngineFailure(engineId: PlaybackEngineId, error: Throwable) {
+        if (!::playbackEngineManager.isInitialized || isFinishing || isDestroyed) return
+        val message = (error.message ?: error.javaClass.simpleName).lowercase(Locale.ROOT)
+        val kind = when {
+            error is IOException || message.contains("timeout") ||
+                message.contains("network") || message.contains("http") ||
+                message.contains("connection") || message.contains("socket") ->
+                PlaybackFailureKind.NETWORK
+            listOf("codec", "decoder", "demux", "container", "unsupported format",
+                "not supported", "invalid data", "subtitle format").any(message::contains) ->
+                PlaybackFailureKind.CODEC_OR_CONTAINER
+            else -> PlaybackFailureKind.AMBIGUOUS
+        }
+        val action = playbackOrchestrator.decide(kind)
+        DiagnosticLog.record(this, "PLAYBACK_POLICY engine=$engineId failure=$kind action=$action", error)
+        val snapshot = runCatching { playbackEngineManager.snapshot() }.getOrNull()
+        val uri = plan?.url ?: player.currentMediaItem?.localConfiguration?.uri?.toString()
+        if (uri.isNullOrBlank()) {
+            showHud("$engineId failed and the stream URL is unavailable", 6500)
+            return
+        }
+        val request = PlaybackRequest(
+            uri = uri,
+            mimeType = if (plan?.hls == true) MimeTypes.APPLICATION_M3U8 else
+                player.currentMediaItem?.localConfiguration?.mimeType,
+            startPositionMs = (snapshot?.positionMs ?: player.currentPosition).coerceAtLeast(0L),
+            playWhenReady = true,
+            headers = emptyMap(),
+            playbackSpeed = speed
+        )
+        when (action) {
+            PlaybackAction.RETRY_SAME_ENGINE -> {
+                showHud("$engineId interrupted. Retrying…", 2500)
+                handler.postDelayed({
+                    if (isFinishing || isDestroyed || !::playbackEngineManager.isInitialized) return@postDelayed
+                    val ok = if (playbackEngineManager.activeEngine.id == engineId) {
+                        runCatching { playbackEngineManager.retryCurrent(request) }.isSuccess
+                    } else {
+                        playbackEngineManager.switchTo(engineId, request)
+                    }
+                    if (!ok) showHud("$engineId retry could not start", 6000)
+                }, 1000)
+            }
+            PlaybackAction.SWITCH_TO_NEXT_ENGINE -> {
+                val next = playbackOrchestrator.currentEngine
+                showHud("$engineId failed. Switching to $next…", 3000)
+                if (!playbackEngineManager.switchTo(next, request)) {
+                    showHud("Couldn't start $next playback engine", 7000)
+                }
+            }
+            PlaybackAction.TRY_FORMAT_VARIATION -> {
+                showHud("Trying an alternate stream format…", 3500)
+                if (offlinePath == null) fallbackTranscode()
+                else showHud("Format retry unavailable for offline media", 5000)
+            }
+            PlaybackAction.STOP -> {
+                showHud("Playback failed on $engineId: ${error.message ?: "unknown error"}", 7000)
+            }
+        }
     }
 
     private fun classifyPlaybackFailure(error: PlaybackException): PlaybackFailureKind {
