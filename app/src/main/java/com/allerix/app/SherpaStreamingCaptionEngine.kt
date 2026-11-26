@@ -48,8 +48,13 @@ object SherpaStreamingModelStore {
         return File(root, "allervue_ai_models/$MODEL_ID").apply { mkdirs() }
     }
 
-    fun isInstalled(context: Context): Boolean =
-        files.all { File(directory(context), it.name).let { f -> f.isFile && f.length() >= files.first { it.name == f.name }.minimumBytes } }
+    fun isInstalled(context: Context): Boolean {
+        val modelDirectory = directory(context)
+        return files.all { modelFile ->
+            val downloadedFile = File(modelDirectory, modelFile.name)
+            downloadedFile.isFile && downloadedFile.length() >= modelFile.minimumBytes
+        }
+    }
 
     fun ensureDownloaded(context: Context): Int {
         val manager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
