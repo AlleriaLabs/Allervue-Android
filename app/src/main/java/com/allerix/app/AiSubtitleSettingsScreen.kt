@@ -1,6 +1,9 @@
 package com.allerix.app
 
 import android.app.DownloadManager
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,11 +19,53 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.io.File
 
 @Composable
 fun AiSubtitleSettingsScreen(back: () -> Unit) {
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var selectedModelId by remember { mutableStateOf("tiny") }
+    var language by remember { mutableStateOf("auto") }
+    var generating by remember { mutableStateOf(false) }
+    var generationStatus by remember { mutableStateOf<String?>(null) }
+    var generatedFile by remember { mutableStateOf<File?>(null) }
+    val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/x-subrip")) { target: Uri? ->
+        val source = generatedFile
+        if (target != null && source != null) {
+            runCatching {
+                context.contentResolver.openOutputStream(target)?.use { output ->
+                    source.inputStream().use { input -> input.copyTo(output) }
+                } ?: error("Could not open the selected save location.")
+            }.onSuccess { generationStatus = "Subtitle file saved." }
+                .onFailure { generationStatus = it.message ?: "Could not save the subtitle file." }
+        }
+    }
+    val mediaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            val model = AiSubtitleModels.get(selectedModelId)
+            if (model == null || !AiSubtitleModelStore.isInstalled(context, model)) {
+                generationStatus = "Download the selected Whisper model first."
+            } else {
+                scope.launch {
+                    generating = true
+                    generationStatus = "Extracting audio and preparing Whisper…"
+                    runCatching {
+                        AiSubtitleGenerator.generateFromMedia(context, uri, model, language.trim().ifBlank { "auto" })
+                    }.onSuccess { result ->
+                        generatedFile = result.file
+                        generationStatus = "Generated ${result.segments.size} subtitle cues."
+                        saveLauncher.launch(result.file.name)
+                    }.onFailure { error ->
+                        generationStatus = error.message ?: "Subtitle generation failed."
+                    }
+                    generating = false
+                }
+            }
+        }
+    }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -89,15 +134,63 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                     Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp))
                         .padding(17.dp)
                 ) {
+                    Text("GENERATE FROM VIDEO", color = AllervueDesign.Cyan, fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Create a new subtitle track", color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
+                    Text("Choose a video or audio file. All audio decoding and speech recognition run on this phone.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
+                        lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp))
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AiSubtitleModels.all.forEach { model ->
+                            FilterChip(
+                                selected = selectedModelId == model.id,
+                                onClick = { selectedModelId = model.id },
+                                label = { Text(model.title.removePrefix("Whisper ")) }
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        value = language,
+                        onValueChange = { language = it },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        label = { Text("Language code") },
+                        supportingText = { Text("auto detects · en English · ja Japanese · tl Filipino · ko Korean") },
+                        singleLine = true
+                    )
+                    Button(
+                        onClick = { mediaPicker.launch(arrayOf("video/*", "audio/*")) },
+                        enabled = !generating && AiSubtitleEngineStatus.NATIVE_RUNTIME_READY &&
+                            AiSubtitleModels.get(selectedModelId)?.let { AiSubtitleModelStore.isInstalled(context, it) } == true,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp)
+                    ) {
+                        if (generating) {
+                            CircularProgressIndicator(Modifier.size(17.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(9.dp))
+                        }
+                        Text(if (generating) "Generating subtitles…" else "Choose media & generate SRT")
+                    }
+                    generationStatus?.let {
+                        Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
+                            lineHeight = 16.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            }
+
+            item {
+                Column(
+                    Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface, RoundedCornerShape(20.dp))
+                        .padding(17.dp)
+                ) {
                     Text("ENGINE STATUS", color = AllervueDesign.Cyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text(
-                        if (AiSubtitleEngineStatus.NATIVE_RUNTIME_READY) "Whisper engine ready" else "Engine setup · Phase 1",
+                        if (AiSubtitleEngineStatus.NATIVE_RUNTIME_READY) "Whisper engine ready · CPU mode" else "Whisper native engine unavailable",
                         color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp)
                     )
                     Text(
-                        "You can prepare and manage models now. Audio transcription becomes available after the native Whisper runtime is added in Phase 2.",
+                        "Whisper.cpp runs locally on the phone. Select a downloaded model above to generate an SRT subtitle file.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
                         lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp)
                     )
