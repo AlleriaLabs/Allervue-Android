@@ -177,6 +177,7 @@ class PlayerActivity : ComponentActivity() {
     private var subDownY = 0f
     private var subStartPos = 0f
     private var aiSubtitleJob: Job? = null
+    private var aiModelWaitRunnable: Runnable? = null
     private var autoSubtitleAttemptedItemId: String? = null
 
     // volume boost
@@ -1948,6 +1949,24 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun waitForAiSubtitleModels(requestedItemId: String) {
+        aiModelWaitRunnable?.let(handler::removeCallbacks)
+        val check = object : Runnable {
+            override fun run() {
+                if (isFinishing || isDestroyed || itemId != requestedItemId) return
+                if (AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this@PlayerActivity, it) }) {
+                    aiModelWaitRunnable = null
+                    autoSubtitleAttemptedItemId = requestedItemId
+                    generateAiSubtitlesForCurrentItem(automatic = true)
+                } else {
+                    handler.postDelayed(this, 15_000L)
+                }
+            }
+        }
+        aiModelWaitRunnable = check
+        handler.postDelayed(check, 15_000L)
+    }
+
     private fun maybeStartAutomaticAiSubtitles() {
         val currentId = itemId
         if (currentId.isBlank() || sourceId.isBlank() || offlinePath != null) return
@@ -1969,6 +1988,7 @@ class PlayerActivity : ComponentActivity() {
                 else "Whisper models are downloading; AI subtitles will be ready after download",
                 4000
             )
+            waitForAiSubtitleModels(currentId)
             return
         }
         autoSubtitleAttemptedItemId = currentId
@@ -2374,6 +2394,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun switchTo(newId: String) {
         aiSubtitleJob?.cancel(); aiSubtitleJob = null
+        aiModelWaitRunnable?.let(handler::removeCallbacks); aiModelWaitRunnable = null
         report("stop")
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
