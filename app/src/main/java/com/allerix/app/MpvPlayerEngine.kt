@@ -29,8 +29,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     override val view: View get() = videoView
 
     private var listener: PlayerEngine.Listener? = null
-    private var requestedAudioTrackId: String? = null
-    private var requestedSubtitleTrackId: String? = null
+    private var requestedAudioTrack: PlaybackTrackSelection? = null
+    private var requestedSubtitleTrack: PlaybackTrackSelection? = null
     private var initialized = false
     private var generation = 0
 
@@ -40,8 +40,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
 
     override fun play(request: PlaybackRequest) {
         val requestGeneration = ++generation
-        requestedAudioTrackId = request.audioTrackId
-        requestedSubtitleTrackId = request.subtitleTrackId
+        requestedAudioTrack = request.audioTrack
+        requestedSubtitleTrack = request.subtitleTrack
         scope.launch {
             try {
                 if (!initialized) {
@@ -68,6 +68,7 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
                 if (request.startPositionMs > 0L) {
                     videoView.timePos = request.startPositionMs / 1000.0
                 }
+                videoView.speed = request.playbackSpeed.coerceIn(0.25f, 4f).toDouble()
                 videoView.paused = !request.playWhenReady
                 applyRequestedTracks()
             } catch (error: Throwable) {
@@ -106,9 +107,34 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     }
 
     private fun applyRequestedTracks() {
-        requestedAudioTrackId?.toIntOrNull()?.let { videoView.audioTrack = TrackSelection.Id(it) }
-        requestedSubtitleTrackId?.let { id ->
-            videoView.subtitleTrack = id.toIntOrNull()?.let(TrackSelection::Id) ?: TrackSelection.Auto
+        if (!initialized) return
+        val tracks = runCatching { videoView.tracks }.getOrDefault(emptyList())
+        val audio = requestedAudioTrack
+        if (audio == null) {
+            videoView.audioTrack = TrackSelection.Auto
+        } else {
+            val match = tracks.firstOrNull { track ->
+                track.type == io.github.yuroyami.libmpvkt.TrackType.Audio &&
+                    (track.ffIndex == audio.streamIndex || track.srcId == audio.streamIndex)
+            } ?: tracks.firstOrNull { track ->
+                track.type == io.github.yuroyami.libmpvkt.TrackType.Audio &&
+                    audio.language != null && track.lang.equals(audio.language, true)
+            }
+            videoView.audioTrack = match?.let { TrackSelection.Id(it.id) } ?: TrackSelection.Auto
+        }
+
+        val subtitle = requestedSubtitleTrack
+        if (subtitle == null) {
+            videoView.subtitleTrack = TrackSelection.No
+        } else {
+            val match = tracks.firstOrNull { track ->
+                track.type == io.github.yuroyami.libmpvkt.TrackType.Sub &&
+                    (track.ffIndex == subtitle.streamIndex || track.srcId == subtitle.streamIndex)
+            } ?: tracks.firstOrNull { track ->
+                track.type == io.github.yuroyami.libmpvkt.TrackType.Sub &&
+                    subtitle.language != null && track.lang.equals(subtitle.language, true)
+            }
+            videoView.subtitleTrack = match?.let { TrackSelection.Id(it.id) } ?: TrackSelection.No
         }
     }
 
@@ -140,7 +166,7 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
 
     override fun snapshot(): PlaybackSnapshot {
         if (!initialized) {
-            return PlaybackSnapshot(positionMs = 0L, durationMs = 0L, isPlaying = false, isBuffering = false, audioTrackId = requestedAudioTrackId, subtitleTrackId = requestedSubtitleTrackId)
+            return PlaybackSnapshot(positionMs = 0L, durationMs = 0L, isPlaying = false, isBuffering = false, playWhenReady = !videoView.paused, playbackSpeed = videoView.speed.toFloat())
         }
         val position = ((videoView.timePos ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
         val duration = ((videoView.duration ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
@@ -153,8 +179,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
             durationMs = duration,
             isPlaying = !videoView.paused,
             isBuffering = buffering,
-            audioTrackId = requestedAudioTrackId,
-            subtitleTrackId = requestedSubtitleTrackId
+            playWhenReady = !videoView.paused,
+            playbackSpeed = videoView.speed.toFloat()
         )
     }
 
