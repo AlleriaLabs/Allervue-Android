@@ -9,6 +9,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 
 /**
@@ -45,7 +46,14 @@ internal object AllervueDesign {
 
 @Composable
 internal fun AllervueTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+    val context = LocalContext.current
+    val mode = context.getSharedPreferences("allervue_appearance", android.content.Context.MODE_PRIVATE)
+        .getString("theme_mode", "SYSTEM") ?: "SYSTEM"
+    val dark = when (mode) {
+        "DARK" -> true
+        "LIGHT" -> false
+        else -> isSystemInDarkTheme()
+    }
     val colors = if (dark) {
         darkColorScheme(
             primary = AllervueDesign.Cyan,
