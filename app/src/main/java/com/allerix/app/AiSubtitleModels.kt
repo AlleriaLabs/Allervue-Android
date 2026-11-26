@@ -139,7 +139,7 @@ object AiSubtitleModelDownloads {
             .setTitle("Allervue · ${model.title}")
             .setDescription("Downloading offline AI subtitle model")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setAllowedOverMetered(true)
+            .setAllowedOverMetered(false)
             .setAllowedOverRoaming(false)
             .setDestinationInExternalFilesDir(
                 context,
