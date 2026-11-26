@@ -41,8 +41,8 @@ class WhisperCppEngine : AiSubtitleEngine {
         language: String
     ): List<AiSubtitleSegment> = withContext(Dispatchers.IO) {
         check(isAvailable) { "The on-device Whisper engine could not be loaded." }
-        require(modelFile.isFile && modelFile.length() > 10L * 1024L * 1024L) {
-            "Download a Whisper model before generating subtitles."
+        require(AiSubtitleModelStore.isInstalledForInference(modelFile, modelFile.name)) {
+            "Download a complete Whisper model before generating subtitles."
         }
         require(audioFile.isFile && audioFile.length() > 44L) {
             "The decoded audio file is empty."
