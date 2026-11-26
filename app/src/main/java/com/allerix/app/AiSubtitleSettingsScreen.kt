@@ -2,6 +2,7 @@ package com.allerix.app
 
 import android.app.DownloadManager
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,14 +16,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Composable
 fun AiSubtitleSettingsScreen(back: () -> Unit) {
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
-    var message by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -45,7 +43,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("‹", color = MaterialTheme.colorScheme.onBackground, fontSize = 32.sp,
-                modifier = Modifier.padding(end = 14.dp))
+                modifier = Modifier.padding(end = 14.dp).clickable(onClick = back))
             Column(Modifier.weight(1f)) {
                 Text("AI Subtitles", color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 25.sp, fontWeight = FontWeight.Bold)
@@ -151,7 +149,6 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                             OutlinedButton(onClick = {
                                 AiSubtitleModelDownloads.remove(context, model)
                                 refresh++
-                                message = "${model.title} removed"
                             }) { Text("Remove model") }
                         } else if (downloadState?.isActive == true) {
                             OutlinedButton(onClick = {
@@ -161,8 +158,8 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                         } else {
                             Button(onClick = {
                                 runCatching { AiSubtitleModelDownloads.enqueue(context, model) }
-                                    .onSuccess { message = "Download started for ${model.title}"; refresh++ }
-                                    .onFailure { message = it.message ?: "Unable to start download" }
+                                    .onSuccess { refresh++ }
+                                    .onFailure { refresh++ }
                             }) { Text(if (downloadState?.status == DownloadManager.STATUS_FAILED) "Retry" else "Download") }
                         }
                     }
@@ -179,13 +176,8 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
         }
     }
 
-    message?.let { text ->
-        LaunchedEffect(text) {
-            delay(2600)
-            if (message == text) message = null
-        }
-    }
 }
+
 
 private fun formatAiBytes(bytes: Long): String {
     if (bytes < 1024L) return "${bytes} B"
