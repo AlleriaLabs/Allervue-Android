@@ -338,7 +338,9 @@ class PlayerActivity : ComponentActivity() {
             )
             selected
         }
-        val captureProcessor = LiveSubtitleAudioProcessor { samples ->
+        val captureProcessor = LiveSubtitleAudioProcessor(
+            onDiagnostic = { message -> DiagnosticLog.record(applicationContext, message) }
+        ) { samples ->
             // Only enqueue the immutable PCM window here; never run inference on the audio thread.
             handler.post { onLiveAudioWindow(samples) }
         }
