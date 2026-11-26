@@ -56,8 +56,20 @@ class WhisperCppEngine : AiSubtitleEngine {
             threadCount
         )
         coroutineContext.ensureActive()
+        if (srt.startsWith("!ALLERVUE_ERROR:")) {
+            val detail = when (srt.substringAfter(':')) {
+                "WAV_INVALID" -> "Audio was decoded, but its WAV format is invalid. The audio conversion stage needs fixing."
+                "AUDIO_TOO_SHORT" -> "The selected recording contains less than half a second of usable audio."
+                "AUDIO_SILENT" -> "The extracted audio is silent or too quiet. Try another media file."
+                "MODEL_LOAD" -> "Whisper could not load the downloaded model. Remove and download the Tiny model again."
+                "INFERENCE" -> "Whisper inference failed while processing the audio. This may be a native engine or memory issue."
+                "NO_SPEECH" -> "Audio extraction succeeded, but Whisper detected no speech. Check the recording language and try a longer, clear voice sample."
+                else -> "Whisper failed with an unknown native error."
+            }
+            error(detail)
+        }
         require(srt.isNotBlank()) {
-            "Whisper could not recognize speech in this audio."
+            "Whisper returned an empty result without a diagnostic code."
         }
         val parsed = SubParser.parse(srt)
             ?: error("Whisper returned no timestamped subtitle cues.")
