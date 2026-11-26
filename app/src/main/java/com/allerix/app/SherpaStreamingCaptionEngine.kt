@@ -36,8 +36,8 @@ object SherpaStreamingModelStore {
     val files = listOf(
         ModelFile("encoder-epoch-99-avg-1.int8.onnx", 40_000_000L,
             BASE_URL + "encoder-epoch-99-avg-1.int8.onnx?download=true"),
-        ModelFile("decoder-epoch-99-avg-1.int8.onnx", 500_000L,
-            BASE_URL + "decoder-epoch-99-avg-1.int8.onnx?download=true"),
+        ModelFile("decoder-epoch-99-avg-1.onnx", 2_000_000L,
+            BASE_URL + "decoder-epoch-99-avg-1.onnx?download=true"),
         ModelFile("joiner-epoch-99-avg-1.int8.onnx", 250_000L,
             BASE_URL + "joiner-epoch-99-avg-1.int8.onnx?download=true"),
         ModelFile("tokens.txt", 4_000L, BASE_URL + "tokens.txt?download=true")
@@ -131,7 +131,7 @@ class SherpaStreamingCaptionEngine(
         errorCallback = onError
 
         val encoder = File(modelDirectory, "encoder-epoch-99-avg-1.int8.onnx")
-        val decoder = File(modelDirectory, "decoder-epoch-99-avg-1.int8.onnx")
+        val decoder = File(modelDirectory, "decoder-epoch-99-avg-1.onnx")
         val joiner = File(modelDirectory, "joiner-epoch-99-avg-1.int8.onnx")
         val tokens = File(modelDirectory, "tokens.txt")
         listOf(encoder, decoder, joiner, tokens).forEach {
@@ -147,7 +147,6 @@ class SherpaStreamingCaptionEngine(
             tokens = tokens.absolutePath,
             numThreads = threadCount.coerceIn(1, 4),
             provider = "cpu",
-            modelType = "zipformer2"
         )
         val config = OnlineRecognizerConfig(
             featConfig = FeatureConfig(sampleRate = 16_000, featureDim = 80, dither = 0.0f),
