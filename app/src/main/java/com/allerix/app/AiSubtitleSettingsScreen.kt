@@ -30,6 +30,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
     val scope = rememberCoroutineScope()
     var selectedModelId by remember { mutableStateOf("tiny") }
     var language by remember { mutableStateOf(context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE).getString("language", "auto") ?: "auto") }
+    var autoGenerate by remember { mutableStateOf(context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE).getBoolean("auto_generate", true)) }
     var generating by remember { mutableStateOf(false) }
     var generationStatus by remember { mutableStateOf<String?>(null) }
     var generatedFile by remember { mutableStateOf<File?>(null) }
@@ -150,6 +151,27 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                                 label = { Text(model.title.removePrefix("Whisper ")) }
                             )
                         }
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(top = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Automatic subtitles during playback",
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Generate in the background when a movie or episode has no subtitle tracks.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 10.sp, lineHeight = 14.sp)
+                        }
+                        Switch(
+                            checked = autoGenerate,
+                            onCheckedChange = { enabled ->
+                                autoGenerate = enabled
+                                context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE)
+                                    .edit().putBoolean("auto_generate", enabled).apply()
+                            }
+                        )
                     }
                     val languageOptions = listOf(
                         "auto" to "Auto detect",
