@@ -43,6 +43,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.PixelCopy
 import android.view.ScaleGestureDetector
+import android.view.Surface
 import android.view.SurfaceView
 import android.view.TextureView
 import android.view.View
