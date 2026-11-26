@@ -45,11 +45,15 @@ object AiSubtitlePlaybackGenerator {
         audio.parentFile?.mkdirs()
         val request = Request.Builder()
             .url(url)
+            .header("Authorization", Api.authHeader())
             .header("X-Emby-Token", Api.token)
             .header("X-MediaBrowser-Token", Api.token)
             .build()
         client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("Jellyfin audio extraction failed (HTTP ${response.code}).")
+            if (!response.isSuccessful) {
+                val detail = response.body?.string()?.take(240)?.replace(Regex("\\s+"), " ")
+                error("Jellyfin audio extraction failed (HTTP ${response.code})${if (detail.isNullOrBlank()) "." else ": $detail"}")
+            }
             val body = response.body ?: error("Jellyfin returned an empty audio response.")
             FileOutputStream(audio).use { output ->
                 body.byteStream().use { input ->
