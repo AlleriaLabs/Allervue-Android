@@ -10,6 +10,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.Locale
 import android.util.Log
+import android.os.SystemClock
 
 /**
  * Copies decoded PCM from ExoPlayer's audio sink without changing the audible output.
@@ -18,7 +19,7 @@ import android.util.Log
 @OptIn(UnstableApi::class)
 class LiveSubtitleAudioProcessor(
     private val onDiagnostic: (String) -> Unit = {},
-    private val onWindow: (ShortArray) -> Unit
+    private val onWindow: (LiveSubtitleAudioWindow) -> Unit
 ) : BaseAudioProcessor() {
     private val windowSamples = 16_000 * 6
     private val hopSamples = 16_000 * 2
@@ -117,7 +118,7 @@ class LiveSubtitleAudioProcessor(
             Log.i("AllervueLiveAudio", "window ready samples=${snapshot.size} rms=${"%.5f".format(rms)} peak=${peak / 32768.0}")
             onDiagnostic("LIVE_AUDIO_WINDOW samples=${snapshot.size} duration=${snapshot.size / 16000.0}s rms=${"%.6f".format(Locale.US, rms)} peak=${"%.6f".format(Locale.US, peak / 32768.0)}")
             // The callback must only enqueue work; it runs on ExoPlayer's audio thread.
-            onWindow(snapshot)
+            onWindow(LiveSubtitleAudioWindow(snapshot, SystemClock.elapsedRealtime()))
         }
     }
 
