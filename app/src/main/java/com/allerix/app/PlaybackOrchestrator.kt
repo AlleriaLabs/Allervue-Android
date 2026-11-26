@@ -9,13 +9,22 @@ import android.widget.FrameLayout
  */
 enum class PlaybackEngineId { EXOPLAYER, MPV, LIBVLC }
 
+data class PlaybackTrackSelection(
+    val streamIndex: Int,
+    val language: String? = null,
+    val title: String? = null,
+    val codec: String? = null,
+    val imageBased: Boolean = false
+)
+
 data class PlaybackRequest(
     val uri: String,
     val mimeType: String? = null,
     val startPositionMs: Long = 0L,
     val playWhenReady: Boolean = true,
-    val audioTrackId: String? = null,
-    val subtitleTrackId: String? = null,
+    val audioTrack: PlaybackTrackSelection? = null,
+    /** Null means subtitles are intentionally off or rendered by Allervue's shared subtitle overlay. */
+    val subtitleTrack: PlaybackTrackSelection? = null,
     val headers: Map<String, String> = emptyMap(),
     val playbackSpeed: Float = 1f
 )
@@ -26,8 +35,8 @@ data class PlaybackSnapshot(
     val isPlaying: Boolean,
     val isBuffering: Boolean,
     val bufferedPositionMs: Long = 0L,
-    val audioTrackId: String? = null,
-    val subtitleTrackId: String? = null
+    val playWhenReady: Boolean = isPlaying,
+    val playbackSpeed: Float = 1f
 )
 
 interface PlayerEngine {
@@ -39,8 +48,8 @@ interface PlayerEngine {
     fun resume()
     fun seekTo(positionMs: Long)
     fun setPlaybackSpeed(speed: Float)
-    fun selectAudioTrack(trackId: String?)
-    fun selectSubtitleTrack(trackId: String?)
+    fun selectAudioTrack(track: PlaybackTrackSelection?)
+    fun selectSubtitleTrack(track: PlaybackTrackSelection?)
     fun snapshot(): PlaybackSnapshot
     fun release()
 
