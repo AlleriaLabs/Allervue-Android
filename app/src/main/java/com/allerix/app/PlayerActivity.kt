@@ -1670,8 +1670,7 @@ class PlayerActivity : ComponentActivity() {
         box.addView(pill("AI subtitle intro pre-roll: ${if (preRollEnabled) "ON" else "OFF"}") {
             preRollPrefs.edit().putBoolean("intro_preroll", !preRollEnabled).apply()
             dlg.dismiss()
-            showHud(if (!preRollEnabled) "AI subtitle intro pre-roll enabled" else "AI subtitle intro pre-roll disabled", 1800)
-        })
+            })
         val nativeGroups = nativeImageGroups()
         if (nativeGroups.isNotEmpty()) {
             box.addView(sectionLabel("Embedded image subtitles"))
@@ -1697,7 +1696,6 @@ class PlayerActivity : ComponentActivity() {
         val file = aiSubtitleFileFor(itemId)
         val parsed = runCatching { SubParser.parse(file.readText(Charsets.UTF_8)) }.getOrNull()
         if (parsed.isNullOrEmpty()) {
-            showHud("Saved AI subtitles could not be read", 2500)
             return
         }
         setNativeText(null)
@@ -1709,23 +1707,19 @@ class PlayerActivity : ComponentActivity() {
         shownText = "~"
         updateSubtitle()
         DiagnosticLog.record(this, "AI_SUBTITLE_HISTORY_RESTORED item=$itemId source=saved_srt cues=${parsed.size} first=${parsed.firstOrNull()?.startMs}ms")
-        showHud("AI subtitles · saved", 1800)
     }
 
     private fun generateAiSubtitlesForCurrentItem(automatic: Boolean = false) {
         if (aiSubtitleJob?.isActive == true) {
-            showHud("AI subtitle generation is already running", 2500)
             DiagnosticLog.record(this, "AI subtitle request ignored: generation already active for item=" + itemId)
             return
         }
         if (offlinePath != null) {
-            showHud("AI subtitles from offline files are not available in this phase", 3000)
             return
         }
         val requestedItemId = itemId
         val requestedSourceId = sourceId
         if (requestedSourceId.isBlank()) {
-            showHud("Jellyfin media information is not ready yet", 2500)
             return
         }
         val preferredModelId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
@@ -1735,7 +1729,6 @@ class PlayerActivity : ComponentActivity() {
             ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
         if (model == null) {
             val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
-            showHud(if (queued > 0) "Downloading Whisper models automatically · try again when ready" else "Whisper model download is still in progress", 4000)
             return
         }
         val selectedAudio = audioStreams.firstOrNull { it.index == selectedAudioStreamIndex }
@@ -1744,7 +1737,6 @@ class PlayerActivity : ComponentActivity() {
         val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getString("language", "auto") ?: "auto"
         val outputName = requestedItemId
-        showHud(if (automatic) "AI subtitles generating in background" else "Preparing AI subtitles", 2500)
         aiSubtitleJob = lifecycleScope.launch {
             try {
                 val result = AiSubtitlePlaybackGenerator.generate(
@@ -1765,7 +1757,6 @@ class PlayerActivity : ComponentActivity() {
                 activeSub = -2
                 shownText = "~"
                 updateSubtitle()
-                showHud("AI subtitles ready · " + result.segments.size + " lines", 3000)
                 DiagnosticLog.record(
                     this@PlayerActivity,
                     "AI subtitles generated: item=" + requestedItemId + " language=" + language +
@@ -1777,7 +1768,6 @@ class PlayerActivity : ComponentActivity() {
                 if (itemId == requestedItemId && !isFinishing && !isDestroyed) {
                     DiagnosticLog.record(this@PlayerActivity,
                         "AI subtitle generation failed: item=" + requestedItemId + ": " + error.message, error)
-                    showHud("AI subtitles failed: " + (error.message ?: "unknown error"), 5000)
                 }
             } finally {
                 if (itemId == requestedItemId) aiSubtitleJob = null
