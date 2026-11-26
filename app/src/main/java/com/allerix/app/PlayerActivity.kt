@@ -227,9 +227,7 @@ class PlayerActivity : ComponentActivity() {
      */
     private val subTick = object : Runnable {
         override fun run() {
-            if (::subText.isInitialized && subOn && cues.isNotEmpty()) {
-                updateSubtitle()
-            }
+            if (::subText.isInitialized) updateSubtitle()
             handler.postDelayed(this, 100)
         }
     }
@@ -2207,8 +2205,12 @@ class PlayerActivity : ComponentActivity() {
         sessionId = UUID.randomUUID().toString().replace("-", "")
 
 
-        cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); audioStreams = emptyList(); shownText = ""
+        cues = emptyList(); subOn = false; activeSub = -1
+        selectedImageSubtitleStreamIndex = null
+        nativeOn = false
+        subStreams = emptyList(); audioStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
+        updateSubtitle()
         setNativeText(null)
         playbackEngineManager.pause()
         playbackEngineManager.selectAudioTrack(null)
