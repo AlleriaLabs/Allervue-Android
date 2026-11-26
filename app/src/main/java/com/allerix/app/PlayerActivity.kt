@@ -1667,7 +1667,8 @@ class PlayerActivity : ComponentActivity() {
             .firstOrNull { it.id == "base" && AiSubtitleModelStore.isInstalled(this, it) }
             ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
         if (model == null) {
-            showHud("Download Whisper Tiny or Base in AI Subtitle settings first", 3500)
+            val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
+            showHud(if (queued > 0) "Downloading Whisper models automatically · try again when ready" else "Whisper model download is still in progress", 4000)
             return
         }
         val selectedAudio = audioStreams.firstOrNull { it.index == selectedAudioStreamIndex }
