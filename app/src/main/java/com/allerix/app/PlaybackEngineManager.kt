@@ -14,7 +14,7 @@ class PlaybackEngineManager(
     private val onReady: (PlaybackEngineId) -> Unit = {},
     private val onBuffering: (Boolean) -> Unit = {}
 ) {
-    private val appContext = context.applicationContext
+    private val viewContext = context
     private val exoEngine = initialEngine
     var activeEngine: PlayerEngine = initialEngine
         private set
@@ -25,10 +25,10 @@ class PlaybackEngineManager(
 
     private fun attachListener(engine: PlayerEngine) {
         engine.setListener(object : PlayerEngine.Listener {
-            override fun onReady() = onReady(engine.id)
-            override fun onBuffering(buffering: Boolean) = onBuffering(buffering)
+            override fun onReady() = this@PlaybackEngineManager.onReady(engine.id)
+            override fun onBuffering(buffering: Boolean) = this@PlaybackEngineManager.onBuffering(buffering)
             override fun onEnded() {}
-            override fun onFailure(error: Throwable) = onFailure(engine.id, error)
+            override fun onFailure(error: Throwable) = this@PlaybackEngineManager.onFailure(engine.id, error)
             override fun onTracksChanged() {}
         })
     }
@@ -37,8 +37,8 @@ class PlaybackEngineManager(
         if (engineId == activeEngine.id) return true
         val next = when (engineId) {
             PlaybackEngineId.EXOPLAYER -> exoEngine
-            PlaybackEngineId.MPV -> MpvPlayerEngine(appContext)
-            PlaybackEngineId.LIBVLC -> LibVlcPlayerEngine(appContext)
+            PlaybackEngineId.MPV -> MpvPlayerEngine(viewContext)
+            PlaybackEngineId.LIBVLC -> LibVlcPlayerEngine(viewContext)
         }
 
         val previous = activeEngine
