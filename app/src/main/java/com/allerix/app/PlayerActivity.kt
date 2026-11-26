@@ -2325,11 +2325,18 @@ class PlayerActivity : ComponentActivity() {
                 )
                 if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
 
+                // Whisper runs behind playback. Align the newest recognized endpoint with
+                // the current playback clock so late results are visible instead of already expired.
+                // Keep each segment's relative timing within the recognized batch.
+                val latestRecognizedEndMs = recognized.maxOfOrNull { it.endMs } ?: 0L
+                val renderClockMs = playbackPositionMs()
+                val recognizedEndOnTimelineMs = windowStartMs + latestRecognizedEndMs
+                val alignmentOffsetMs = (renderClockMs - recognizedEndOnTimelineMs).coerceAtLeast(0L)
                 val merged = cues.toMutableList()
                 recognized.forEach { segment ->
                     val candidate = SubCue(
-                        (windowStartMs + segment.startMs).coerceAtLeast(0L),
-                        (windowStartMs + segment.endMs).coerceAtLeast(0L),
+                        (windowStartMs + segment.startMs + alignmentOffsetMs).coerceAtLeast(0L),
+                        (windowStartMs + segment.endMs + alignmentOffsetMs).coerceAtLeast(0L),
                         segment.text.trim()
                     )
                     if (candidate.text.isNotBlank()) {
@@ -2350,7 +2357,7 @@ class PlayerActivity : ComponentActivity() {
                 val activeCueCount = cues.count { it.startMs <= renderPositionMs && it.endMs >= renderPositionMs }
                 DiagnosticLog.record(
                     this@PlayerActivity,
-                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
+                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs alignmentOffsetMs=$alignmentOffsetMs renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
                 )
                 updateSubtitle()
 
