@@ -96,9 +96,18 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                     onClient = { stack.add(Nav.ClientSettings) },
                     onPlayback = { stack.add(Nav.PlaybackSettings) },
                     onDiagnostics = { stack.add(Nav.Diagnostics) },
+                    onProfile = { stack.add(Nav.Profile) },
+                    onAppearance = { stack.add(Nav.Appearance) },
                     onSignOut = signOut,
                     onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
                 )
+                Nav.Profile -> ProfileScreen(
+                    back = back,
+                    onServer = { stack.add(Nav.ClientSettings) },
+                    onPortal = { stack.add(Nav.Web(Api.ACCOUNT_URL, "My account")) },
+                    onSignOut = signOut
+                )
+                Nav.Appearance -> AppearanceSettingsScreen(back)
                 Nav.RequestShow -> RequestShowScreen(back)
                 Nav.ClientSettings -> ClientSettingsScreen(
                     back, onServerChanged = signOut, loggedIn = true,
@@ -1178,8 +1187,9 @@ private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -
 @Composable
 private fun RebuildSettingsScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit,
-    onPlayback: () -> Unit, onDiagnostics: () -> Unit, onSignOut: () -> Unit,
-    onWeb: (String, String) -> Unit
+    onPlayback: () -> Unit, onDiagnostics: () -> Unit,
+    onProfile: () -> Unit, onAppearance: () -> Unit,
+    onSignOut: () -> Unit, onWeb: (String, String) -> Unit
 ) {
     val context = LocalContext.current
     val playerPrefs = remember { context.getSharedPreferences("player", 0) }
@@ -1236,7 +1246,7 @@ private fun RebuildSettingsScreen(
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
                         .background(Color(0xCC1A1228)).border(1.dp, Color(0x553F354D), RoundedCornerShape(30.dp))
-                        .clickable(onClick = onClient).padding(horizontal = 18.dp, vertical = 18.dp),
+                        .clickable(onClick = onProfile).padding(horizontal = 18.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(66.dp).border(3.dp,
@@ -1254,6 +1264,12 @@ private fun RebuildSettingsScreen(
                         Text("Jellyfin account", color = Color(0xFFB7AFC3), fontSize = 13.sp)
                     }
                     Text("›", color = Color(0xFFA79CB5), fontSize = 30.sp)
+                }
+            }
+            item { RebuildSettingsLabel("PERSONALIZATION") }
+            item {
+                RebuildSettingsGroup {
+                    RebuildSettingsActionRow("Appearance", "Theme & display", onAppearance)
                 }
             }
             item { RebuildSettingsLabel("PLAYBACK") }
