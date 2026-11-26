@@ -72,7 +72,6 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
                 pendingStartPositionMs = request.startPositionMs.coerceAtLeast(0L)
                 videoView.playFile(request.uri)
                 videoView.speed = requestedSpeed.toDouble()
-                videoView.paused = !requestedPlayWhenReady
                 applyRequestedTracks()
             } catch (error: Throwable) {
                 listener?.onFailure(error)
