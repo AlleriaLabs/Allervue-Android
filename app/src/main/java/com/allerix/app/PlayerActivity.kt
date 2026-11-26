@@ -212,6 +212,9 @@ class PlayerActivity : ComponentActivity() {
     private val uiTick = object : Runnable {
         override fun run() {
             if (!scrubbing) updateProgress()
+            if (::playBtn.isInitialized && ::playbackEngineManager.isInitialized) {
+                playBtn.setImageResource(if (playbackEngineManager.isPlaying()) R.drawable.ic_pause else R.drawable.ic_play)
+            }
             updateIntroSkip()
             handler.postDelayed(this, 500)
         }
@@ -1668,7 +1671,7 @@ class PlayerActivity : ComponentActivity() {
         val dur = duration
         if (dur > 0) seek.max = dur.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         seek.progress = pos.coerceAtLeast(0).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        val buffered = player.bufferedPosition
+        val buffered = if (::playbackEngineManager.isInitialized) playbackEngineManager.bufferedPositionMs() else player.bufferedPosition
         seek.secondaryProgress = buffered.coerceAtLeast(pos).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         updateChapterDotColors(pos)
         curTime.text = fmt(pos)
@@ -2221,26 +2224,47 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private val duration: Long
-        get() = if (::player.isInitialized) player.duration.coerceAtLeast(0L) else 0L
+        get() = if (!::player.isInitialized) 0L
+        else if (::playbackEngineManager.isInitialized) playbackEngineManager.durationMs().coerceAtLeast(0L)
+        else player.duration.coerceAtLeast(0L)
 
     private fun playbackPositionMs(): Long =
-        if (::player.isInitialized) player.currentPosition.coerceAtLeast(0L) else 0L
+        if (!::player.isInitialized) 0L
+        else if (::playbackEngineManager.isInitialized) playbackEngineManager.positionMs().coerceAtLeast(0L)
+        else player.currentPosition.coerceAtLeast(0L)
 
-    private fun isPlaybackPlaying(): Boolean = ::player.isInitialized && player.isPlaying
+    private fun isPlaybackPlaying(): Boolean =
+        if (!::player.isInitialized) false
+        else if (::playbackEngineManager.isInitialized) playbackEngineManager.isPlaying()
+        else player.isPlaying
 
     private fun seekPlaybackTo(positionMs: Long) {
-        if (::player.isInitialized) player.seekTo(positionMs.coerceAtLeast(0L))
+        if (!::player.isInitialized) return
+        val target = positionMs.coerceAtLeast(0L)
+        if (::playbackEngineManager.isInitialized) playbackEngineManager.seekTo(target)
+        else player.seekTo(target)
     }
 
-    private fun pausePlayback() { if (::player.isInitialized) player.pause() }
-    private fun resumePlayback() { if (::player.isInitialized) player.play() }
+    private fun pausePlayback() {
+        if (!::player.isInitialized) return
+        if (::playbackEngineManager.isInitialized) playbackEngineManager.pause() else player.pause()
+    }
+
+    private fun resumePlayback() {
+        if (!::player.isInitialized) return
+        if (::playbackEngineManager.isInitialized) playbackEngineManager.resume() else player.play()
+    }
+
     private fun togglePlayback() {
         if (!::player.isInitialized) return
-        if (player.isPlaying) player.pause() else player.play()
+        if (isPlaybackPlaying()) pausePlayback() else resumePlayback()
     }
+
     private fun setPlaybackSpeed(value: Float) {
         speed = value.coerceIn(0.25f, 3f)
-        if (::player.isInitialized) player.setPlaybackSpeed(speed)
+        if (!::player.isInitialized) return
+        if (::playbackEngineManager.isInitialized) playbackEngineManager.setPlaybackSpeed(speed)
+        else player.setPlaybackSpeed(speed)
     }
 
     private fun seekBy(ms: Long) {
@@ -2319,7 +2343,7 @@ class PlayerActivity : ComponentActivity() {
     // ================================================================= reporting & lifecycle
     private fun saveOfflinePosition() {
         if (offlinePath == null || !::player.isInitialized) return
-        Downloads.savePosition(this, itemId, player.currentPosition, player.duration)
+        Downloads.savePosition(this, itemId, playbackPositionMs(), duration)
     }
 
     private fun report(kind: String) {
@@ -2391,7 +2415,7 @@ class PlayerActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         saveOfflinePosition()
-        if (::player.isInitialized && !isInPictureInPictureMode) player.pause()
+        if (::player.isInitialized && !isInPictureInPictureMode) pausePlayback()
     }
 
     override fun onDestroy() {
