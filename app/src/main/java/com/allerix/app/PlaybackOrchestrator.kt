@@ -16,7 +16,8 @@ data class PlaybackRequest(
     val playWhenReady: Boolean = true,
     val audioTrackId: String? = null,
     val subtitleTrackId: String? = null,
-    val headers: Map<String, String> = emptyMap()
+    val headers: Map<String, String> = emptyMap(),
+    val playbackSpeed: Float = 1f
 )
 
 data class PlaybackSnapshot(
