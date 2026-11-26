@@ -85,6 +85,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -175,6 +176,7 @@ class PlayerActivity : ComponentActivity() {
     private var subDownX = 0f
     private var subDownY = 0f
     private var subStartPos = 0f
+    private var aiSubtitleJob: Job? = null
 
     // volume boost
     private var enhancer: LoudnessEnhancer? = null
@@ -1587,6 +1589,11 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         })
+        box.addView(pill("✨  Generate AI subtitles") {
+            dlg.dismiss()
+            generateAiSubtitlesForCurrentItem()
+        })
+        box.addView(noteText("Uses your Jellyfin audio stream and the downloaded on-device Whisper model. Playback continues while subtitles are generated."))
         val nativeGroups = nativeImageGroups()
         if (nativeGroups.isNotEmpty()) {
             box.addView(sectionLabel("Embedded image subtitles"))
@@ -1601,6 +1608,78 @@ class PlayerActivity : ComponentActivity() {
         box.addView(noteText(
             "Choose an embedded subtitle track. Tip: swipe left or right on the subtitle text to jump " +
                 "between lines, and drag it up or down to move it."))
+    }
+
+    private fun generateAiSubtitlesForCurrentItem() {
+        if (aiSubtitleJob?.isActive == true) {
+            aiSubtitleJob?.cancel()
+            aiSubtitleJob = null
+            showHud("AI subtitle generation cancelled")
+            return
+        }
+        if (offlinePath != null) {
+            showHud("AI subtitles from offline files are not available in this phase", 3000)
+            return
+        }
+        val requestedItemId = itemId
+        val requestedSourceId = sourceId
+        if (requestedSourceId.isBlank()) {
+            showHud("Jellyfin media information is not ready yet", 2500)
+            return
+        }
+        val model = AiSubtitleModels.all
+            .firstOrNull { it.id == "base" && AiSubtitleModelStore.isInstalled(this, it) }
+            ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
+        if (model == null) {
+            showHud("Download Whisper Tiny or Base in AI Subtitle settings first", 3500)
+            return
+        }
+        val selectedAudio = audioStreams.firstOrNull { it.index == selectedAudioStreamIndex }
+            ?: audioStreams.firstOrNull { it.isDefault }
+            ?: audioStreams.firstOrNull()
+        val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("language", "auto") ?: "auto"
+        val outputName = (titleView.text?.toString().orEmpty().ifBlank { "Allervue" })
+            .replace(Regex("[^A-Za-z0-9._-]"), "_")
+        showHud("Preparing AI subtitles", 3500)
+        aiSubtitleJob = lifecycleScope.launch {
+            try {
+                val result = AiSubtitlePlaybackGenerator.generate(
+                    context = this@PlayerActivity,
+                    itemId = requestedItemId,
+                    mediaSourceId = requestedSourceId,
+                    audioStreamIndex = selectedAudio?.index,
+                    model = model,
+                    language = language,
+                    outputName = outputName
+                )
+                if (isFinishing || isDestroyed || itemId != requestedItemId) return@launch
+                setNativeText(null)
+                selectedImageSubtitleStreamIndex = null
+                playbackEngineManager.selectSubtitleTrack(null)
+                cues = result.segments.map { SubCue(it.startMs, it.endMs, it.text) }
+                subOn = true
+                activeSub = -2
+                shownText = "~"
+                updateSubtitle()
+                showHud("AI subtitles ready · " + result.segments.size + " lines", 3000)
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "AI subtitles generated: item=" + requestedItemId + " language=" + language +
+                        " model=" + model.id + " cues=" + result.segments.size
+                )
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                if (itemId == requestedItemId && !isFinishing && !isDestroyed) {
+                    DiagnosticLog.record(this@PlayerActivity,
+                        "AI subtitle generation failed: item=" + requestedItemId + ": " + error.message, error)
+                    showHud("AI subtitles failed: " + (error.message ?: "unknown error"), 5000)
+                }
+            } finally {
+                if (itemId == requestedItemId) aiSubtitleJob = null
+            }
+        }
     }
 
     private fun showSubtitleSyncSheet() = sheet("Subtitle sync") { box, _ ->
@@ -2212,6 +2291,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun switchTo(newId: String) {
+        aiSubtitleJob?.cancel(); aiSubtitleJob = null
         report("stop")
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
@@ -2645,6 +2725,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
 
+        aiSubtitleJob?.cancel(); aiSubtitleJob = null
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {
