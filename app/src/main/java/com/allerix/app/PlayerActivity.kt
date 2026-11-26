@@ -2118,12 +2118,26 @@ class PlayerActivity : ComponentActivity() {
         if (rawId != 0) {
             val video = VideoView(this).apply {
                 setBackgroundColor(Color.BLACK)
+                // VideoView is backed by a SurfaceView. Keep its surface above the main
+                // player's video surface so the ident is actually visible during pre-roll.
+                setZOrderMediaOverlay(true)
                 setOnPreparedListener { media ->
                     media.setVolume(0f, 0f)
                     media.isLooping = false
+                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_prepared durationMs=${media.duration} size=${width}x${height}")
                     start()
+                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_start requested")
+                }
+                setOnInfoListener { _, what, extra ->
+                    if (what == android.media.MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                        DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL first_frame_rendered")
+                    } else if (what == android.media.MediaPlayer.MEDIA_INFO_VIDEO_TRACK_LAGGING) {
+                        DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_track_lagging")
+                    }
+                    false
                 }
                 setOnCompletionListener {
+                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_completed")
                     preRollVideoEnded = true
                     maybeFinishSubtitlePreRoll()
                 }
@@ -2157,11 +2171,16 @@ class PlayerActivity : ComponentActivity() {
         }
         preRollOverlay = overlay
         root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        overlay.bringToFront()
+        preRollVideo?.bringToFront()
         DiagnosticLog.record(this, "AI_PREROLL overlay=${if (rawId != 0) "video_asset" else "brand_fallback"}")
     }
 
     private fun maybeFinishSubtitlePreRoll() {
-        if (!preRollInProgress || !preRollVideoEnded || !preRollFirstWindowFinished) return
+        // The ident is a visual pre-roll, not a gate for Whisper. Base-model inference can
+        // take longer than the intro on mid-range devices; never leave a black player waiting
+        // for transcription. Any completed first window still populates cues during playback.
+        if (!preRollInProgress || !preRollVideoEnded) return
         finishSubtitlePreRoll()
     }
 
