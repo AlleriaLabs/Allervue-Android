@@ -102,7 +102,24 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
     std::vector<float> audio;
     if (!read_pcm_wav(wav, audio)) {
         LOGE("Invalid or unsupported 16 kHz mono PCM WAV: %s", wav.c_str());
-        return env->NewStringUTF("");
+        return env->NewStringUTF("!ALLERVUE_ERROR:WAV_INVALID");
+    }
+
+    double energy = 0.0;
+    float peak = 0.0f;
+    for (float sample : audio) {
+        energy += static_cast<double>(sample) * sample;
+        peak = std::max(peak, std::abs(sample));
+    }
+    const double rms = std::sqrt(energy / static_cast<double>(audio.size()));
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
+        "Decoded WAV: samples=%zu duration=%.2fs peak=%.5f rms=%.5f",
+        audio.size(), static_cast<double>(audio.size()) / WHISPER_SAMPLE_RATE, peak, rms);
+    if (audio.size() < static_cast<size_t>(WHISPER_SAMPLE_RATE / 2)) {
+        return env->NewStringUTF("!ALLERVUE_ERROR:AUDIO_TOO_SHORT");
+    }
+    if (peak < 0.0005f || rms < 0.00005) {
+        return env->NewStringUTF("!ALLERVUE_ERROR:AUDIO_SILENT");
     }
 
     struct whisper_context_params context_params = whisper_context_default_params();
@@ -110,7 +127,7 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
     struct whisper_context *ctx = whisper_init_from_file_with_params(model.c_str(), context_params);
     if (!ctx) {
         LOGE("Unable to load Whisper model: %s", model.c_str());
-        return env->NewStringUTF("");
+        return env->NewStringUTF("!ALLERVUE_ERROR:MODEL_LOAD");
     }
 
     const int threads = std::max(1, std::min(4, static_cast<int>(requested_threads)));
@@ -139,7 +156,7 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         if (whisper_full(ctx, params, audio.data() + offset, static_cast<int>(count)) != 0) {
             LOGE("Whisper inference failed at sample offset %zu", offset);
             whisper_free(ctx);
-            return env->NewStringUTF("");
+            return env->NewStringUTF("!ALLERVUE_ERROR:INFERENCE");
         }
 
         const int n = whisper_full_n_segments(ctx);
@@ -164,5 +181,10 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
     }
 
     whisper_free(ctx);
+    if (result.empty()) {
+        LOGE("Whisper completed but returned no speech segments (samples=%zu rms=%.5f peak=%.5f)",
+            audio.size(), rms, peak);
+        return env->NewStringUTF("!ALLERVUE_ERROR:NO_SPEECH");
+    }
     return env->NewStringUTF(result.c_str());
 }
