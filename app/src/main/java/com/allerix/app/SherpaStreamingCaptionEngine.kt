@@ -77,7 +77,7 @@ object SherpaStreamingModelStore {
             val request = DownloadManager.Request(Uri.parse(modelFile.url))
                 .setTitle("Allervue · Live captions")
                 .setDescription("Downloading English streaming speech model · ${modelFile.name}")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
                 .setAllowedOverRoaming(false)
                 .setDestinationInExternalFilesDir(
                     context, Environment.DIRECTORY_DOWNLOADS,
