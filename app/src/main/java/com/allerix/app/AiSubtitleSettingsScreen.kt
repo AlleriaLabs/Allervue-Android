@@ -70,6 +70,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
+        AiSubtitleModelDownloads.ensureDefaultModels(context)
         while (true) {
             delay(1200)
             refresh++
