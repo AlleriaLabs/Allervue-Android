@@ -28,7 +28,12 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
     val context = LocalContext.current
     var refresh by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-    var selectedModelId by remember { mutableStateOf("tiny") }
+    var selectedModelId by remember {
+        mutableStateOf(
+            context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE)
+                .getString("model", "base") ?: "base"
+        )
+    }
     var language by remember { mutableStateOf(context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE).getString("language", "auto") ?: "auto") }
     var autoGenerate by remember { mutableStateOf(context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE).getBoolean("auto_generate", true)) }
     var generating by remember { mutableStateOf(false) }
@@ -148,11 +153,26 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                         AiSubtitleModels.all.forEach { model ->
                             FilterChip(
                                 selected = selectedModelId == model.id,
-                                onClick = { selectedModelId = model.id },
-                                label = { Text(model.title.removePrefix("Whisper ")) }
+                                onClick = {
+                                    selectedModelId = model.id
+                                    context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE)
+                                        .edit().putString("model", model.id).apply()
+                                },
+                                label = {
+                                    val installed = AiSubtitleModelStore.isInstalled(context, model)
+                                    Text("${model.title.removePrefix("Whisper ")} · ${if (installed) "Ready" else "Not installed"}")
+                                }
                             )
                         }
                     }
+                    val activeModel = AiSubtitleModels.get(selectedModelId)
+                    Text(
+                        "Playback model: ${activeModel?.title ?: "Whisper Base"}. This choice is saved and used for automatic AI subtitles when installed.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        modifier = Modifier.padding(top = 7.dp)
+                    )
                     Row(
                         Modifier.fillMaxWidth().padding(top = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -326,9 +346,16 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                             Text(model.description, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
                         }
-                        Text(if (installed) "DOWNLOADED" else formatAiBytes(model.expectedBytes),
-                            color = if (installed) AllervueDesign.Success else AllervueDesign.Cyan,
-                            fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(if (installed) "INSTALLED" else formatAiBytes(model.expectedBytes),
+                                color = if (installed) AllervueDesign.Success else AllervueDesign.Cyan,
+                                fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            if (selectedModelId == model.id) {
+                                Text("PLAYBACK MODEL", color = AllervueDesign.Cyan,
+                                    fontSize = 8.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 4.dp))
+                            }
+                        }
                     }
                     if (downloadState?.isActive == true) {
                         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
