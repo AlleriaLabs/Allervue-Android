@@ -1963,7 +1963,12 @@ class PlayerActivity : ComponentActivity() {
         if (!AiSubtitleEngineStatus.NATIVE_RUNTIME_READY) return
         val modelInstalled = AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this, it) }
         if (!modelInstalled) {
-            showHud("Download a Whisper model to enable automatic AI subtitles", 3500)
+            val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
+            showHud(
+                if (queued > 0) "Downloading Whisper Tiny + Base for AI subtitles"
+                else "Whisper models are downloading; AI subtitles will be ready after download",
+                4000
+            )
             return
         }
         autoSubtitleAttemptedItemId = currentId
