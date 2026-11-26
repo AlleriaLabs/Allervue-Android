@@ -112,6 +112,36 @@ object AiSubtitleGenerator {
         }
     }
 
+    suspend fun generateFromAudioFile(
+        context: Context,
+        audioFile: File,
+        model: AiSubtitleModel,
+        language: String = "auto",
+        outputName: String = "Allervue_AI_Subtitles"
+    ): AiSubtitleFile = withContext(Dispatchers.IO) {
+        check(engine.isAvailable) { "Whisper native runtime is unavailable on this device." }
+        require(AiSubtitleModelStore.isInstalled(context, model)) {
+            "The selected Whisper model is not downloaded yet."
+        }
+        require(audioFile.isFile && audioFile.length() > 0L) { "The Jellyfin audio stream is empty." }
+        val cacheDir = File(context.cacheDir, "ai_subtitle_work").apply { mkdirs() }
+        val wav = File.createTempFile("allervue_audio_", ".wav", cacheDir)
+        try {
+            MediaAudioDecoder.decodeFileToWhisperWav(audioFile, wav)
+            val cues = engine.transcribe(wav, AiSubtitleModelStore.file(context, model), language)
+            val outputDir = File(
+                context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS) ?: context.filesDir,
+                "AI Subtitles"
+            ).apply { mkdirs() }
+            val safeName = outputName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80)
+            val output = File(outputDir, "${safeName}_AI_Subtitles.srt")
+            output.writeText(toSrt(cues), Charsets.UTF_8)
+            AiSubtitleFile(output, cues)
+        } finally {
+            wav.delete()
+        }
+    }
+
     fun toSrt(segments: List<AiSubtitleSegment>): String = buildString {
         segments.forEachIndexed { index, cue ->
             append(index + 1).append('\n')
