@@ -3,6 +3,7 @@ package com.allerix.app
 import android.app.Dialog
 import android.app.PictureInPictureParams
 import android.content.ContentValues
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
@@ -65,6 +66,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -177,6 +180,12 @@ class PlayerActivity : ComponentActivity() {
     private var subDownY = 0f
     private var subStartPos = 0f
     private var aiSubtitleJob: Job? = null
+    private var liveAudioProcessor: LiveSubtitleAudioProcessor? = null
+    private var liveSubtitleActive = false
+    private var liveSubtitleBusy = false
+    private var liveSubtitleModel: AiSubtitleModel? = null
+    private var livePendingWindow: Pair<ShortArray, Long>? = null
+    private var liveSubtitleFirstCue = true
     private var aiModelWaitRunnable: Runnable? = null
     private var autoSubtitleAttemptedItemId: String? = null
 
@@ -328,8 +337,24 @@ class PlayerActivity : ComponentActivity() {
             )
             selected
         }
-        val factory = DefaultRenderersFactory(this)
-            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        val captureProcessor = LiveSubtitleAudioProcessor { samples ->
+            // Only enqueue the immutable PCM window here; never run inference on the audio thread.
+            handler.post { onLiveAudioWindow(samples) }
+        }
+        liveAudioProcessor = captureProcessor
+        val factory = object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioOutputPlaybackParams: Boolean
+            ): AudioSink {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
+                    .setAudioProcessors(arrayOf(captureProcessor))
+                    .build()
+            }
+        }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setMediaCodecSelector(selector)
             .setEnableDecoderFallback(true)
         if (decoder == DecoderMode.HW_PLUS) factory.forceEnableMediaCodecAsynchronousQueueing()
@@ -1957,7 +1982,7 @@ class PlayerActivity : ComponentActivity() {
                 if (AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this@PlayerActivity, it) }) {
                     aiModelWaitRunnable = null
                     autoSubtitleAttemptedItemId = requestedItemId
-                    generateAiSubtitlesForCurrentItem(automatic = true)
+                    startLiveAiSubtitles()
                 } else {
                     handler.postDelayed(this, 15_000L)
                 }
@@ -1992,7 +2017,112 @@ class PlayerActivity : ComponentActivity() {
             return
         }
         autoSubtitleAttemptedItemId = currentId
-        generateAiSubtitlesForCurrentItem(automatic = true)
+        startLiveAiSubtitles()
+    }
+
+    private fun startLiveAiSubtitles() {
+        if (offlinePath != null || liveSubtitleActive || !::player.isInitialized) return
+        val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("model", "base") ?: "base"
+        val model = AiSubtitleModels.get(preferredId)
+            ?.takeIf { AiSubtitleModelStore.isInstalled(this, it) }
+            ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
+        if (model == null) {
+            val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
+            showHud(if (queued > 0) "Downloading Whisper models · live subtitles will start when ready"
+                else "Whisper models are still downloading", 4000)
+            waitForAiSubtitleModels(itemId)
+            return
+        }
+        liveSubtitleModel = model
+        liveSubtitleActive = true
+        liveSubtitleBusy = false
+        livePendingWindow = null
+        liveSubtitleFirstCue = true
+        liveAudioProcessor?.clearCapture()
+        showHud("Live AI subtitles · listening", 2500)
+        DiagnosticLog.record(this, "LIVE_AI_SUBTITLES started item=$itemId model=${model.id}")
+    }
+
+    private fun onLiveAudioWindow(samples: ShortArray) {
+        if (!liveSubtitleActive || isFinishing || isDestroyed) return
+        val endPositionMs = playbackPositionMs()
+        if (liveSubtitleBusy) {
+            livePendingWindow = samples to endPositionMs
+            return
+        }
+        transcribeLiveWindow(samples, endPositionMs)
+    }
+
+    private fun transcribeLiveWindow(samples: ShortArray, windowEndMs: Long) {
+        val model = liveSubtitleModel ?: return
+        val requestedItemId = itemId
+        val windowStartMs = (windowEndMs - 8000L).coerceAtLeast(0L)
+        val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("language", "auto") ?: "auto"
+        val wav = File(cacheDir, "live_subtitle_${UUID.randomUUID()}.wav")
+        liveSubtitleBusy = true
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { LiveSubtitleWav.write(samples, wav) }
+                val recognized = WhisperCppEngine().transcribe(
+                    wav, AiSubtitleModelStore.file(this@PlayerActivity, model), language
+                )
+                if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
+
+                val merged = cues.toMutableList()
+                recognized.forEach { segment ->
+                    val candidate = SubCue(
+                        (windowStartMs + segment.startMs).coerceAtLeast(0L),
+                        (windowStartMs + segment.endMs).coerceAtLeast(0L),
+                        segment.text.trim()
+                    )
+                    if (candidate.text.isNotBlank()) {
+                        val normalized = candidate.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+                        val duplicate = merged.any { existing ->
+                            val existingText = existing.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+                            existingText == normalized &&
+                                kotlin.math.abs(existing.startMs - candidate.startMs) < 2500L
+                        }
+                        if (!duplicate) merged += candidate
+                    }
+                }
+                cues = merged.sortedBy { it.startMs }
+                subOn = cues.isNotEmpty()
+                activeSub = -2
+                shownText = "~"
+                updateSubtitle()
+
+                val output = aiSubtitleFileFor(requestedItemId)
+                val saveSegments = cues.map { AiSubtitleSegment(it.startMs, it.endMs, it.text) }
+                withContext(Dispatchers.IO) {
+                    output.parentFile?.mkdirs()
+                    output.writeText(AiSubtitleGenerator.toSrt(saveSegments), Charsets.UTF_8)
+                }
+                if (liveSubtitleFirstCue && recognized.isNotEmpty()) {
+                    liveSubtitleFirstCue = false
+                    showHud("Live AI subtitles active · ${model.title}", 2200)
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "LIVE_AI_SUBTITLES window failed item=$requestedItemId: ${error.message}", error
+                )
+                if (liveSubtitleFirstCue && itemId == requestedItemId) {
+                    showHud("Live subtitle recognition: ${error.message ?: "retrying"}", 3500)
+                }
+            } finally {
+                wav.delete()
+                liveSubtitleBusy = false
+                val pending = livePendingWindow
+                livePendingWindow = null
+                if (liveSubtitleActive && pending != null && itemId == requestedItemId) {
+                    transcribeLiveWindow(pending.first, pending.second)
+                }
+            }
+        }
     }
 
     private fun applyDefaultSubtitle() {
@@ -2393,6 +2523,10 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun switchTo(newId: String) {
+        liveSubtitleActive = false
+        liveSubtitleModel = null
+        livePendingWindow = null
+        liveAudioProcessor?.clearCapture()
         aiSubtitleJob?.cancel(); aiSubtitleJob = null
         aiModelWaitRunnable?.let(handler::removeCallbacks); aiModelWaitRunnable = null
         report("stop")
@@ -2649,6 +2783,8 @@ class PlayerActivity : ComponentActivity() {
 
     private fun seekPlaybackTo(positionMs: Long) {
         if (!::player.isInitialized) return
+        liveAudioProcessor?.clearCapture()
+        livePendingWindow = null
         val target = positionMs.coerceAtLeast(0L)
         if (::playbackEngineManager.isInitialized) playbackEngineManager.seekTo(target)
         else player.seekTo(target)
@@ -2828,7 +2964,10 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-
+        liveSubtitleActive = false
+        liveSubtitleModel = null
+        livePendingWindow = null
+        liveAudioProcessor?.clearCapture()
         aiSubtitleJob?.cancel(); aiSubtitleJob = null
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
