@@ -2,6 +2,12 @@ package com.allerix.app
 
 import java.io.Closeable
 
+/** Immutable short PCM chunk copied from the active playback audio sink. */
+data class LiveSubtitleAudioChunk(
+    val samples: ShortArray,
+    val capturedAtElapsedRealtimeMs: Long
+)
+
 /**
  * Immutable six-second PCM window copied from the active playback audio sink.
  *
