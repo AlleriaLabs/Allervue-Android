@@ -1019,16 +1019,17 @@ class PlayerActivity : ComponentActivity() {
         label(left, "SUBTITLES")
         option(left, "Off", !subOn) { subtitlesOff(); root.removeView(overlay); showControls() }
         subStreams.forEachIndexed { i, stream ->
-            option(left, streamLabel(stream), subOn && activeSub == i) {
-                selectSubStream(i); root.removeView(overlay); showControls()
+            val selected = if (stream.isText) subOn && activeSub == i
+                else subOn && selectedImageSubtitleStreamIndex == stream.index
+            option(left, streamLabel(stream), selected) {
+                if (stream.isText) selectSubStream(i) else selectImageSubtitleStream(i)
+                root.removeView(overlay); showControls()
             }
         }
         label(left, "AUDIO")
-        val audioGroups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
-        audioGroups.forEachIndexed { i, group ->
-            option(left, trackLabel(group, i), group.isSelected) {
-                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                    .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, 0)).build()
+        audioStreams.forEachIndexed { i, stream ->
+            option(left, streamLabel(stream), selectedAudioStreamIndex == stream.index) {
+                selectAudioStream(i)
                 root.removeView(overlay); showControls()
             }
         }
@@ -1282,16 +1283,12 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun showAudioSheet() = sheet("Audio") { box, _ ->
-        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
-        if (groups.isEmpty()) {
+        if (audioStreams.isEmpty()) {
             box.addView(noteText("No audio tracks found."))
         } else {
-            val labels = groups.mapIndexed { i, g -> trackLabel(g, i) }
-            val sel = groups.indexOfFirst { it.isSelected }.coerceAtLeast(0)
-            box.addView(radioGroup(100, labels, sel) { i ->
-                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-                    .setOverrideForType(TrackSelectionOverride(groups[i].mediaTrackGroup, 0)).build()
-            })
+            val labels = audioStreams.map { streamLabel(it) }
+            val selected = audioStreams.indexOfFirst { it.index == selectedAudioStreamIndex }.coerceAtLeast(0)
+            box.addView(radioGroup(100, labels, selected) { i -> selectAudioStream(i) })
         }
         if (isTranscoding) box.addView(noteText(
             "While transcoding only one audio track is available. Choose Original quality and audio to switch tracks."))
@@ -1433,27 +1430,58 @@ class PlayerActivity : ComponentActivity() {
 
     private fun subtitlesOff() {
         subOn = false; activeSub = -1; cues = emptyList()
+        selectedImageSubtitleStreamIndex = null
         setNativeText(null)
+        if (::playbackEngineManager.isInitialized) playbackEngineManager.selectSubtitleTrack(null)
         updateSubtitle()
         showHud("Subtitles off")
     }
 
     private fun selectNativeSubtitle(g: Tracks.Group) {
-        cues = emptyList(); subOn = false; activeSub = -1
-        setNativeText(g)
+        val format = g.getTrackFormat(0)
+        val stream = format.id?.toIntOrNull()?.let { id -> subStreams.firstOrNull { it.index == id } }
+            ?: subStreams.firstOrNull { it.language != null && it.language.equals(format.language, true) && !it.isText }
+        if (stream != null) {
+            val index = subStreams.indexOf(stream)
+            if (index >= 0) selectImageSubtitleStream(index, g)
+        } else {
+            cues = emptyList(); subOn = true; activeSub = -1
+            selectedImageSubtitleStreamIndex = null
+            setNativeText(g)
+            updateSubtitle()
+        }
+    }
+
+    private fun selectImageSubtitleStream(i: Int, nativeGroup: Tracks.Group? = null) {
+        val st = subStreams.getOrNull(i) ?: return
+        if (st.isText) { selectSubStream(i); return }
+        cues = emptyList(); subOn = true; activeSub = -1
+        selectedImageSubtitleStreamIndex = st.index
+        if (nativeGroup != null) setNativeText(nativeGroup)
+        else {
+            val exoGroup = nativeImageGroups().firstOrNull { group ->
+                group.getTrackFormat(0).id?.toIntOrNull() == st.index
+            }
+            if (exoGroup != null) setNativeText(exoGroup) else nativeOn = true
+        }
+        if (::playbackEngineManager.isInitialized) {
+            playbackEngineManager.selectSubtitleTrack(playbackTrack(st, imageBased = true))
+        }
         updateSubtitle()
-        showHud("Image subtitles on")
+        showHud("Image subtitles: " + streamLabel(st), 1500)
     }
 
     private fun selectSubStream(i: Int) {
         val st = subStreams.getOrNull(i) ?: return
-        if (!st.isText) { showHud("Image subtitle (${st.codec ?: "?"}). Use the embedded image list if shown"); return }
+        if (!st.isText) { selectImageSubtitleStream(i); return }
         lifecycleScope.launch {
             try {
                 val bytes = Api.fetchBytes(Api.subtitleUrl(itemId, sourceId, st.index, subExt(st.codec)))
                 val parsed = SubParser.parse(Api.decodeText(bytes))
                 if (parsed == null) { showHud("Couldn't read this subtitle"); return@launch }
                 setNativeText(null)
+                selectedImageSubtitleStreamIndex = null
+                if (::playbackEngineManager.isInitialized) playbackEngineManager.selectSubtitleTrack(null)
                 cues = parsed; subOn = true; activeSub = i
                 shownText = "~"; updateSubtitle()
                 showHud("Subtitles: " + streamLabel(st), 1500)
