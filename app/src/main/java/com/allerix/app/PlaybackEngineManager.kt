@@ -12,7 +12,7 @@ class PlaybackEngineManager(
     private val onSurfaceChanged: (PlayerEngine) -> Unit,
     private val onFailure: (PlaybackEngineId, Throwable) -> Unit,
     private val onReady: (PlaybackEngineId) -> Unit = {},
-    private val onBufferingChanged: (Boolean) -> Unit = {},
+    private val onBuffering: (Boolean) -> Unit = {},
     private val onEnded: (PlaybackEngineId) -> Unit = {}
 ) {
     private val viewContext = context
@@ -34,7 +34,7 @@ class PlaybackEngineManager(
                 onReady(engine.id)
             }
             override fun onBuffering(buffering: Boolean) {
-                if (activeEngine === engine) this@PlaybackEngineManager.onBufferingChanged(buffering)
+                if (activeEngine === engine) this@PlaybackEngineManager.onBuffering(buffering)
             }
             override fun onEnded() {
                 if (activeEngine === engine) onEnded(engine.id)
