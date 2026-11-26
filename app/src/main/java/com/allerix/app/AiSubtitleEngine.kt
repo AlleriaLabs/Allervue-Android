@@ -65,7 +65,10 @@ class WhisperCppEngine : AiSubtitleEngine {
         )
         coroutineContext.ensureActive()
         if (srt.startsWith("!ALLERVUE_ERROR:")) {
-            val detail = when (srt.substringAfter(':')) {
+            val nativeError = srt.substringAfter(':')
+            val errorCode = nativeError.substringBefore(':')
+            val nativeDetail = nativeError.substringAfter(':', "")
+            val detail = when (errorCode) {
                 "WAV_INVALID" -> "Audio was decoded, but its WAV format is invalid. The audio conversion stage needs fixing."
                 "AUDIO_TOO_SHORT" -> "The selected recording contains less than half a second of usable audio."
                 "AUDIO_SILENT" -> "The extracted audio is silent or too quiet. Try another media file."
@@ -74,7 +77,7 @@ class WhisperCppEngine : AiSubtitleEngine {
                 "NO_SPEECH" -> "Audio extraction succeeded, but Whisper detected no speech. Check the recording language and try a longer, clear voice sample."
                 else -> "Whisper failed with an unknown native error."
             }
-            error(detail)
+            error(if (nativeDetail.isNotBlank()) "$detail Native diagnostics: $nativeDetail" else detail)
         }
         require(srt.isNotBlank()) {
             "Whisper returned an empty result without a diagnostic code."
