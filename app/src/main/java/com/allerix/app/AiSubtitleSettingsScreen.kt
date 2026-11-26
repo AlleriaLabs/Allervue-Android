@@ -150,13 +150,90 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                             )
                         }
                     }
-                    OutlinedTextField(
-                        value = language,
-                        onValueChange = { language = it },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        label = { Text("Language code") },
-                        supportingText = { Text("auto detects · en English · ja Japanese · tl Filipino · ko Korean") },
-                        singleLine = true
+                    val languageOptions = listOf(
+                        "auto" to "Auto detect",
+                        "tl" to "Filipino (Tagalog)",
+                        "en" to "English",
+                        "zh" to "Chinese (Simplified)",
+                        "zh-TW" to "Chinese (Traditional)",
+                        "ar" to "Arabic",
+                        "ja" to "Japanese",
+                        "ko" to "Korean",
+                        "es" to "Spanish",
+                        "fr" to "French",
+                        "de" to "German",
+                        "it" to "Italian",
+                        "pt" to "Portuguese",
+                        "ru" to "Russian",
+                        "hi" to "Hindi",
+                        "th" to "Thai",
+                        "vi" to "Vietnamese",
+                        "id" to "Indonesian",
+                        "ms" to "Malay",
+                        "tr" to "Turkish",
+                        "nl" to "Dutch",
+                        "pl" to "Polish",
+                        "uk" to "Ukrainian",
+                        "sv" to "Swedish",
+                        "da" to "Danish",
+                        "fi" to "Finnish",
+                        "no" to "Norwegian",
+                        "el" to "Greek",
+                        "he" to "Hebrew",
+                        "fa" to "Persian",
+                        "ur" to "Urdu",
+                        "bn" to "Bengali",
+                        "ta" to "Tamil",
+                        "te" to "Telugu",
+                        "mr" to "Marathi",
+                        "pa" to "Punjabi",
+                        "ro" to "Romanian",
+                        "hu" to "Hungarian",
+                        "cs" to "Czech",
+                        "sk" to "Slovak",
+                        "bg" to "Bulgarian",
+                        "hr" to "Croatian",
+                        "sr" to "Serbian",
+                        "sl" to "Slovenian",
+                        "ca" to "Catalan"
+                    )
+                    var languageMenuExpanded by remember { mutableStateOf(false) }
+                    val selectedLanguageLabel = languageOptions.firstOrNull { it.first == language }?.second ?: "Auto detect"
+                    ExposedDropdownMenuBox(
+                        expanded = languageMenuExpanded,
+                        onExpandedChange = { languageMenuExpanded = it },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = selectedLanguageLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Transcription language") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = languageMenuExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = languageMenuExpanded,
+                            onDismissRequest = { languageMenuExpanded = false },
+                            modifier = Modifier.heightIn(max = 420.dp)
+                        ) {
+                            languageOptions.forEach { (code, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        language = code
+                                        languageMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        "For mixed Tagalog and English, try Filipino first. Auto detection may miss code-switching; dedicated Taglish transcription is a future improvement.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        modifier = Modifier.padding(top = 5.dp)
                     )
                     Button(
                         onClick = { mediaPicker.launch(arrayOf("video/*", "audio/*")) },
