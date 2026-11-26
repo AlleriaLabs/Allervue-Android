@@ -184,7 +184,7 @@ class PlayerActivity : ComponentActivity() {
     private var subStartPos = 0f
     private var aiSubtitleJob: Job? = null
     private var liveAudioProcessor: LiveSubtitleAudioProcessor? = null
-    private var liveSubtitleActive = false
+    @Volatile private var liveSubtitleActive = false
     private var liveSubtitleBusy = false
     private var liveSubtitleModel: AiSubtitleModel? = null
     private val liveWhisperEngine = WhisperCppEngine()
@@ -360,8 +360,8 @@ class PlayerActivity : ComponentActivity() {
         val captureProcessor = LiveSubtitleAudioProcessor(
             onDiagnostic = { message -> DiagnosticLog.record(applicationContext, message) },
             onChunk = { chunk ->
-                // Stream small PCM blocks to sherpa; all player-clock reads happen on main.
-                handler.post { onLiveAudioChunk(chunk) }
+                // Avoid posting 10 messages/second when the live-caption feature is inactive.
+                if (liveSubtitleActive) handler.post { onLiveAudioChunk(chunk) }
             }
         ) { window ->
             // Six-second snapshots are reserved for occasional optional Whisper correction.
