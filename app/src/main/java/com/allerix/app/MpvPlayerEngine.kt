@@ -85,6 +85,7 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
                     MpvPlaybackState.Status.Loading,
                     MpvPlaybackState.Status.Buffering -> listener?.onBuffering(true)
                     MpvPlaybackState.Status.Playing -> {
+                        applyRequestedTracks()
                         listener?.onBuffering(false)
                         listener?.onReady()
                     }
