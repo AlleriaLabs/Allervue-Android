@@ -203,9 +203,13 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
 
     whisper_free(ctx);
     if (result.empty()) {
-        LOGE("Whisper completed but returned no speech segments (samples=%zu rms=%.5f peak=%.5f)",
-            audio.size(), rms, peak);
-        return env->NewStringUTF("!ALLERVUE_ERROR:NO_SPEECH");
+        LOGE("Whisper completed but returned no speech segments (samples=%zu rms=%.5f peak=%.5f language=%s gain=%.2f)",
+            audio.size(), rms, peak, lang.c_str(), applied_gain);
+        char diagnostic[256];
+        std::snprintf(diagnostic, sizeof(diagnostic),
+            "!ALLERVUE_ERROR:NO_SPEECH:samples=%zu;rms=%.6f;peak=%.6f;language=%s;gain=%.2f",
+            audio.size(), rms, peak, lang.c_str(), applied_gain);
+        return env->NewStringUTF(diagnostic);
     }
     return env->NewStringUTF(result.c_str());
 }
