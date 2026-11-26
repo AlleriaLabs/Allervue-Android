@@ -2268,8 +2268,12 @@ class PlayerActivity : ComponentActivity() {
         transcribeLiveWindow(samples, endPositionMs)
     }
 
-    /** Live Whisper windows overlap by six seconds. Keep the resulting timeline single-line
-     *  so overlapping Tiny hypotheses cannot be stacked into a wall of text. */
+    /** Keep very short Whisper fragments readable while preventing overlapping windows
+     *  from stacking duplicate hypotheses into a wall of text. */
+    private companion object {
+        const val LIVE_SUBTITLE_MIN_DISPLAY_MS = 1_800L
+    }
+
     private fun normalizeLiveCueTimeline(input: List<SubCue>): List<SubCue> {
         val sorted = input.asSequence()
             .filter { it.text.isNotBlank() && it.endMs > it.startMs }
@@ -2326,18 +2330,22 @@ class PlayerActivity : ComponentActivity() {
                 )
                 if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
 
-                // Whisper runs behind playback. Align the newest recognized endpoint with
-                // the current playback clock so late results are visible instead of already expired.
-                // Keep each segment's relative timing within the recognized batch.
+                // Whisper inference finishes behind playback. Anchor the newest recognized
+                // endpoint to the playback clock, then give short fragments a readable hold.
+                // Without the hold, the newest cue ends at "now" and disappears on the next
+                // 50 ms subtitle refresh, which looks like a one-frame flicker.
                 val latestRecognizedEndMs = recognized.maxOfOrNull { it.endMs } ?: 0L
                 val renderClockMs = playbackPositionMs()
                 val recognizedEndOnTimelineMs = windowStartMs + latestRecognizedEndMs
                 val alignmentOffsetMs = (renderClockMs - recognizedEndOnTimelineMs).coerceAtLeast(0L)
                 val merged = cues.toMutableList()
                 recognized.forEach { segment ->
+                    val cueStartMs = (windowStartMs + segment.startMs + alignmentOffsetMs).coerceAtLeast(0L)
+                    val rawCueEndMs = (windowStartMs + segment.endMs + alignmentOffsetMs).coerceAtLeast(0L)
+                    val cueEndMs = maxOf(rawCueEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
                     val candidate = SubCue(
-                        (windowStartMs + segment.startMs + alignmentOffsetMs).coerceAtLeast(0L),
-                        (windowStartMs + segment.endMs + alignmentOffsetMs).coerceAtLeast(0L),
+                        cueStartMs,
+                        cueEndMs,
                         segment.text.trim()
                     )
                     if (candidate.text.isNotBlank()) {
