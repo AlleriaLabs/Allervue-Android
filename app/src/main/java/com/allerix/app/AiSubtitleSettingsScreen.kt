@@ -29,7 +29,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
     var refresh by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     var selectedModelId by remember { mutableStateOf("tiny") }
-    var language by remember { mutableStateOf("auto") }
+    var language by remember { mutableStateOf(context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE).getString("language", "auto") ?: "auto") }
     var generating by remember { mutableStateOf(false) }
     var generationStatus by remember { mutableStateOf<String?>(null) }
     var generatedFile by remember { mutableStateOf<File?>(null) }
@@ -223,6 +223,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                                     text = { Text(label) },
                                     onClick = {
                                         language = code
+                                        context.getSharedPreferences("ai_subtitle_settings", android.content.Context.MODE_PRIVATE).edit().putString("language", code).apply()
                                         languageMenuExpanded = false
                                     }
                                 )
