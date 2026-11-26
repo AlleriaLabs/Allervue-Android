@@ -1446,8 +1446,14 @@ class PlayerActivity : ComponentActivity() {
             if (index >= 0) selectImageSubtitleStream(index, g)
         } else {
             cues = emptyList(); subOn = true; activeSub = -1
-            selectedImageSubtitleStreamIndex = null
+            val streamIndex = format.id?.toIntOrNull()
+            selectedImageSubtitleStreamIndex = streamIndex
             setNativeText(g)
+            if (streamIndex != null && ::playbackEngineManager.isInitialized) {
+                playbackEngineManager.selectSubtitleTrack(
+                    PlaybackTrackSelection(streamIndex, language = format.language, imageBased = true)
+                )
+            }
             updateSubtitle()
         }
     }
