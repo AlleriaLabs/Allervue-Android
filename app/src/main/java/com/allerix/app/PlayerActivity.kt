@@ -105,6 +105,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
     private lateinit var exoEngine: ExoPlayerEngine
+    private lateinit var playbackEngineManager: PlaybackEngineManager
     /** Stable video-surface slot shared by every playback engine; controls remain siblings above it. */
     private lateinit var videoHost: FrameLayout
     private lateinit var gestureLayer: View
@@ -263,6 +264,21 @@ class PlayerActivity : ComponentActivity() {
         }
         exoEngine = ExoPlayerEngine(this, player, playerView)
         buildUi()
+        attachEngineSurface(playerView)
+        playbackEngineManager = PlaybackEngineManager(
+            context = this,
+            initialEngine = exoEngine,
+            onSurfaceChanged = { engine -> attachEngineSurface(engine.view) },
+            onFailure = { engineId, error ->
+                DiagnosticLog.record(this, "Playback engine $engineId failed: ${error.message}", error)
+                showHud("$engineId playback failed: ${error.message ?: "unknown error"}", 6000)
+            },
+            onReady = { engineId ->
+                DiagnosticLog.record(this, "Playback engine ready: $engineId")
+                showHud("Playing with $engineId", 1800)
+            },
+            onBuffering = { buffering -> spinner.visibility = if (buffering) View.VISIBLE else View.GONE }
+        )
         DiagnosticLog.record(this, "PlayerActivity: UI built")
         setupGestures()
         attachPlayerListener()
@@ -1791,9 +1807,24 @@ class PlayerActivity : ComponentActivity() {
                     }
                     PlaybackAction.SWITCH_TO_NEXT_ENGINE -> {
                         val next = playbackOrchestrator.currentEngine
+                        val mediaUri = player.currentMediaItem?.localConfiguration?.uri
+                        if (mediaUri == null || !::playbackEngineManager.isInitialized) {
+                            showHud("Can't switch engine: playback source is unavailable", 6000)
+                            return
+                        }
+                        val current = exoEngine.snapshot()
+                        val request = PlaybackRequest(
+                            uri = mediaUri.toString(),
+                            mimeType = player.currentMediaItem?.localConfiguration?.mimeType,
+                            startPositionMs = current.positionMs,
+                            playWhenReady = player.playWhenReady,
+                            headers = emptyMap(),
+                            playbackSpeed = speed
+                        )
                         DiagnosticLog.record(this@PlayerActivity,
-                            "Engine switch requested: EXOPLAYER -> $next; adapter availability must be checked")
-                        showHud("ExoPlayer failed. $next fallback is not installed yet.", 7000)
+                            "Switching playback engine EXOPLAYER -> $next at ${request.startPositionMs}ms")
+                        val switched = playbackEngineManager.switchTo(next, request)
+                        if (!switched) showHud("Couldn't start $next playback engine", 7000)
                         return
                     }
                     PlaybackAction.STOP -> {
@@ -2379,6 +2410,7 @@ class PlayerActivity : ComponentActivity() {
             CoroutineScope(Dispatchers.IO).launch { Api.report("stop", id, src, pos, true, tc, sid) }
         }
         try { enhancer?.release() } catch (e: Exception) { }
+        if (::playbackEngineManager.isInitialized) playbackEngineManager.release()
         if (::exoEngine.isInitialized) exoEngine.release()
         player.release()
         super.onDestroy()
