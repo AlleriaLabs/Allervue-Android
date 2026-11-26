@@ -35,14 +35,22 @@ class WhisperCppEngine : AiSubtitleEngine {
     override val isAvailable: Boolean
         get() = WhisperNative.available
 
+    // A live-caption session reuses this engine for every short window. Verify the
+    // large model once per file version rather than hashing 75–142 MB every few seconds.
+    private var verifiedModelKey: String? = null
+
     override suspend fun transcribe(
         audioFile: File,
         modelFile: File,
         language: String
     ): List<AiSubtitleSegment> = withContext(Dispatchers.IO) {
         check(isAvailable) { "The on-device Whisper engine could not be loaded." }
-        require(AiSubtitleModelStore.isValidModelFile(modelFile)) {
-            "Download a complete Whisper model before generating subtitles."
+        val modelKey = "${modelFile.absolutePath}:${modelFile.length()}:${modelFile.lastModified()}"
+        if (verifiedModelKey != modelKey) {
+            require(AiSubtitleModelStore.isValidModelFile(modelFile)) {
+                "Download a complete Whisper model before generating subtitles."
+            }
+            verifiedModelKey = modelKey
         }
         require(audioFile.isFile && audioFile.length() > 44L) {
             "The decoded audio file is empty."
