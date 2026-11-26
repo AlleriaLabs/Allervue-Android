@@ -2206,12 +2206,12 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun releasePreRollMediaPlayer() {
-        runCatching {
-            preRollMediaPlayer?.setOnCompletionListener(null)
-            preRollMediaPlayer?.setOnErrorListener(null)
-            preRollMediaPlayer?.setOnInfoListener(null)
-            preRollMediaPlayer?.stop()
-            preRollMediaPlayer?.release()
+        preRollMediaPlayer?.let { media ->
+            runCatching { media.setOnCompletionListener(null) }
+            runCatching { media.setOnErrorListener(null) }
+            runCatching { media.setOnInfoListener(null) }
+            runCatching { media.stop() }
+            runCatching { media.release() }
         }
         preRollMediaPlayer = null
         runCatching { preRollSurface?.release() }
@@ -2251,8 +2251,7 @@ class PlayerActivity : ComponentActivity() {
         preRollInProgress = false
         preRollTimeout?.let(handler::removeCallbacks)
         preRollTimeout = null
-        runCatching { preRollVideo?.stopPlayback() }
-        preRollVideo = null
+        releasePreRollMediaPlayer()
         preRollOverlay?.let { if (::root.isInitialized) root.removeView(it) }
         preRollOverlay = null
         if (::player.isInitialized) player.volume = preRollPreviousVolume
