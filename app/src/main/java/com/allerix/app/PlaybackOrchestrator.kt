@@ -25,6 +25,7 @@ data class PlaybackSnapshot(
     val durationMs: Long,
     val isPlaying: Boolean,
     val isBuffering: Boolean,
+    val bufferedPositionMs: Long = 0L,
     val audioTrackId: String? = null,
     val subtitleTrackId: String? = null
 )
@@ -35,6 +36,7 @@ interface PlayerEngine {
     fun setListener(listener: Listener)
     fun play(request: PlaybackRequest)
     fun pause()
+    fun resume()
     fun seekTo(positionMs: Long)
     fun setPlaybackSpeed(speed: Float)
     fun selectAudioTrack(trackId: String?)
