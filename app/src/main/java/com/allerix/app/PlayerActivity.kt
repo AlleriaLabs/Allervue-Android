@@ -1486,18 +1486,38 @@ class PlayerActivity : ComponentActivity() {
     private fun selectSubStream(i: Int) {
         val st = subStreams.getOrNull(i) ?: return
         if (!st.isText) { selectImageSubtitleStream(i); return }
+        val requestedItemId = itemId
+        val requestedSourceId = sourceId
         lifecycleScope.launch {
             try {
-                val bytes = Api.fetchBytes(Api.subtitleUrl(itemId, sourceId, st.index, subExt(st.codec)))
+                val url = Api.subtitleUrl(requestedItemId, requestedSourceId, st.index, subExt(st.codec))
+                val bytes = Api.fetchBytes(url)
                 val parsed = SubParser.parse(Api.decodeText(bytes))
-                if (parsed == null) { showHud("Couldn't read this subtitle"); return@launch }
+                if (requestedItemId != itemId || requestedSourceId != sourceId) return@launch
+                if (parsed == null) {
+                    DiagnosticLog.record(this@PlayerActivity,
+                        "Subtitle parse failed: item=$requestedItemId stream=${st.index} codec=${st.codec} bytes=${bytes.size}")
+                    showHud("Couldn't read this subtitle (${st.codec ?: "unknown format"})")
+                    return@launch
+                }
                 setNativeText(null)
                 selectedImageSubtitleStreamIndex = null
                 if (::playbackEngineManager.isInitialized) playbackEngineManager.selectSubtitleTrack(null)
-                cues = parsed; subOn = true; activeSub = i
-                shownText = "~"; updateSubtitle()
+                cues = parsed
+                subOn = true
+                activeSub = i
+                shownText = "~"
+                updateSubtitle()
+                DiagnosticLog.record(this@PlayerActivity,
+                    "Subtitle loaded: item=$requestedItemId stream=${st.index} codec=${st.codec} bytes=${bytes.size} cues=${parsed.size} first=${parsed.firstOrNull()?.startMs}ms")
                 showHud("Subtitles: " + streamLabel(st), 1500)
-            } catch (e: Exception) { showHud("Couldn't load subtitle (${e.message})", 3000) }
+            } catch (e: Exception) {
+                if (requestedItemId == itemId && requestedSourceId == sourceId) {
+                    DiagnosticLog.record(this@PlayerActivity,
+                        "Subtitle load failed: item=$requestedItemId stream=${st.index}: ${e.message}", e)
+                    showHud("Couldn't load subtitle (${e.message})", 3000)
+                }
+            }
         }
     }
 
