@@ -221,9 +221,15 @@ class PlayerActivity : ComponentActivity() {
             handler.postDelayed(this, 500)
         }
     }
+    /**
+     * Drives the custom text-subtitle renderer independently of ExoPlayer callbacks.
+     * This must run for all three engines because SRT/ASS/VTT are rendered in our overlay.
+     */
     private val subTick = object : Runnable {
         override fun run() {
-
+            if (::subText.isInitialized && subOn && cues.isNotEmpty()) {
+                updateSubtitle()
+            }
             handler.postDelayed(this, 100)
         }
     }
@@ -1385,7 +1391,9 @@ class PlayerActivity : ComponentActivity() {
             shownText = ""
             return
         }
-        val txt = SubParser.activeText(cues, player.currentPosition - subDelayMs)
+        // The active decoder may be ExoPlayer, libmpv, or LibVLC. Read the shared
+        // engine position so custom text subtitles stay synchronized after engine fallback.
+        val txt = SubParser.activeText(cues, playbackPositionMs() - subDelayMs)
         if (txt != shownText) {
             shownText = txt
             subText.text = txt
