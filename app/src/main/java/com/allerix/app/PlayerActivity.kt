@@ -2114,8 +2114,14 @@ class PlayerActivity : ComponentActivity() {
             } catch (error: Exception) {
                 DiagnosticLog.record(this@PlayerActivity, "SHERPA_STREAMING startup failed item=$requestedItemId: ${error.message}", error)
                 if (itemId == requestedItemId) {
-                    liveSubtitleActive = false
-                    showHud("Live captions could not start: ${error.message ?: "model error"}", 4500)
+                    if (liveSubtitleModel != null) {
+                        // Keep the player caption pipeline alive; Whisper becomes a slower
+                        // multilingual fallback when the English streaming pack cannot start.
+                        showHud("Streaming engine unavailable · using Whisper fallback", 4000)
+                    } else {
+                        liveSubtitleActive = false
+                        showHud("Live captions need the streaming model or a Whisper model", 4500)
+                    }
                 }
             }
         }
@@ -2345,12 +2351,21 @@ class PlayerActivity : ComponentActivity() {
 
     private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) {
         if (!liveSubtitleActive || isFinishing || isDestroyed || liveSubtitleModel == null) return
-        val correctionEnabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getBoolean("whisper_correction", true)
+        val sherpaReady = sherpaStreamingEngine?.isReady == true
+        val correctionEnabled = if (sherpaReady) {
+            getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+                .getBoolean("whisper_correction", true)
+        } else {
+            // If sherpa cannot initialize (for example, a non-English selection), Whisper
+            // remains the functional fallback rather than silently disabling captions.
+            true
+        }
         if (!correctionEnabled) return
         val now = SystemClock.elapsedRealtime()
-        // Whisper is a low-frequency second pass. It never gates the sherpa audio stream.
-        if (now - lastWhisperCorrectionElapsedMs < 12_000L) return
+        // Whisper is a low-frequency second pass beside sherpa, but remains the primary
+        // fallback when no streaming engine is ready.
+        val minimumCorrectionIntervalMs = if (sherpaReady) 12_000L else 2_000L
+        if (now - lastWhisperCorrectionElapsedMs < minimumCorrectionIntervalMs) return
         lastWhisperCorrectionElapsedMs = now
         val deliveryPositionMs = playbackPositionMs()
         val deliveryElapsedMs = SystemClock.elapsedRealtime()
