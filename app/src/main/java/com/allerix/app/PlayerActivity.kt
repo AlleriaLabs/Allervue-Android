@@ -55,6 +55,7 @@ import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
+import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
@@ -190,6 +191,15 @@ class PlayerActivity : ComponentActivity() {
     private var liveWindowSequence = 0L
     private var aiModelWaitRunnable: Runnable? = null
     private var autoSubtitleAttemptedItemId: String? = null
+    // Optional pre-roll: decode the opening audio silently, prepare Whisper cues, then rewind.
+    private var preRollOverlay: FrameLayout? = null
+    private var preRollVideo: VideoView? = null
+    private var preRollInProgress = false
+    private var preRollVideoEnded = false
+    private var preRollFirstWindowFinished = false
+    private var preRollPreviousVolume = 1f
+    private var preRollStartedAt = 0L
+    private var preRollTimeout: Runnable? = null
 
     // volume boost
     private var enhancer: LoudnessEnhancer? = null
@@ -2054,6 +2064,129 @@ class PlayerActivity : ComponentActivity() {
         liveAudioProcessor?.clearCapture()
         showHud("Live AI subtitles · listening", 2500)
         DiagnosticLog.record(this, "LIVE_AI_SUBTITLES started item=$itemId model=${model.id}")
+        startSubtitlePreRoll()
+    }
+
+    /**
+     * The original ExoPlayer session runs silently behind the intro. Its existing audio
+     * processor captures the first six seconds; after the first Whisper pass, rewind to zero.
+     */
+    private fun startSubtitlePreRoll() {
+        val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getBoolean("intro_preroll", true)
+        if (!enabled || preRollInProgress || offlinePath != null ||
+            playbackEngineManager.activeEngine.id != PlaybackEngineId.EXOPLAYER) return
+        val requestedStart = intent.getLongExtra("start_position_ms", 0L)
+        if (requestedStart > 5_000L) {
+            DiagnosticLog.record(this, "AI_PREROLL skipped reason=resume_position positionMs=$requestedStart")
+            return
+        }
+        preRollInProgress = true
+        preRollVideoEnded = false
+        preRollFirstWindowFinished = false
+        preRollStartedAt = SystemClock.elapsedRealtime()
+        preRollPreviousVolume = player.volume
+        player.volume = 0f
+        player.seekTo(0L)
+        player.playWhenReady = true
+        liveAudioProcessor?.clearCapture()
+        showPreRollOverlay()
+        preRollTimeout = Runnable {
+            if (preRollInProgress) {
+                DiagnosticLog.record(this, "AI_PREROLL timeout firstWindowFinished=$preRollFirstWindowFinished")
+                finishSubtitlePreRoll()
+            }
+        }.also { handler.postDelayed(it, 12_000L) }
+        DiagnosticLog.record(this, "AI_PREROLL started item=$itemId model=${liveSubtitleModel?.id} maxWaitMs=12000")
+    }
+
+    private fun showPreRollOverlay() {
+        if (!::root.isInitialized || preRollOverlay != null) return
+        val overlay = FrameLayout(this).apply {
+            setBackgroundColor(Color.BLACK)
+            isClickable = true
+            isFocusable = true
+        }
+        val rawId = resources.getIdentifier("allervue_intro", "raw", packageName)
+        if (rawId != 0) {
+            val video = VideoView(this).apply {
+                setBackgroundColor(Color.BLACK)
+                setOnPreparedListener { media ->
+                    media.setVolume(0f, 0f)
+                    media.isLooping = false
+                    start()
+                }
+                setOnCompletionListener {
+                    preRollVideoEnded = true
+                    maybeFinishSubtitlePreRoll()
+                }
+                setOnErrorListener { _, what, extra ->
+                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_error what=$what extra=$extra")
+                    preRollVideoEnded = true
+                    maybeFinishSubtitlePreRoll()
+                    true
+                }
+            }
+            overlay.addView(video, FrameLayout.LayoutParams(-1, -1))
+            preRollVideo = video
+            video.setVideoURI(Uri.parse("android.resource://$packageName/$rawId"))
+        } else {
+            // Fallback until the generated MP4 is added at app/src/main/res/raw/allervue_intro.mp4.
+            val brand = TextView(this).apply {
+                text = "ALLERVUE"
+                gravity = Gravity.CENTER
+                textSize = 30f
+                letterSpacing = 0.24f
+                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+                setTextColor(0xFF65D6D0.toInt())
+            }
+            overlay.addView(brand, FrameLayout.LayoutParams(-1, -1))
+            handler.postDelayed({
+                if (preRollInProgress) {
+                    preRollVideoEnded = true
+                    maybeFinishSubtitlePreRoll()
+                }
+            }, 5_000L)
+        }
+        preRollOverlay = overlay
+        root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
+        DiagnosticLog.record(this, "AI_PREROLL overlay=${if (rawId != 0) "video_asset" else "brand_fallback"}")
+    }
+
+    private fun maybeFinishSubtitlePreRoll() {
+        if (!preRollInProgress || !preRollVideoEnded || !preRollFirstWindowFinished) return
+        finishSubtitlePreRoll()
+    }
+
+    private fun finishSubtitlePreRoll() {
+        if (!preRollInProgress) return
+        preRollInProgress = false
+        preRollTimeout?.let(handler::removeCallbacks)
+        preRollTimeout = null
+        runCatching { preRollVideo?.stopPlayback() }
+        preRollVideo = null
+        preRollOverlay?.let { root.removeView(it) }
+        preRollOverlay = null
+        if (::player.isInitialized) {
+            player.volume = preRollPreviousVolume
+            player.seekTo(0L)
+            player.playWhenReady = true
+        }
+        liveAudioProcessor?.clearCapture()
+        DiagnosticLog.record(this, "AI_PREROLL finished elapsedMs=${SystemClock.elapsedRealtime() - preRollStartedAt} firstWindowFinished=$preRollFirstWindowFinished")
+        showHud(if (cues.isNotEmpty()) "AI subtitles ready · starting from beginning" else "Starting playback", 1800)
+    }
+
+    private fun cancelSubtitlePreRoll() {
+        if (!preRollInProgress) return
+        preRollInProgress = false
+        preRollTimeout?.let(handler::removeCallbacks)
+        preRollTimeout = null
+        runCatching { preRollVideo?.stopPlayback() }
+        preRollVideo = null
+        preRollOverlay?.let { if (::root.isInitialized) root.removeView(it) }
+        preRollOverlay = null
+        if (::player.isInitialized) player.volume = preRollPreviousVolume
     }
 
     private fun onLiveAudioWindow(samples: ShortArray) {
@@ -2176,6 +2309,10 @@ class PlayerActivity : ComponentActivity() {
             } finally {
                 wav.delete()
                 liveSubtitleBusy = false
+                if (preRollInProgress && itemId == requestedItemId) {
+                    preRollFirstWindowFinished = true
+                    maybeFinishSubtitlePreRoll()
+                }
                 val pending = livePendingWindow
                 livePendingWindow = null
                 if (liveSubtitleActive && pending != null && itemId == requestedItemId) {
@@ -2584,6 +2721,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun switchTo(newId: String) {
+        cancelSubtitlePreRoll()
         liveSubtitleActive = false
         liveSubtitleModel = null
         livePendingWindow = null
@@ -3025,6 +3163,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        cancelSubtitlePreRoll()
         liveSubtitleActive = false
         liveSubtitleModel = null
         livePendingWindow = null
