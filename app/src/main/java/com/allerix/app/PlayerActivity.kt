@@ -160,6 +160,8 @@ class PlayerActivity : ComponentActivity() {
     private var audioStreams: List<MediaStream> = emptyList()
     private var defaultAudioApplied = false
     private var defaultSubtitleApplied = false
+    private var selectedAudioStreamIndex: Int? = null
+    private var selectedImageSubtitleStreamIndex: Int? = null
     private var cues: List<SubCue> = emptyList()
     private var subOn = false
     private var activeSub = -1          // index in subStreams, -2 = loaded from file, -1 = none
@@ -1230,6 +1232,45 @@ class PlayerActivity : ComponentActivity() {
         }
         val name = Locale.forLanguageTag(normalized).getDisplayLanguage(Locale.getDefault())
         return name.takeIf { it.isNotBlank() && !it.equals("und", true) } ?: "Unknown"
+    }
+
+    private fun playbackTrack(stream: MediaStream?, imageBased: Boolean = false): PlaybackTrackSelection? =
+        stream?.let {
+            PlaybackTrackSelection(
+                streamIndex = it.index,
+                language = it.language,
+                title = it.title,
+                codec = it.codec,
+                imageBased = imageBased
+            )
+        }
+
+    private fun currentPlaybackRequest(
+        uri: String,
+        mimeType: String?,
+        positionMs: Long,
+        playWhenReady: Boolean
+    ): PlaybackRequest {
+        val audio = audioStreams.firstOrNull { it.index == selectedAudioStreamIndex }
+        val imageSubtitle = subStreams.firstOrNull { it.index == selectedImageSubtitleStreamIndex }
+        return PlaybackRequest(
+            uri = uri,
+            mimeType = mimeType,
+            startPositionMs = positionMs.coerceAtLeast(0L),
+            playWhenReady = playWhenReady,
+            audioTrack = playbackTrack(audio),
+            subtitleTrack = playbackTrack(imageSubtitle, imageBased = true),
+            headers = emptyMap(),
+            playbackSpeed = speed
+        )
+    }
+
+    private fun selectAudioStream(index: Int) {
+        val stream = audioStreams.getOrNull(index) ?: return
+        selectedAudioStreamIndex = stream.index
+        defaultAudioApplied = true
+        playbackEngineManager.selectAudioTrack(playbackTrack(stream))
+        showHud("Audio: ${streamLabel(stream)}", 1500)
     }
 
     private fun trackLabel(g: Tracks.Group, i: Int): String {
