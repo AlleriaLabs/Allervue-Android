@@ -9,11 +9,16 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #define LOG_TAG "AllervueWhisper"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 namespace {
+static std::mutex g_whisper_mutex;
+static whisper_context *g_cached_context = nullptr;
+static std::string g_cached_model_path;
+
 static uint16_t read_u16(const unsigned char *p) {
     return static_cast<uint16_t>(p[0] | (p[1] << 8));
 }
@@ -143,13 +148,27 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         "Whisper input normalized gain=%.2f peak=%.5f rms=%.5f",
         applied_gain, peak, rms);
 
-    struct whisper_context_params context_params = whisper_context_default_params();
-    context_params.use_gpu = false;
-    struct whisper_context *ctx = whisper_init_from_file_with_params(model.c_str(), context_params);
-    if (!ctx) {
-        LOGE("Unable to load Whisper model: %s", model.c_str());
-        return env->NewStringUTF("!ALLERVUE_ERROR:MODEL_LOAD");
+    // Loading a 75–142 MB model for every two-second rolling window adds a large
+    // startup penalty. Keep one native context alive and reuse it for subsequent windows.
+    // The mutex also serializes access because whisper_context is not thread-safe.
+    std::lock_guard<std::mutex> inference_lock(g_whisper_mutex);
+    if (g_cached_context == nullptr || g_cached_model_path != model) {
+        if (g_cached_context != nullptr) {
+            whisper_free(g_cached_context);
+            g_cached_context = nullptr;
+            g_cached_model_path.clear();
+        }
+        struct whisper_context_params context_params = whisper_context_default_params();
+        context_params.use_gpu = false;
+        g_cached_context = whisper_init_from_file_with_params(model.c_str(), context_params);
+        if (!g_cached_context) {
+            LOGE("Unable to load Whisper model: %s", model.c_str());
+            return env->NewStringUTF("!ALLERVUE_ERROR:MODEL_LOAD");
+        }
+        g_cached_model_path = model;
+        __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "Whisper model context cached: %s", model.c_str());
     }
+    struct whisper_context *ctx = g_cached_context;
 
     const int threads = std::max(1, std::min(4, static_cast<int>(requested_threads)));
     const size_t chunk_samples = static_cast<size_t>(WHISPER_SAMPLE_RATE) * 30;
@@ -176,7 +195,6 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
 
         if (whisper_full(ctx, params, audio.data() + offset, static_cast<int>(count)) != 0) {
             LOGE("Whisper inference failed at sample offset %zu", offset);
-            whisper_free(ctx);
             return env->NewStringUTF("!ALLERVUE_ERROR:INFERENCE");
         }
 
@@ -201,7 +219,6 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         }
     }
 
-    whisper_free(ctx);
     if (result.empty()) {
         LOGE("Whisper completed but returned no speech segments (samples=%zu rms=%.5f peak=%.5f language=%s gain=%.2f)",
             audio.size(), rms, peak, lang.c_str(), applied_gain);
