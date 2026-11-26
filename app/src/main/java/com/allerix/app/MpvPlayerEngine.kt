@@ -116,36 +116,51 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
         }
     }
 
+    private fun normalizedLanguage(value: String?): String {
+        val tag = value.orEmpty().lowercase(java.util.Locale.ROOT).substringBefore('-').substringBefore('_')
+        return when (tag) {
+            "eng" -> "en"; "spa" -> "es"; "jpn" -> "ja"; "kor" -> "ko"
+            "zho", "chi" -> "zh"; "fra", "fre" -> "fr"; "deu", "ger" -> "de"
+            "ita" -> "it"; "por" -> "pt"; "rus" -> "ru"; "ara" -> "ar"
+            "fil", "tgl" -> "fil"; else -> tag
+        }
+    }
+
     private fun applyRequestedTracks() {
         if (!initialized) return
         val tracks = runCatching { videoView.tracks }.getOrDefault(emptyList())
         val audio = requestedAudioTrack
-        if (audio == null) {
-            videoView.audioTrack = TrackSelection.Auto
-        } else {
-            val match = tracks.firstOrNull { track ->
+        val audioMatch = audio?.let { selected ->
+            tracks.firstOrNull { track ->
                 track.type == io.github.yuroyami.libmpvkt.TrackType.Audio &&
-                    (track.ffIndex == audio.streamIndex || track.srcId == audio.streamIndex)
+                    (track.ffIndex == selected.streamIndex || track.srcId == selected.streamIndex)
             } ?: tracks.firstOrNull { track ->
                 track.type == io.github.yuroyami.libmpvkt.TrackType.Audio &&
-                    audio.language != null && track.lang.equals(audio.language, true)
+                    normalizedLanguage(track.lang) == normalizedLanguage(selected.language) &&
+                    normalizedLanguage(selected.language).isNotEmpty()
+            } ?: tracks.firstOrNull { track ->
+                track.type == io.github.yuroyami.libmpvkt.TrackType.Audio &&
+                    selected.title != null && track.title.equals(selected.title, true)
             }
-            videoView.audioTrack = match?.let { TrackSelection.Id(it.id) } ?: TrackSelection.Auto
         }
+        videoView.audioTrack = audioMatch?.let { TrackSelection.Id(it.id) }
+            ?: if (audio == null) TrackSelection.Auto else videoView.audioTrack
 
         val subtitle = requestedSubtitleTrack
-        if (subtitle == null) {
-            videoView.subtitleTrack = TrackSelection.No
-        } else {
-            val match = tracks.firstOrNull { track ->
+        val subtitleMatch = subtitle?.let { selected ->
+            tracks.firstOrNull { track ->
                 track.type == io.github.yuroyami.libmpvkt.TrackType.Sub &&
-                    (track.ffIndex == subtitle.streamIndex || track.srcId == subtitle.streamIndex)
+                    (track.ffIndex == selected.streamIndex || track.srcId == selected.streamIndex)
             } ?: tracks.firstOrNull { track ->
                 track.type == io.github.yuroyami.libmpvkt.TrackType.Sub &&
-                    subtitle.language != null && track.lang.equals(subtitle.language, true)
+                    normalizedLanguage(track.lang) == normalizedLanguage(selected.language) &&
+                    normalizedLanguage(selected.language).isNotEmpty()
+            } ?: tracks.firstOrNull { track ->
+                track.type == io.github.yuroyami.libmpvkt.TrackType.Sub &&
+                    selected.title != null && track.title.equals(selected.title, true)
             }
-            videoView.subtitleTrack = match?.let { TrackSelection.Id(it.id) } ?: TrackSelection.No
         }
+        videoView.subtitleTrack = subtitleMatch?.let { TrackSelection.Id(it.id) } ?: TrackSelection.No
     }
 
     override fun pause() {
