@@ -52,6 +52,8 @@ sealed class Nav {
     data class Detail(val item: Item) : Nav()
     object Search : Nav()
     object Settings : Nav()
+    object Profile : Nav()
+    object Appearance : Nav()
     object RequestShow : Nav()
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
@@ -331,8 +333,16 @@ fun MainShell(onLogout: () -> Unit) {
                 Nav.Settings -> SettingsMenuScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) }, onClient = { stack.add(Nav.ClientSettings) },
                     onPlayback = { stack.add(Nav.PlaybackSettings) }, onDiagnostics = { stack.add(Nav.Diagnostics) }, onSignOut = signOut,
-                    onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
+                    onWeb = { u, t -> stack.add(Nav.Web(u, t)) },
+                    onProfile = { stack.add(Nav.Profile) }, onAppearance = { stack.add(Nav.Appearance) }
                 )
+                Nav.Profile -> ProfileScreen(
+                    back = back,
+                    onServer = { stack.add(Nav.ClientSettings) },
+                    onPortal = { stack.add(Nav.Web(Api.ACCOUNT_URL, "My account")) },
+                    onSignOut = signOut
+                )
+                Nav.Appearance -> AppearanceSettingsScreen(back)
                 Nav.RequestShow -> RequestShowScreen(back)
                 Nav.ClientSettings -> ClientSettingsScreen(
                     back, onServerChanged = signOut, loggedIn = true,
