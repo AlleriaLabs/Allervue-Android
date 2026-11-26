@@ -16,6 +16,7 @@ import android.util.Log
  */
 @OptIn(UnstableApi::class)
 class LiveSubtitleAudioProcessor(
+    private val onDiagnostic: (String) -> Unit = {},
     private val onWindow: (ShortArray) -> Unit
 ) : BaseAudioProcessor() {
     private val windowSamples = 16_000 * 12
@@ -34,6 +35,7 @@ class LiveSubtitleAudioProcessor(
         channels = inputAudioFormat.channelCount.coerceAtLeast(1)
         encoding = inputAudioFormat.encoding
         Log.i("AllervueLiveAudio", "PCM format rate=$sampleRate channels=$channels encoding=$encoding")
+        onDiagnostic("LIVE_AUDIO_FORMAT rate=$sampleRate channels=$channels encoding=$encoding")
         return inputAudioFormat
     }
 
@@ -104,6 +106,7 @@ class LiveSubtitleAudioProcessor(
             }
             val rms = kotlin.math.sqrt(sumSquares / snapshot.size) / 32768.0
             Log.i("AllervueLiveAudio", "window ready samples=${snapshot.size} rms=${"%.5f".format(rms)} peak=${peak / 32768.0}")
+            onDiagnostic("LIVE_AUDIO_WINDOW samples=${snapshot.size} duration=${snapshot.size / 16000.0}s rms=${"%.6f".format(Locale.US, rms)} peak=${"%.6f".format(Locale.US, peak / 32768.0)}")
             // The callback must only enqueue work; it runs on ExoPlayer's audio thread.
             onWindow(snapshot)
         }
