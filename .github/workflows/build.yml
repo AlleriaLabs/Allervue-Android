@@ -8,7 +8,7 @@ on:
         required: false
         default: ""
 concurrency:
-  group: allervue-android-build-${{ github.ref }}
+  group: allervue-android-whisper-build-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -16,6 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       HAS_RELEASE_SIGNING: ${{ secrets.ALLERVUE_KEYSTORE_BASE64 != '' && secrets.ALLERVUE_STORE_PASSWORD != '' && secrets.ALLERVUE_KEY_ALIAS != '' && secrets.ALLERVUE_KEY_PASSWORD != '' }}
     steps:
