@@ -2443,6 +2443,8 @@ class PlayerActivity : ComponentActivity() {
                 // Keep the capture-time media anchor stable. Never shift old recognition
                 // results to the playback position observed when inference happens to finish.
                 val merged = cues.toMutableList()
+                var whisperCorrections = 0
+                var whisperSupplementalCues = 0
                 recognized.forEach { segment ->
                     val cueStartMs = (windowStartMs + segment.startMs).coerceAtLeast(0L)
                     val rawCueEndMs = (windowStartMs + segment.endMs).coerceAtLeast(0L)
@@ -2453,13 +2455,39 @@ class PlayerActivity : ComponentActivity() {
                         segment.text.trim()
                     )
                     if (candidate.text.isNotBlank()) {
-                        val normalized = candidate.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
-                        val duplicate = merged.any { existing ->
-                            val existingText = existing.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
-                            existingText == normalized &&
-                                kotlin.math.abs(existing.startMs - candidate.startMs) < 2500L
+                        val overlapIndex = merged.indexOfLast { existing ->
+                            candidate.startMs < existing.endMs && candidate.endMs > existing.startMs
                         }
-                        if (!duplicate) merged += candidate
+                        if (overlapIndex >= 0) {
+                            val existing = merged[overlapIndex]
+                            val oldWords = existing.text.lowercase(Locale.ROOT)
+                                .split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
+                            val newWords = candidate.text.lowercase(Locale.ROOT)
+                                .split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
+                            val wordAgreement = if (oldWords.isEmpty() || newWords.isEmpty()) 0f
+                                else oldWords.intersect(newWords).size.toFloat() / maxOf(oldWords.size, newWords.size)
+                            // Only replace sherpa text when Whisper agrees on enough words;
+                            // conflicting hypotheses must not create stacked duplicate captions.
+                            if (wordAgreement >= 0.35f) {
+                                merged[overlapIndex] = SubCue(
+                                    minOf(existing.startMs, candidate.startMs),
+                                    maxOf(existing.endMs, candidate.endMs),
+                                    candidate.text
+                                )
+                                whisperCorrections++
+                            }
+                        } else {
+                            val normalized = candidate.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+                            val duplicate = merged.any { existing ->
+                                val existingText = existing.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
+                                existingText == normalized &&
+                                    kotlin.math.abs(existing.startMs - candidate.startMs) < 2500L
+                            }
+                            if (!duplicate) {
+                                merged += candidate
+                                whisperSupplementalCues++
+                            }
+                        }
                     }
                 }
                 cues = normalizeLiveCueTimeline(merged)
@@ -2470,7 +2498,7 @@ class PlayerActivity : ComponentActivity() {
                 val activeCueCount = cues.count { it.startMs <= renderPositionMs && it.endMs >= renderPositionMs }
                 DiagnosticLog.record(
                     this@PlayerActivity,
-                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs captureAnchored=true renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
+                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} whisperCorrections=$whisperCorrections whisperSupplemental=$whisperSupplementalCues total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs captureAnchored=true renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
                 )
                 updateSubtitle()
 
