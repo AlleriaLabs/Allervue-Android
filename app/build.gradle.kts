@@ -23,7 +23,10 @@ android {
         targetSdk = 34
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
-            cmake { cppFlags += "-std=c++17" }
+            cmake {
+                cppFlags += "-std=c++17"
+                arguments += "-DCMAKE_BUILD_TYPE=Release"
+            }
         }
         versionCode = 37
         versionName = "1.4.0-beta01"
