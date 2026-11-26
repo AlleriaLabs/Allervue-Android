@@ -66,6 +66,8 @@ interface LiveCaptionEngine : Closeable {
 interface CaptionCorrectionEngine {
     suspend fun correct(
         audioWindow: LiveSubtitleAudioWindow,
+        modelFile: java.io.File,
+        workDirectory: java.io.File,
         language: String
     ): List<AiSubtitleSegment>
 }
