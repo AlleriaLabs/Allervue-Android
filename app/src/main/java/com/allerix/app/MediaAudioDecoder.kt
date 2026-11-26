@@ -145,6 +145,7 @@ private class StreamingMonoResampler(
         if (!hasPrevious) {
             writer.writeSample(sample)
             previous = sample
+            nextOutput = step
             hasPrevious = true
             return
         }
