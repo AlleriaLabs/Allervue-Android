@@ -412,7 +412,8 @@ private fun SettingsRow(icon: String, title: String, subtitle: String, onClick: 
 @Composable
 fun SettingsMenuScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit, onPlayback: () -> Unit,
-    onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit
+    onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit,
+    onProfile: () -> Unit, onAppearance: () -> Unit
 ) {
     var help by remember { mutableStateOf(false) }
     var about by remember { mutableStateOf(false) }
@@ -423,6 +424,8 @@ fun SettingsMenuScreen(
     }
     Column(Modifier.fillMaxSize()) {
         ScreenHeader("Settings", back)
+        SettingsRow("◉", "Profile & account", Api.username.ifBlank { "Manage your Jellyfin account" }, onProfile)
+        SettingsRow("✦", "Appearance", "Theme and display preferences", onAppearance)
         SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
         SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
         SettingsRow("⚙", "Client settings", "Server address and password", onClient)
@@ -1030,6 +1033,93 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
             confirmButton = { TextButton(onClick = { dialog = 0 }) { Text("Close", color = Grey) } }
         )
         else -> {}
+    }
+}
+
+
+@Composable
+fun ProfileScreen(
+    back: () -> Unit,
+    onServer: () -> Unit,
+    onPortal: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        ScreenHeader("Profile & account", back)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(Color(0xFF171925))
+                .border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(22.dp))
+                .padding(20.dp)
+        ) {
+            Text(Api.username.ifBlank { "Jellyfin user" }, color = Color.White,
+                fontSize = 23.sp, fontWeight = FontWeight.Bold)
+            Text("Signed in to Allervue", color = Color(0xFF9CA6B5), fontSize = 13.sp)
+            Spacer(Modifier.height(18.dp))
+            Text("JELLYFIN SERVER", color = Color(0xFF65D6D0), fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Text(Api.base, color = Color.White, fontSize = 14.sp,
+                modifier = Modifier.padding(top = 5.dp))
+            Text("USER ID", color = Color(0xFF65D6D0), fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(top = 16.dp))
+            Text(Api.userId.ifBlank { "Unavailable" }, color = Color(0xFFB6BFCC),
+                fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            Text("REQUESTS", color = Color(0xFF65D6D0), fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(top = 16.dp))
+            Text(if (SeerrApi.isConnected()) "Request account connected" else "Request account not connected",
+                color = if (SeerrApi.isConnected()) Color(0xFF72D6A2) else Color(0xFFB6BFCC),
+                fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
+        }
+        SettingsRow("⚙", "Server & security", "Server address, password and biometric sign-in", onServer)
+        SettingsRow("↗", "Account portal", "Manage your account details online", onPortal)
+        SettingsRow("⎋", "Sign out", "Sign out of this Jellyfin account", onSignOut)
+        Text("Your profile details are read from the active Jellyfin session. Passwords and access tokens are not displayed.",
+            color = Color(0xFF7F8998), fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
+    }
+}
+
+@Composable
+fun AppearanceSettingsScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("allervue_appearance", Context.MODE_PRIVATE) }
+    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM") }
+    val options = listOf("SYSTEM" to "Follow device", "DARK" to "Dark", "LIGHT" to "Light")
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        ScreenHeader("Appearance", back)
+        Text("THEME", color = Color(0xFF65D6D0), fontSize = 12.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+            modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp))
+        options.forEach { (value, label) ->
+            Row(
+                Modifier.fillMaxWidth().clickable {
+                    mode = value
+                    prefs.edit().putString("theme_mode", value).apply()
+                    (ctx as? android.app.Activity)?.recreate()
+                }.padding(horizontal = 20.dp, vertical = 17.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(when (value) {
+                        "DARK" -> "Always use the dark Allervue interface"
+                        "LIGHT" -> "Always use the light Allervue interface"
+                        else -> "Match your Android display setting"
+                    }, color = Grey, fontSize = 12.sp)
+                }
+                RadioButton(selected = mode == value, onClick = {
+                    mode = value
+                    prefs.edit().putString("theme_mode", value).apply()
+                    (ctx as? android.app.Activity)?.recreate()
+                }, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF65D6D0)))
+            }
+            HorizontalDivider(color = Color(0xFF292D39))
+        }
+        Text("The selected theme is saved on this device and applied immediately.",
+            color = Grey, fontSize = 12.sp, modifier = Modifier.padding(20.dp))
     }
 }
 
