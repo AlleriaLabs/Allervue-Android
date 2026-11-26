@@ -63,6 +63,16 @@ class PlaybackEngineManager(
 
     fun pause() = activeEngine.pause()
 
+    fun resume() = activeEngine.resume()
+
+    fun isPlaying(): Boolean = activeEngine.snapshot().isPlaying
+
+    fun positionMs(): Long = activeEngine.snapshot().positionMs
+
+    fun durationMs(): Long = activeEngine.snapshot().durationMs
+
+    fun bufferedPositionMs(): Long = activeEngine.snapshot().bufferedPositionMs
+
     fun seekTo(positionMs: Long) = activeEngine.seekTo(positionMs)
 
     fun setPlaybackSpeed(speed: Float) = activeEngine.setPlaybackSpeed(speed)
