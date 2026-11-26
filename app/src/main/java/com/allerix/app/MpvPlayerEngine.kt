@@ -181,13 +181,13 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
         if (initialized) videoView.speed = requestedSpeed.toDouble()
     }
 
-    override fun selectAudioTrack(trackId: String?) {
-        requestedAudioTrackId = trackId
+    override fun selectAudioTrack(track: PlaybackTrackSelection?) {
+        requestedAudioTrack = track
         if (initialized) applyRequestedTracks()
     }
 
-    override fun selectSubtitleTrack(trackId: String?) {
-        requestedSubtitleTrackId = trackId
+    override fun selectSubtitleTrack(track: PlaybackTrackSelection?) {
+        requestedSubtitleTrack = track
         if (initialized) applyRequestedTracks()
     }
 
