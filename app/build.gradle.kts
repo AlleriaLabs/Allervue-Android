@@ -1,10 +1,46 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.net.URL
+import java.security.MessageDigest
 
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+
+val sherpaAarFile = layout.projectDirectory.file("libs/sherpa-onnx-2.0.3.aar").asFile
+val downloadSherpaOnnxAar = tasks.register("downloadSherpaOnnxAar") {
+    outputs.file(sherpaAarFile)
+    doLast {
+        val expectedSha256 = "4c766e2e74c9d33d595338c21fe3b305c73ba45d47e96a235675c33142a2ec50"
+        fun sha256(file: File): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().buffered().use { input ->
+                val buffer = ByteArray(1024 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
+                }
+            }
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
+        if (!sherpaAarFile.isFile || sha256(sherpaAarFile) != expectedSha256) {
+            sherpaAarFile.parentFile.mkdirs()
+            val temporary = File(sherpaAarFile.parentFile, sherpaAarFile.name + ".part")
+            URL("https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.3/sherpa-onnx-2.0.3.aar")
+                .openStream().buffered().use { input ->
+                    temporary.outputStream().buffered().use { output -> input.copyTo(output) }
+                }
+            check(sha256(temporary) == expectedSha256) {
+                "sherpa-onnx AAR SHA-256 verification failed"
+            }
+            if (sherpaAarFile.exists()) sherpaAarFile.delete()
+            check(temporary.renameTo(sherpaAarFile)) { "Could not install sherpa-onnx AAR" }
+        }
+    }
 }
 
 val releaseStoreFile = System.getenv("ALLERVUE_KEYSTORE_PATH")
@@ -78,6 +114,7 @@ kotlin {
 }
 
 dependencies {
+    // Official sherpa-onnx Android runtime; fetched and SHA-256 verified before Android preBuild.\n    implementation(files(sherpaAarFile))
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
@@ -97,3 +134,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("io.coil-kt:coil-compose:2.6.0")
 }
+
+// Keep the 50 MB native AAR out of Git while making clean local/CI builds reproducible.
+tasks.named("preBuild").configure { dependsOn(downloadSherpaOnnxAar) }
