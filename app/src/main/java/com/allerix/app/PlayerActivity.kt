@@ -2067,9 +2067,24 @@ class PlayerActivity : ComponentActivity() {
         liveSubtitleBusy = true
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) { LiveSubtitleWav.write(samples, wav) }
+                val wavDiagnostics = withContext(Dispatchers.IO) {
+                    LiveSubtitleWav.write(samples, wav)
+                    LiveSubtitleWav.diagnosticSummary(wav)
+                }
+                val samplePeak = samples.maxOfOrNull { kotlin.math.abs(it.toInt()) } ?: 0
+                val sampleRms = if (samples.isEmpty()) 0.0 else kotlin.math.sqrt(
+                    samples.sumOf { it.toDouble() * it.toDouble() } / samples.size
+                ) / 32768.0
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "LIVE_AI_SUBTITLES input item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} samples=${samples.size} rms=${"%.6f".format(Locale.US, sampleRms)} peak=${"%.6f".format(Locale.US, samplePeak / 32768.0)} $wavDiagnostics"
+                )
                 val recognized = liveWhisperEngine.transcribe(
                     wav, AiSubtitleModelStore.file(this@PlayerActivity, model), language
+                )
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "LIVE_AI_SUBTITLES result item=$requestedItemId language=${language.ifBlank { "auto" }} segments=${recognized.size}"
                 )
                 if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
 
