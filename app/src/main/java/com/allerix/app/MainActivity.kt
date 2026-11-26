@@ -54,6 +54,7 @@ sealed class Nav {
     object Settings : Nav()
     object Profile : Nav()
     object Appearance : Nav()
+    object AiSubtitles : Nav()
     object RequestShow : Nav()
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
