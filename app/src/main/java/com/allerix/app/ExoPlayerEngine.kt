@@ -73,6 +73,10 @@ class ExoPlayerEngine(
         player.pause()
     }
 
+    override fun resume() {
+        player.play()
+    }
+
     override fun seekTo(positionMs: Long) {
         player.seekTo(positionMs.coerceAtLeast(0L))
     }
@@ -98,6 +102,7 @@ class ExoPlayerEngine(
         durationMs = player.duration.takeIf { it >= 0L } ?: 0L,
         isPlaying = player.isPlaying,
         isBuffering = player.playbackState == Player.STATE_BUFFERING,
+        bufferedPositionMs = player.bufferedPosition.coerceAtLeast(0L),
         audioTrackId = lastAudioTrackId,
         subtitleTrackId = lastSubtitleTrackId
     )
