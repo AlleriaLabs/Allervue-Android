@@ -30,6 +30,7 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
     private var requestedSubtitleTrack: PlaybackTrackSelection? = null
     private var requestedPlayWhenReady = true
     private var requestedSpeed = 1f
+    private var pendingStartPositionMs = 0L
     private var lastRequest: PlaybackRequest? = null
 
     private val eventListener = MediaPlayer.EventListener { event ->
@@ -37,9 +38,15 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
             MediaPlayer.Event.Opening,
             MediaPlayer.Event.Buffering -> listener?.onBuffering(true)
             MediaPlayer.Event.Playing -> {
+                if (pendingStartPositionMs > 0L) {
+                    mediaPlayer.setTime(pendingStartPositionMs)
+                    pendingStartPositionMs = 0L
+                }
+                mediaPlayer.setRate(requestedSpeed)
+                applyRequestedTracks()
+                if (!requestedPlayWhenReady) mediaPlayer.pause()
                 listener?.onBuffering(false)
                 listener?.onReady()
-                applyRequestedTracks()
             }
             MediaPlayer.Event.Paused,
             MediaPlayer.Event.Stopped -> listener?.onBuffering(false)
@@ -75,9 +82,7 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
         request.mimeType?.let { media.addOption(":demux=$it") }
         mediaPlayer.media = media
         media.release()
-        if (request.startPositionMs > 0L) {
-            mediaPlayer.setTime(request.startPositionMs)
-        }
+        pendingStartPositionMs = request.startPositionMs.coerceAtLeast(0L)
         mediaPlayer.play()
         mediaPlayer.setRate(requestedSpeed)
         if (!request.playWhenReady) mediaPlayer.pause()
@@ -98,7 +103,8 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
     }
 
     override fun setPlaybackSpeed(speed: Float) {
-        mediaPlayer.setRate(speed.coerceIn(0.25f, 4f))
+        requestedSpeed = speed.coerceIn(0.25f, 4f)
+        mediaPlayer.setRate(requestedSpeed)
     }
 
     override fun selectAudioTrack(track: PlaybackTrackSelection?) {
