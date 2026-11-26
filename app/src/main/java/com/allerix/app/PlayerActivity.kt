@@ -2050,9 +2050,22 @@ class PlayerActivity : ComponentActivity() {
         }
         try {
             // Intro detection is optional UI metadata; it must never block first-frame startup.
+            val segmentItemId = itemId
             lifecycleScope.launch {
-                introSegments = runCatching { Api.introSegments(itemId) }.getOrDefault(emptyList())
-                updateIntroSkip()
+                val detectedSegments = runCatching {
+                    Api.introSegments(segmentItemId)
+                }.getOrDefault(emptyList())
+
+                // A quick episode change can finish this request after the next item starts.
+                // Never let stale timestamps from the previous item appear over the new video.
+                if (!isFinishing && !isDestroyed && itemId == segmentItemId) {
+                    introSegments = detectedSegments
+                    updateIntroSkip()
+                    DiagnosticLog.record(
+                        this@PlayerActivity,
+                        "Intro segments loaded: item=$segmentItemId count=${detectedSegments.size}"
+                    )
+                }
             }
 
             // Start the common direct-play path immediately. Jellyfin can choose its
