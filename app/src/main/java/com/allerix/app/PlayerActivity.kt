@@ -1662,8 +1662,10 @@ class PlayerActivity : ComponentActivity() {
             showHud("Jellyfin media information is not ready yet", 2500)
             return
         }
-        val model = AiSubtitleModels.all
-            .firstOrNull { it.id == "base" && AiSubtitleModelStore.isInstalled(this, it) }
+        val preferredModelId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("model", "base") ?: "base"
+        val model = AiSubtitleModels.get(preferredModelId)
+            ?.takeIf { AiSubtitleModelStore.isInstalled(this, it) }
             ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
         if (model == null) {
             val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
