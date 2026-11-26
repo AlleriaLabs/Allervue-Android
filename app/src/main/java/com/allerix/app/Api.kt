@@ -623,10 +623,14 @@ object Api {
         "$base/Videos/$id/$sourceId/Subtitles/$index/Stream.$ext?api_key=$token"
 
     suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
-        val req = Request.Builder().url(url).build()
-        http.newCall(req).execute().use { r ->
-            if (!r.isSuccessful) error("HTTP ${r.code}")
-            r.body?.bytes() ?: ByteArray(0)
+        val req = Request.Builder()
+            .url(url)
+            .header("X-Emby-Token", token)
+            .header("X-MediaBrowser-Token", token)
+            .build()
+        http.newCall(req).execute().use { response ->
+            if (!response.isSuccessful) error("HTTP ${response.code}")
+            response.body?.bytes() ?: ByteArray(0)
         }
     }
 
