@@ -36,17 +36,41 @@ object SubParser {
 
     private fun parseTimed(text: String): List<SubCue> {
         val out = ArrayList<SubCue>()
-        for (block in text.split(Regex("\n\\s*\n"))) {
-            val lines = block.split("\n")
-            val ai = lines.indexOfFirst { it.contains("-->") }
-            if (ai < 0) continue
-            val parts = lines[ai].split("-->")
-            if (parts.size < 2) continue
-            val a = timeRe.find(parts[0]) ?: continue
-            val b = timeRe.find(parts[1]) ?: continue
-            val body = clean(lines.drop(ai + 1).joinToString("\n"))
-            if (body.isNotEmpty()) out.add(SubCue(ms(a), ms(b), body))
+        var startMs: Long? = null
+        var endMs: Long? = null
+        val body = ArrayList<String>()
+
+        fun flush() {
+            val start = startMs
+            val end = endMs
+            val value = clean(body.joinToString("\n"))
+            if (start != null && end != null && end > start && value.isNotEmpty()) {
+                out.add(SubCue(start, end, value))
+            }
+            startMs = null
+            endMs = null
+            body.clear()
         }
+
+        // Be tolerant of files that omit blank cue separators. VTT cue settings
+        // are accepted because timestamps are extracted from the timing line.
+        for (line in text.removePrefix("\uFEFF").replace("\r", "").split("\n")) {
+            if (line.contains("-->")) {
+                val parts = line.split("-->", limit = 2)
+                val from = timeRe.find(parts[0])
+                val to = timeRe.find(parts[1])
+                if (from != null && to != null) {
+                    flush()
+                    startMs = ms(from)
+                    endMs = ms(to)
+                } else if (startMs != null) {
+                    body.add(line)
+                }
+            } else if (startMs != null) {
+                body.add(line)
+            }
+        }
+        flush()
         return out
     }
 
@@ -107,11 +131,15 @@ object SubParser {
     }
 
     fun activeText(cues: List<SubCue>, t: Long): String {
-        val i = indexAt(cues, t)
-        if (i < 0) return ""
-        val sb = ArrayList<String>()
-        if (i >= 1 && t <= cues[i - 1].endMs) sb.add(cues[i - 1].text)
-        if (t <= cues[i].endMs) sb.add(cues[i].text)
-        return sb.joinToString("\n")
+        val last = indexAt(cues, t)
+        if (last < 0) return ""
+        val active = ArrayList<String>()
+        // Preserve every overlapping cue, including positioned ASS dialogue.
+        for (i in last downTo 0) {
+            val cue = cues[i]
+            if (cue.startMs <= t && cue.endMs >= t && cue.text.isNotEmpty()) active.add(cue.text)
+        }
+        active.reverse()
+        return active.joinToString("\n")
     }
 }
