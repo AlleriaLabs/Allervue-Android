@@ -116,6 +116,22 @@ object AiSubtitleModelStore {
 }
 
 object AiSubtitleModelDownloads {
+    /**
+     * Queue both multilingual models automatically when the AI subtitle feature is opened.
+     * Existing downloads are left alone; completed models are never downloaded again.
+     */
+    fun ensureDefaultModels(context: Context): Int {
+        var queued = 0
+        AiSubtitleModels.all.forEach { model ->
+            if (AiSubtitleModelStore.isInstalled(context, model)) return@forEach
+            val state = state(context, model)
+            if (state?.isActive == true) return@forEach
+            enqueue(context, model)
+            queued++
+        }
+        return queued
+    }
+
     fun enqueue(context: Context, model: AiSubtitleModel): Long {
         val target = AiSubtitleModelStore.file(context, model)
         if (target.exists()) target.delete()
