@@ -25,8 +25,8 @@ class ExoPlayerEngine(
     override val view: View get() = playerView
 
     private var listener: PlayerEngine.Listener? = null
-    private var lastAudioTrackId: String? = null
-    private var lastSubtitleTrackId: String? = null
+    private var requestedAudioTrack: PlaybackTrackSelection? = null
+    private var requestedSubtitleTrack: PlaybackTrackSelection? = null
 
     private val mediaListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
@@ -46,6 +46,7 @@ class ExoPlayerEngine(
         }
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            applyRequestedTracks()
             listener?.onTracksChanged()
         }
     }
@@ -64,8 +65,11 @@ class ExoPlayerEngine(
             .setUri(Uri.parse(request.uri))
             .apply { request.mimeType?.let(::setMimeType) }
             .build()
+        requestedAudioTrack = request.audioTrack
+        requestedSubtitleTrack = request.subtitleTrack
         player.setMediaItem(item, request.startPositionMs.coerceAtLeast(0L))
         player.prepare()
+        player.playbackParameters = PlaybackParameters(request.playbackSpeed.coerceIn(0.25f, 4f))
         player.playWhenReady = request.playWhenReady
     }
 
@@ -85,16 +89,56 @@ class ExoPlayerEngine(
         player.playbackParameters = PlaybackParameters(speed.coerceIn(0.25f, 4f))
     }
 
-    /**
-     * Track IDs are retained as engine-neutral intent until the shared track mapper is
-     * connected. Media3's current UI continues to perform its existing native selection.
-     */
-    override fun selectAudioTrack(trackId: String?) {
-        lastAudioTrackId = trackId
+    override fun selectAudioTrack(track: PlaybackTrackSelection?) {
+        requestedAudioTrack = track
+        applyRequestedTracks()
     }
 
-    override fun selectSubtitleTrack(trackId: String?) {
-        lastSubtitleTrackId = trackId
+    override fun selectSubtitleTrack(track: PlaybackTrackSelection?) {
+        requestedSubtitleTrack = track
+        applyRequestedTracks()
+    }
+
+    private fun applyRequestedTracks() {
+        if (player.currentTracks.groups.isEmpty()) return
+        val builder = player.trackSelectionParameters.buildUpon()
+        val audioGroups = player.currentTracks.groups.filter {
+            it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSupported
+        }
+        requestedAudioTrack?.let { selected ->
+            val group = audioGroups.firstOrNull { candidate ->
+                (0 until candidate.length).any { index ->
+                    val format = candidate.getTrackFormat(index)
+                    format.id?.toIntOrNull() == selected.streamIndex ||
+                        (selected.language != null && format.language.equals(selected.language, true))
+                }
+            }
+            if (group != null) builder.setOverrideForType(
+                androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, 0)
+            )
+        }
+        val textGroups = player.currentTracks.groups.filter {
+            it.type == androidx.media3.common.C.TRACK_TYPE_TEXT && it.isSupported
+        }
+        val subtitle = requestedSubtitleTrack
+        if (subtitle == null) {
+            builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
+        } else {
+            val group = textGroups.firstOrNull { candidate ->
+                (0 until candidate.length).any { index ->
+                    val format = candidate.getTrackFormat(index)
+                    format.id?.toIntOrNull() == subtitle.streamIndex ||
+                        (subtitle.language != null && format.language.equals(subtitle.language, true))
+                }
+            }
+            if (group != null) {
+                builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
+                    .setOverrideForType(
+                        androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, 0)
+                    )
+            }
+        }
+        player.trackSelectionParameters = builder.build()
     }
 
     override fun snapshot(): PlaybackSnapshot = PlaybackSnapshot(
@@ -103,8 +147,8 @@ class ExoPlayerEngine(
         isPlaying = player.isPlaying,
         isBuffering = player.playbackState == Player.STATE_BUFFERING,
         bufferedPositionMs = player.bufferedPosition.coerceAtLeast(0L),
-        audioTrackId = lastAudioTrackId,
-        subtitleTrackId = lastSubtitleTrackId
+        playWhenReady = player.playWhenReady,
+        playbackSpeed = player.playbackParameters.speed
     )
 
     override fun release() {
