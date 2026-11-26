@@ -8,6 +8,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.Locale
 import android.util.Log
 
 /**
