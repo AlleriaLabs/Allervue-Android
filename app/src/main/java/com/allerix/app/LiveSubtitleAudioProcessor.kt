@@ -30,6 +30,7 @@ class LiveSubtitleAudioProcessor(
     private var channels = 0
     private var encoding = C.ENCODING_INVALID
     private var resamplePhase = 0L
+    private var inputBlockCount = 0L
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         sampleRate = inputAudioFormat.sampleRate
@@ -46,6 +47,10 @@ class LiveSubtitleAudioProcessor(
         // ByteBuffer directly to another buffer: some device codecs reuse/alias these
         // direct buffers, and ByteBuffer.put(source) can then throw on the audio thread.
         val byteCount = inputBuffer.remaining()
+        inputBlockCount++
+        if (inputBlockCount == 1L) {
+            onDiagnostic("LIVE_AUDIO_INPUT firstBlockBytes=$byteCount rate=$sampleRate channels=$channels encoding=$encoding")
+        }
         val passThrough = ByteArray(byteCount)
         inputBuffer.duplicate().get(passThrough)
 
@@ -75,8 +80,11 @@ class LiveSubtitleAudioProcessor(
                     }
                 }
             }
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
             // Drop this capture block; audio pass-through below remains mandatory.
+            if (inputBlockCount == 1L || inputBlockCount % 250L == 0L) {
+                onDiagnostic("LIVE_AUDIO_CAPTURE_ERROR block=$inputBlockCount type=${error.javaClass.simpleName} message=${error.message}")
+            }
         }
 
         val output = replaceOutputBuffer(byteCount)
