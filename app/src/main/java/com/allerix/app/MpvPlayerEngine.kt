@@ -31,6 +31,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     private var listener: PlayerEngine.Listener? = null
     private var requestedAudioTrack: PlaybackTrackSelection? = null
     private var requestedSubtitleTrack: PlaybackTrackSelection? = null
+    private var requestedPlayWhenReady = true
+    private var requestedSpeed = 1f
     private var initialized = false
     private var generation = 0
 
@@ -42,6 +44,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
         val requestGeneration = ++generation
         requestedAudioTrack = request.audioTrack
         requestedSubtitleTrack = request.subtitleTrack
+        requestedPlayWhenReady = request.playWhenReady
+        requestedSpeed = request.playbackSpeed.coerceIn(0.25f, 4f)
         scope.launch {
             try {
                 if (!initialized) {
@@ -68,8 +72,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
                 if (request.startPositionMs > 0L) {
                     videoView.timePos = request.startPositionMs / 1000.0
                 }
-                videoView.speed = request.playbackSpeed.coerceIn(0.25f, 4f).toDouble()
-                videoView.paused = !request.playWhenReady
+                videoView.speed = requestedSpeed.toDouble()
+                videoView.paused = !requestedPlayWhenReady
                 applyRequestedTracks()
             } catch (error: Throwable) {
                 listener?.onFailure(error)
@@ -140,10 +144,12 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     }
 
     override fun pause() {
+        requestedPlayWhenReady = false
         if (initialized) videoView.paused = true
     }
 
     override fun resume() {
+        requestedPlayWhenReady = true
         if (initialized) videoView.paused = false
     }
 
@@ -152,7 +158,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     }
 
     override fun setPlaybackSpeed(speed: Float) {
-        if (initialized) videoView.speed = speed.coerceIn(0.25f, 4f).toDouble()
+        requestedSpeed = speed.coerceIn(0.25f, 4f)
+        if (initialized) videoView.speed = requestedSpeed.toDouble()
     }
 
     override fun selectAudioTrack(trackId: String?) {
@@ -167,7 +174,7 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
 
     override fun snapshot(): PlaybackSnapshot {
         if (!initialized) {
-            return PlaybackSnapshot(positionMs = 0L, durationMs = 0L, isPlaying = false, isBuffering = false, playWhenReady = !videoView.paused, playbackSpeed = videoView.speed.toFloat())
+            return PlaybackSnapshot(positionMs = 0L, durationMs = 0L, isPlaying = false, isBuffering = false, playWhenReady = requestedPlayWhenReady, playbackSpeed = requestedSpeed)
         }
         val position = ((videoView.timePos ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
         val duration = ((videoView.duration ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
@@ -180,8 +187,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
             durationMs = duration,
             isPlaying = !videoView.paused,
             isBuffering = buffering,
-            playWhenReady = !videoView.paused,
-            playbackSpeed = videoView.speed.toFloat()
+            playWhenReady = requestedPlayWhenReady,
+            playbackSpeed = requestedSpeed
         )
     }
 
