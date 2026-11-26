@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.Request
 import java.io.File
 import java.io.FileOutputStream
@@ -31,20 +32,32 @@ object AiSubtitlePlaybackGenerator {
         require(Api.base.isNotBlank() && Api.userId.isNotBlank() && Api.token.isNotBlank()) {
             "Connect to your Jellyfin server before generating subtitles."
         }
-        val query = buildList {
-            add("UserId=${Api.userId}")
-            add("DeviceId=allervue-android")
-            if (mediaSourceId.isNotBlank()) add("MediaSourceId=${mediaSourceId}")
-            if (audioStreamIndex != null) add("AudioStreamIndex=${audioStreamIndex}")
-            add("Container=mp3")
-            add("AudioCodec=mp3")
-            add("api_key=${Api.token}")
-        }.joinToString("&")
-        val url = "${Api.base.trimEnd('/')}/Audio/$itemId/universal?$query"
+        // Jellyfin's universal-audio endpoint distinguishes accepted source containers
+        // (Container) from the actual transcode output (TranscodingContainer). Supplying
+        // only AudioCodec/Container can leave the server without a valid HTTP output profile.
+        val requestUrl = "${Api.base.trimEnd('/')}/Audio/$itemId/universal".toHttpUrl()
+            .newBuilder()
+            .addQueryParameter("UserId", Api.userId)
+            .addQueryParameter("DeviceId", "allervue-android")
+            .apply {
+                if (mediaSourceId.isNotBlank()) addQueryParameter("MediaSourceId", mediaSourceId)
+                if (audioStreamIndex != null) addQueryParameter("AudioStreamIndex", audioStreamIndex.toString())
+            }
+            .addQueryParameter("Container", "mp3")
+            .addQueryParameter("AudioCodec", "mp3")
+            .addQueryParameter("TranscodingContainer", "mp3")
+            .addQueryParameter("TranscodingProtocol", "http")
+            .addQueryParameter("MaxAudioChannels", "2")
+            .addQueryParameter("TranscodingAudioChannels", "2")
+            .addQueryParameter("AudioBitRate", "192000")
+            .addQueryParameter("EnableRedirection", "false")
+            .addQueryParameter("EnableRemoteMedia", "false")
+            .addQueryParameter("api_key", Api.token)
+            .build()
         val audio = File(context.cacheDir, "ai_subtitle_work/${itemId}_audio.mp3")
         audio.parentFile?.mkdirs()
         val request = Request.Builder()
-            .url(url)
+            .url(requestUrl)
             .header("Authorization", Api.authHeader())
             .header("X-Emby-Token", Api.token)
             .header("X-MediaBrowser-Token", Api.token)
