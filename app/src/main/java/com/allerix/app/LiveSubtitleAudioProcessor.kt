@@ -37,31 +37,47 @@ class LiveSubtitleAudioProcessor(
 
     @Synchronized
     override fun queueInput(inputBuffer: ByteBuffer) {
-        val capture = inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
-        if (sampleRate > 0 && (encoding == C.ENCODING_PCM_16BIT || encoding == C.ENCODING_PCM_FLOAT)) {
-            val bytesPerSample = if (encoding == C.ENCODING_PCM_FLOAT) 4 else 2
-            val frameBytes = bytesPerSample * channels
-            while (capture.remaining() >= frameBytes) {
-                var mono = 0f
-                repeat(channels) {
-                    mono += if (encoding == C.ENCODING_PCM_FLOAT) {
-                        capture.float
-                    } else {
-                        capture.short / 32768f
+        // Snapshot the exact input range first. Never pass ExoPlayer's decoder-owned
+        // ByteBuffer directly to another buffer: some device codecs reuse/alias these
+        // direct buffers, and ByteBuffer.put(source) can then throw on the audio thread.
+        val byteCount = inputBuffer.remaining()
+        val passThrough = ByteArray(byteCount)
+        inputBuffer.duplicate().get(passThrough)
+
+        // Subtitle capture is strictly best-effort. A malformed/unsupported PCM block
+        // must never interrupt normal playback.
+        try {
+            val capture = inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+            if (sampleRate > 0 &&
+                (encoding == C.ENCODING_PCM_16BIT || encoding == C.ENCODING_PCM_FLOAT)
+            ) {
+                val bytesPerSample = if (encoding == C.ENCODING_PCM_FLOAT) 4 else 2
+                val frameBytes = bytesPerSample * channels
+                while (capture.remaining() >= frameBytes) {
+                    var mono = 0f
+                    repeat(channels) {
+                        mono += if (encoding == C.ENCODING_PCM_FLOAT) {
+                            capture.float
+                        } else {
+                            capture.short / 32768f
+                        }
+                    }
+                    mono /= channels
+                    resamplePhase += 16_000L
+                    if (resamplePhase >= sampleRate) {
+                        resamplePhase -= sampleRate.toLong()
+                        append((mono.coerceIn(-1f, 1f) * 32767f).toInt().toShort())
                     }
                 }
-                mono /= channels
-                resamplePhase += 16_000L
-                if (resamplePhase >= sampleRate) {
-                    resamplePhase -= sampleRate.toLong()
-                    append((mono.coerceIn(-1f, 1f) * 32767f).toInt().toShort())
-                }
             }
+        } catch (_: RuntimeException) {
+            // Drop this capture block; audio pass-through below remains mandatory.
         }
 
-        val output = replaceOutputBuffer(inputBuffer.remaining())
-        output.put(inputBuffer)
+        val output = replaceOutputBuffer(byteCount)
+        output.put(passThrough)
         output.flip()
+        inputBuffer.position(inputBuffer.limit())
     }
 
     private fun append(sample: Short) {
