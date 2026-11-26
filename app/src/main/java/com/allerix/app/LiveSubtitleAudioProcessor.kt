@@ -3,6 +3,7 @@ package com.allerix.app
 import androidx.media3.common.C
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
+import androidx.media3.common.util.UnstableApi
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
@@ -12,6 +13,7 @@ import java.nio.ByteOrder
  * Copies decoded PCM from ExoPlayer's audio sink without changing the audible output.
  * It maintains an eight-second, 16 kHz mono ring buffer and emits overlapping windows.
  */
+@OptIn(UnstableApi::class)
 class LiveSubtitleAudioProcessor(
     private val onWindow: (ShortArray) -> Unit
 ) : BaseAudioProcessor() {
@@ -33,6 +35,7 @@ class LiveSubtitleAudioProcessor(
         return inputAudioFormat
     }
 
+    @Synchronized
     override fun queueInput(inputBuffer: ByteBuffer) {
         val capture = inputBuffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
         if (sampleRate > 0 && (encoding == C.ENCODING_PCM_16BIT || encoding == C.ENCODING_PCM_FLOAT)) {
@@ -78,6 +81,7 @@ class LiveSubtitleAudioProcessor(
         }
     }
 
+    @Synchronized
     fun clearCapture() {
         writeIndex = 0
         sampleCount = 0
