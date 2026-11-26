@@ -33,6 +33,7 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
     private var requestedSubtitleTrack: PlaybackTrackSelection? = null
     private var requestedPlayWhenReady = true
     private var requestedSpeed = 1f
+    private var pendingStartPositionMs = 0L
     private var initialized = false
     private var generation = 0
 
@@ -68,10 +69,8 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
                     initialized = true
                     observePlayback()
                 }
+                pendingStartPositionMs = request.startPositionMs.coerceAtLeast(0L)
                 videoView.playFile(request.uri)
-                if (request.startPositionMs > 0L) {
-                    videoView.timePos = request.startPositionMs / 1000.0
-                }
                 videoView.speed = requestedSpeed.toDouble()
                 videoView.paused = !requestedPlayWhenReady
                 applyRequestedTracks()
@@ -89,6 +88,12 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
                     MpvPlaybackState.Status.Loading,
                     MpvPlaybackState.Status.Buffering -> listener?.onBuffering(true)
                     MpvPlaybackState.Status.Playing -> {
+                        if (pendingStartPositionMs > 0L) {
+                            videoView.timePos = pendingStartPositionMs / 1000.0
+                            pendingStartPositionMs = 0L
+                        }
+                        videoView.speed = requestedSpeed.toDouble()
+                        if (!requestedPlayWhenReady) videoView.paused = true
                         applyRequestedTracks()
                         listener?.onBuffering(false)
                         listener?.onReady()
