@@ -112,7 +112,7 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         energy += static_cast<double>(sample) * sample;
         peak = std::max(peak, std::abs(sample));
     }
-    const double rms = std::sqrt(energy / static_cast<double>(audio.size()));
+    double rms = std::sqrt(energy / static_cast<double>(audio.size()));
     __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
         "Decoded WAV: samples=%zu duration=%.2fs peak=%.5f rms=%.5f",
         audio.size(), static_cast<double>(audio.size()) / WHISPER_SAMPLE_RATE, peak, rms);
