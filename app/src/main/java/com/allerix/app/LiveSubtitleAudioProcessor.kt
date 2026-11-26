@@ -19,11 +19,14 @@ import android.os.SystemClock
 @OptIn(UnstableApi::class)
 class LiveSubtitleAudioProcessor(
     private val onDiagnostic: (String) -> Unit = {},
+    private val onChunk: (LiveSubtitleAudioChunk) -> Unit = {},
     private val onWindow: (LiveSubtitleAudioWindow) -> Unit
 ) : BaseAudioProcessor() {
     private val windowSamples = 16_000 * 6
     private val hopSamples = 16_000 * 2
     private val ring = ShortArray(windowSamples)
+    private val streamingChunkSamples = ShortArray(1_600) // 100 ms at 16 kHz
+    private var streamingChunkCount = 0
     private var writeIndex = 0
     private var sampleCount = 0
     private var samplesSinceWindow = 0
@@ -95,6 +98,13 @@ class LiveSubtitleAudioProcessor(
     }
 
     private fun append(sample: Short) {
+        streamingChunkSamples[streamingChunkCount++] = sample
+        if (streamingChunkCount == streamingChunkSamples.size) {
+            val chunk = streamingChunkSamples.copyOf()
+            streamingChunkCount = 0
+            // Keep this callback lightweight; the player only posts it to its worker thread.
+            onChunk(LiveSubtitleAudioChunk(chunk, SystemClock.elapsedRealtime()))
+        }
         ring[writeIndex] = sample
         writeIndex = (writeIndex + 1) % ring.size
         sampleCount = (sampleCount + 1).coerceAtMost(ring.size)
@@ -127,6 +137,7 @@ class LiveSubtitleAudioProcessor(
         writeIndex = 0
         sampleCount = 0
         samplesSinceWindow = 0
+        streamingChunkCount = 0
         resamplePhase = 0L
     }
 }
