@@ -1653,6 +1653,13 @@ class PlayerActivity : ComponentActivity() {
             generateAiSubtitlesForCurrentItem()
         })
         box.addView(noteText("Uses your Jellyfin audio stream and the downloaded on-device Whisper model. Playback continues while subtitles are generated."))
+        val preRollPrefs = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+        val preRollEnabled = preRollPrefs.getBoolean("intro_preroll", true)
+        box.addView(pill("AI subtitle intro pre-roll: ${if (preRollEnabled) "ON" else "OFF"}") {
+            preRollPrefs.edit().putBoolean("intro_preroll", !preRollEnabled).apply()
+            dlg.dismiss()
+            showHud(if (!preRollEnabled) "AI subtitle intro pre-roll enabled" else "AI subtitle intro pre-roll disabled", 1800)
+        })
         val nativeGroups = nativeImageGroups()
         if (nativeGroups.isNotEmpty()) {
             box.addView(sectionLabel("Embedded image subtitles"))
