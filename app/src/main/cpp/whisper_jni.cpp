@@ -123,6 +123,26 @@ Java_com_allerix_app_WhisperNative_transcribeWav(
         return env->NewStringUTF("!ALLERVUE_ERROR:AUDIO_SILENT");
     }
 
+    // Quiet dialogue tracks can be valid PCM but too low for reliable decoding.
+    // Apply bounded gain only when the captured signal is clearly above digital silence.
+    float applied_gain = 1.0f;
+    if (peak > 0.0005f && peak < 0.08f) {
+        applied_gain = std::min(8.0f, 0.08f / peak);
+        for (float &sample : audio) {
+            sample = std::max(-1.0f, std::min(1.0f, sample * applied_gain));
+        }
+        energy = 0.0;
+        peak = 0.0f;
+        for (float sample : audio) {
+            energy += static_cast<double>(sample) * sample;
+            peak = std::max(peak, std::abs(sample));
+        }
+        rms = std::sqrt(energy / static_cast<double>(audio.size()));
+    }
+    __android_log_print(ANDROID_LOG_INFO, LOG_TAG,
+        "Whisper input normalized gain=%.2f peak=%.5f rms=%.5f",
+        applied_gain, peak, rms);
+
     struct whisper_context_params context_params = whisper_context_default_params();
     context_params.use_gpu = false;
     struct whisper_context *ctx = whisper_init_from_file_with_params(model.c_str(), context_params);
