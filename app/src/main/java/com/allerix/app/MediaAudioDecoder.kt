@@ -16,13 +16,19 @@ import kotlin.math.roundToInt
  * 16 kHz, mono, signed 16-bit PCM WAV for Whisper.
  */
 object MediaAudioDecoder {
-    fun decodeToWhisperWav(context: Context, uri: Uri, destination: File) {
+    fun decodeToWhisperWav(context: Context, uri: Uri, destination: File) =
+        decode(destination) { extractor -> extractor.setDataSource(context, uri, null) }
+
+    fun decodeFileToWhisperWav(input: File, destination: File) =
+        decode(destination) { extractor -> extractor.setDataSource(input.absolutePath) }
+
+    private fun decode(destination: File, setDataSource: (MediaExtractor) -> Unit) {
         destination.parentFile?.mkdirs()
         val extractor = MediaExtractor()
         var codec: MediaCodec? = null
         val writer = Pcm16WavWriter(destination)
         try {
-            extractor.setDataSource(context, uri, null)
+            setDataSource(extractor)
             var audioTrack = -1
             var audioFormat: MediaFormat? = null
             for (index in 0 until extractor.trackCount) {
