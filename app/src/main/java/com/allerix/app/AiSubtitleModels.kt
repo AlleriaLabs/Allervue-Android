@@ -78,6 +78,11 @@ object AiSubtitleModelStore {
         return target.isFile && target.length() >= model.expectedBytes * 0.98
     }
 
+    fun isValidModelFile(file: File): Boolean {
+        val model = AiSubtitleModels.all.firstOrNull { it.fileName == file.name } ?: return false
+        return file.isFile && file.length() >= model.expectedBytes * 0.98 && verifySha1(file, model.sha1)
+    }
+
     fun usedBytes(context: Context): Long =
         directory(context).listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
 
