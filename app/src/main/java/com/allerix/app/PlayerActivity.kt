@@ -1511,6 +1511,8 @@ class PlayerActivity : ComponentActivity() {
                     showHud("Unsupported subtitle. Use .srt, .ass/.ssa, .vtt or text .sub", 3500); return@launch
                 }
                 setNativeText(null)
+                selectedImageSubtitleStreamIndex = null
+                if (::playbackEngineManager.isInitialized) playbackEngineManager.selectSubtitleTrack(null)
                 cues = parsed; subOn = true; activeSub = -2
                 shownText = "~"; updateSubtitle()
                 showHud("Subtitles: $name", 1500)
@@ -1783,49 +1785,36 @@ class PlayerActivity : ComponentActivity() {
 
     private fun applyDefaultAudioTrack() {
         if (defaultAudioApplied || audioStreams.isEmpty()) return
-        val groups = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO && it.isSupported }
-        if (groups.isEmpty()) return
         val preferred = audioStreams.firstOrNull { it.isDefault } ?: audioStreams.firstOrNull()
-        val target = preferred?.let { stream ->
-            groups.firstOrNull { group ->
-                group.getTrackFormat(0).id?.toIntOrNull() == stream.index
-            }
-        } ?: groups.firstOrNull { it.isSelected } ?: groups.first()
-        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
-            .setOverrideForType(TrackSelectionOverride(target.mediaTrackGroup, 0)).build()
+        selectedAudioStreamIndex = preferred?.index
         defaultAudioApplied = true
+        if (::playbackEngineManager.isInitialized) {
+            playbackEngineManager.selectAudioTrack(playbackTrack(preferred))
+        }
     }
 
     private fun applyDefaultSubtitle() {
         if (defaultSubtitleApplied || subStreams.isEmpty()) return
-        val english = subStreams.indexOfFirst {
+        val englishText = subStreams.indexOfFirst {
             it.isText && (it.language?.startsWith("en", true) == true ||
                 languageName(it.language).equals("English", true))
         }
-        val preferred = if (english >= 0) english else
+        val preferredText = if (englishText >= 0) englishText else
             subStreams.indexOfFirst { it.isDefault && it.isText }.takeIf { it >= 0 }
                 ?: subStreams.indexOfFirst { it.isText }
-        if (preferred != null && preferred >= 0) {
+        if (preferredText >= 0) {
             defaultSubtitleApplied = true
-            selectSubStream(preferred)
+            selectSubStream(preferredText)
             return
         }
-        val imageGroups = nativeImageGroups()
-        if (imageGroups.isEmpty()) return
-        val englishImage = imageGroups.firstOrNull { group ->
-            val fmt = group.getTrackFormat(0)
-            val id = fmt.id?.toIntOrNull()
-            val stream = id?.let { n -> subStreams.firstOrNull { it.index == n } }
-            (stream?.language ?: fmt.language)?.startsWith("en", true) == true
-        }
-        val defaultImage = imageGroups.firstOrNull { group ->
-            val id = group.getTrackFormat(0).id?.toIntOrNull()
-            id?.let { n -> subStreams.firstOrNull { it.index == n }?.isDefault } == true
-        }
-        val target = englishImage ?: defaultImage ?: imageGroups.firstOrNull()
-        if (target != null) {
+        val imageIndex = subStreams.indexOfFirst {
+            !it.isText && (it.language?.startsWith("en", true) == true ||
+                languageName(it.language).equals("English", true))
+        }.takeIf { it >= 0 } ?: subStreams.indexOfFirst { !it.isText && it.isDefault }
+            .takeIf { it >= 0 } ?: subStreams.indexOfFirst { !it.isText }
+        if (imageIndex >= 0) {
             defaultSubtitleApplied = true
-            selectNativeSubtitle(target)
+            selectImageSubtitleStream(imageIndex)
         }
     }
 
@@ -1895,13 +1884,11 @@ class PlayerActivity : ComponentActivity() {
                             return
                         }
                         val current = exoEngine.snapshot()
-                        val request = PlaybackRequest(
+                        val request = currentPlaybackRequest(
                             uri = mediaUri.toString(),
                             mimeType = player.currentMediaItem?.localConfiguration?.mimeType,
-                            startPositionMs = current.positionMs,
-                            playWhenReady = player.playWhenReady,
-                            headers = emptyMap(),
-                            playbackSpeed = speed
+                            positionMs = current.positionMs,
+                            playWhenReady = current.playWhenReady
                         )
                         DiagnosticLog.record(this@PlayerActivity,
                             "Switching playback engine EXOPLAYER -> $next at ${request.startPositionMs}ms")
@@ -1945,14 +1932,12 @@ class PlayerActivity : ComponentActivity() {
             showHud("$engineId failed and the stream URL is unavailable", 6500)
             return
         }
-        val request = PlaybackRequest(
+        val request = currentPlaybackRequest(
             uri = uri,
             mimeType = if (plan?.hls == true) MimeTypes.APPLICATION_M3U8 else
                 player.currentMediaItem?.localConfiguration?.mimeType,
-            startPositionMs = (snapshot?.positionMs ?: player.currentPosition).coerceAtLeast(0L),
-            playWhenReady = true,
-            headers = emptyMap(),
-            playbackSpeed = speed
+            positionMs = snapshot?.positionMs ?: playbackPositionMs(),
+            playWhenReady = snapshot?.playWhenReady ?: player.playWhenReady
         )
         when (action) {
             PlaybackAction.RETRY_SAME_ENGINE -> {
