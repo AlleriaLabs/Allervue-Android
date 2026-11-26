@@ -85,6 +85,9 @@ class MainActivity : FragmentActivity() {
                 .crossfade(false)
                 .build()
         )
+        // Queue both on-device Whisper models on the first launch after install/update.
+        // DownloadManager persists these downloads across app restarts and updates.
+        runCatching { AiSubtitleModelDownloads.ensureDefaultModels(applicationContext) }
         DiagnosticLog.install(this)
         DiagnosticLog.record(this, "MainActivity onCreate")
         Api.load(this)
