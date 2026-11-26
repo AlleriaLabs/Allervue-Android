@@ -98,6 +98,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                     onDiagnostics = { stack.add(Nav.Diagnostics) },
                     onProfile = { stack.add(Nav.Profile) },
                     onAppearance = { stack.add(Nav.Appearance) },
+                    onAiSubtitles = { stack.add(Nav.AiSubtitles) },
                     onSignOut = signOut,
                     onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
                 )
@@ -108,6 +109,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                     onSignOut = signOut
                 )
                 Nav.Appearance -> AppearanceSettingsScreen(back)
+                Nav.AiSubtitles -> AiSubtitleSettingsScreen(back)
                 Nav.RequestShow -> RequestShowScreen(back)
                 Nav.ClientSettings -> ClientSettingsScreen(
                     back, onServerChanged = signOut, loggedIn = true,
@@ -1188,7 +1190,7 @@ private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -
 private fun RebuildSettingsScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit,
     onPlayback: () -> Unit, onDiagnostics: () -> Unit,
-    onProfile: () -> Unit, onAppearance: () -> Unit,
+    onProfile: () -> Unit, onAppearance: () -> Unit, onAiSubtitles: () -> Unit,
     onSignOut: () -> Unit, onWeb: (String, String) -> Unit
 ) {
     val context = LocalContext.current
@@ -1270,6 +1272,12 @@ private fun RebuildSettingsScreen(
             item {
                 RebuildSettingsGroup {
                     RebuildSettingsActionRow("Appearance", "Theme & display", onAppearance)
+                }
+            }
+            item { RebuildSettingsLabel("AI & SUBTITLES") }
+            item {
+                RebuildSettingsGroup {
+                    RebuildSettingsActionRow("AI Subtitles", "Offline Whisper models", onAiSubtitles)
                 }
             }
             item { RebuildSettingsLabel("PLAYBACK") }
