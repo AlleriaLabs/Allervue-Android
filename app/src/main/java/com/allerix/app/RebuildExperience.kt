@@ -97,6 +97,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                     onPlayback = { stack.add(Nav.PlaybackSettings) },
                     onDiagnostics = { stack.add(Nav.Diagnostics) },
                     onProfile = { stack.add(Nav.Profile) },
+                    onParentalControls = { stack.add(Nav.ParentalControls) },
                     onAppearance = { stack.add(Nav.Appearance) },
                     onAiSubtitles = { stack.add(Nav.AiSubtitles) },
                     onSignOut = signOut,
@@ -110,6 +111,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                 )
                 Nav.Appearance -> AppearanceSettingsScreen(back)
                 Nav.AiSubtitles -> AiSubtitleSettingsScreen(back)
+                Nav.ParentalControls -> ParentalControlsScreen(back)
                 Nav.RequestShow -> RequestShowScreen(back)
                 Nav.ClientSettings -> ClientSettingsScreen(
                     back, onServerChanged = signOut, loggedIn = true,
@@ -1190,7 +1192,7 @@ private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -
 private fun RebuildSettingsScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit,
     onPlayback: () -> Unit, onDiagnostics: () -> Unit,
-    onProfile: () -> Unit, onAppearance: () -> Unit, onAiSubtitles: () -> Unit,
+    onProfile: () -> Unit, onAppearance: () -> Unit, onAiSubtitles: () -> Unit, onParentalControls: () -> Unit,
     onSignOut: () -> Unit, onWeb: (String, String) -> Unit
 ) {
     val context = LocalContext.current
@@ -1272,6 +1274,12 @@ private fun RebuildSettingsScreen(
             item {
                 RebuildSettingsGroup {
                     RebuildSettingsActionRow("Appearance", "Theme & display", onAppearance)
+                }
+            }
+            item { RebuildSettingsLabel("FAMILY & SAFETY") }
+            item {
+                RebuildSettingsGroup {
+                    RebuildSettingsActionRow("Parental Controls", "PIN & content rating restrictions", onParentalControls)
                 }
             }
             item { RebuildSettingsLabel("AI & SUBTITLES") }
