@@ -2051,11 +2051,24 @@ class PlayerActivity : ComponentActivity() {
                 val url = Api.streamUrl(itemId)
                 plan = PlaybackPlan(url, false, false, sessionId, "Direct play · metadata loading in parallel")
                 updateTopPlaybackInfo()
-                player.setMediaItem(MediaItem.fromUri(url))
                 val requestedStart = intent.getLongExtra("start_position_ms", 0L)
-                if (requestedStart > 5_000) player.seekTo(requestedStart)
-                player.playWhenReady = true
-                player.prepare()
+                if (playbackEngineManager.activeEngine.id == PlaybackEngineId.EXOPLAYER) {
+                    player.setMediaItem(MediaItem.fromUri(url))
+                    if (requestedStart > 5_000) player.seekTo(requestedStart)
+                    player.playWhenReady = true
+                    player.prepare()
+                } else {
+                    playbackOrchestrator.resetForNewItem()
+                    playbackEngineManager.switchTo(
+                        PlaybackEngineId.EXOPLAYER,
+                        PlaybackRequest(
+                            uri = url,
+                            startPositionMs = requestedStart.coerceAtLeast(0L),
+                            playWhenReady = true,
+                            playbackSpeed = speed
+                        )
+                    )
+                }
                 DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: direct stream request started before metadata")
             }
 
@@ -2095,6 +2108,7 @@ class PlayerActivity : ComponentActivity() {
             badgeRow.visibility = if (badgeRow.childCount > 0) View.VISIBLE else View.GONE
             subStreams = src.streams.filter { it.type == "Subtitle" }
             audioStreams = src.streams.filter { it.type == "Audio" }
+            applyDefaultAudioTrack()
             DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: streams audio=${audioStreams.size} subtitles=${subStreams.size}")
 
             // AUTO starts with Jellyfin's static stream immediately. If this device cannot decode it,
@@ -2108,13 +2122,23 @@ class PlayerActivity : ComponentActivity() {
                 applyDefaultSubtitle()
                 DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: continuing early direct stream with resolved media metadata")
             } else {
-                player.setMediaItem(buildMediaItem())
-                if (resumeAt > 5_000) player.seekTo(resumeAt)
-                player.playWhenReady = true
-                DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
-                val prepareStarted = SystemClock.elapsedRealtime()
-                player.prepare()
-                DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: prepare() returned in " + (SystemClock.elapsedRealtime() - prepareStarted) + "ms")
+                val mediaItem = buildMediaItem()
+                if (playbackEngineManager.activeEngine.id == PlaybackEngineId.EXOPLAYER) {
+                    player.setMediaItem(mediaItem)
+                    if (resumeAt > 5_000) player.seekTo(resumeAt)
+                    player.playWhenReady = true
+                    DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: media item configured; preparing player")
+                    val prepareStarted = SystemClock.elapsedRealtime()
+                    player.prepare()
+                    DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: prepare() returned in " + (SystemClock.elapsedRealtime() - prepareStarted) + "ms")
+                } else {
+                    playbackOrchestrator.resetForNewItem()
+                    val uri = mediaItem.localConfiguration?.uri?.toString() ?: error("Playback URL unavailable")
+                    playbackEngineManager.switchTo(
+                        PlaybackEngineId.EXOPLAYER,
+                        currentPlaybackRequest(uri, mediaItem.localConfiguration?.mimeType, resumeAt, true)
+                    )
+                }
             }
             report("start")
             handler.postDelayed(progressTick, 10_000)
@@ -2142,13 +2166,17 @@ class PlayerActivity : ComponentActivity() {
         if (::episodesAction.isInitialized) episodesAction.visibility = View.GONE
         if (::nextEpisodeAction.isInitialized) nextEpisodeAction.visibility = View.GONE
         defaultAudioApplied = false; defaultSubtitleApplied = false
+        selectedAudioStreamIndex = null; selectedImageSubtitleStreamIndex = null
+        playbackOrchestrator.resetForNewItem()
         updateIntroSkip()
         sessionId = UUID.randomUUID().toString().replace("-", "")
 
 
-        cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); shownText = ""
+        cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); audioStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
+        playbackEngineManager.selectAudioTrack(null)
+        playbackEngineManager.selectSubtitleTrack(null)
         player.stop(); player.clearMediaItems()
         loadAndPlay()
     }
