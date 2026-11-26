@@ -99,9 +99,21 @@ class ExoPlayerEngine(
         applyRequestedTracks()
     }
 
+    private fun normalizedLanguage(value: String?): String {
+        val tag = value.orEmpty().lowercase(java.util.Locale.ROOT).substringBefore('-').substringBefore('_')
+        return when (tag) {
+            "eng" -> "en"; "spa" -> "es"; "jpn" -> "ja"; "kor" -> "ko"
+            "zho", "chi" -> "zh"; "fra", "fre" -> "fr"; "deu", "ger" -> "de"
+            "ita" -> "it"; "por" -> "pt"; "rus" -> "ru"; "ara" -> "ar"
+            "fil", "tgl" -> "fil"; else -> tag
+        }
+    }
+
     private fun applyRequestedTracks() {
         if (player.currentTracks.groups.isEmpty()) return
         val builder = player.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_AUDIO)
+            .clearOverridesOfType(androidx.media3.common.C.TRACK_TYPE_TEXT)
         val audioGroups = player.currentTracks.groups.filter {
             it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSupported
         }
@@ -110,7 +122,8 @@ class ExoPlayerEngine(
                 (0 until candidate.length).any { index ->
                     val format = candidate.getTrackFormat(index)
                     format.id?.toIntOrNull() == selected.streamIndex ||
-                        (selected.language != null && format.language.equals(selected.language, true))
+                        (selected.language != null && normalizedLanguage(format.language) == normalizedLanguage(selected.language)) ||
+                        (selected.title != null && format.label?.contains(selected.title, true) == true)
                 }
             }
             if (group != null) builder.setOverrideForType(
@@ -128,7 +141,8 @@ class ExoPlayerEngine(
                 (0 until candidate.length).any { index ->
                     val format = candidate.getTrackFormat(index)
                     format.id?.toIntOrNull() == subtitle.streamIndex ||
-                        (subtitle.language != null && format.language.equals(subtitle.language, true))
+                        (subtitle.language != null && normalizedLanguage(format.language) == normalizedLanguage(subtitle.language)) ||
+                        (subtitle.title != null && format.label?.contains(subtitle.title, true) == true)
                 }
             }
             if (group != null) {
