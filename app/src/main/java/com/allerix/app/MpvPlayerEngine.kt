@@ -116,6 +116,10 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
         if (initialized) videoView.paused = true
     }
 
+    override fun resume() {
+        if (initialized) videoView.paused = false
+    }
+
     override fun seekTo(positionMs: Long) {
         if (initialized) videoView.timePos = positionMs.coerceAtLeast(0L) / 1000.0
     }
@@ -136,7 +140,7 @@ class MpvPlayerEngine(context: Context) : PlayerEngine {
 
     override fun snapshot(): PlaybackSnapshot {
         if (!initialized) {
-            return PlaybackSnapshot(0L, 0L, false, false, requestedAudioTrackId, requestedSubtitleTrackId)
+            return PlaybackSnapshot(positionMs = 0L, durationMs = 0L, isPlaying = false, isBuffering = false, audioTrackId = requestedAudioTrackId, subtitleTrackId = requestedSubtitleTrackId)
         }
         val position = ((videoView.timePos ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
         val duration = ((videoView.duration ?: 0.0) * 1000.0).toLong().coerceAtLeast(0L)
