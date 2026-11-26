@@ -294,24 +294,33 @@ object Api {
         }.distinct().sorted()
     }.getOrDefault(emptyList())
 
-    /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */
+    /**
+     * Reads Intro Skipper's Jellyfin 12 Media Segments projection.
+     * Jellyfin stores segment timestamps in 100-nanosecond ticks (10,000 per ms).
+     * Keep this request best-effort so segment lookup never delays playback startup.
+     */
     suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
-        val root = json.parseToJsonElement(call("GET", "/MediaSegments/$id"))
-        val array = when {
-            root is kotlinx.serialization.json.JsonArray -> root
-            root is kotlinx.serialization.json.JsonObject ->
-                (root["MediaSegments"] ?: root["Items"]) as? kotlinx.serialization.json.JsonArray
+        val root = json.parseToJsonElement(
+            call("GET", "/MediaSegments/$id?includeSegmentTypes=Intro")
+        )
+        val array = when (root) {
+            is kotlinx.serialization.json.JsonArray -> root
+            is kotlinx.serialization.json.JsonObject ->
+                (root["Items"] ?: root["items"] ?: root["MediaSegments"] ?: root["mediaSegments"])
+                    as? kotlinx.serialization.json.JsonArray
                     ?: kotlinx.serialization.json.JsonArray(emptyList())
             else -> kotlinx.serialization.json.JsonArray(emptyList())
         }
         array.mapNotNull { element ->
             val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-            val type = obj["Type"]?.toString()?.trim('"').orEmpty()
+            val type = (obj["Type"] ?: obj["type"])?.toString()?.trim('"').orEmpty()
             if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
-            val start = obj["StartTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
-            val end = obj["EndTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
-            if (end <= start) null else (start / 10_000L) to (end / 10_000L)
-        }
+            val start = (obj["StartTicks"] ?: obj["startTicks"])?.toString()?.toLongOrNull()
+                ?: return@mapNotNull null
+            val end = (obj["EndTicks"] ?: obj["endTicks"])?.toString()?.toLongOrNull()
+                ?: return@mapNotNull null
+            if (start < 0L || end <= start) null else (start / 10_000L) to (end / 10_000L)
+        }.distinct().sortedBy { it.first }
     }.getOrDefault(emptyList())
 
     suspend fun favorites(): List<Item> = json.decodeFromString<ItemsResult>(
