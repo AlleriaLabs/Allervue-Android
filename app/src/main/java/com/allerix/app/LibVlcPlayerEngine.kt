@@ -80,6 +80,10 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
         mediaPlayer.pause()
     }
 
+    override fun resume() {
+        mediaPlayer.play()
+    }
+
     override fun seekTo(positionMs: Long) {
         mediaPlayer.setTime(positionMs.coerceAtLeast(0L))
     }
