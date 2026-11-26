@@ -184,6 +184,7 @@ class PlayerActivity : ComponentActivity() {
     private var liveSubtitleActive = false
     private var liveSubtitleBusy = false
     private var liveSubtitleModel: AiSubtitleModel? = null
+    private val liveWhisperEngine = WhisperCppEngine()
     private var livePendingWindow: Pair<ShortArray, Long>? = null
     private var liveSubtitleFirstCue = true
     private var aiModelWaitRunnable: Runnable? = null
@@ -2065,7 +2066,7 @@ class PlayerActivity : ComponentActivity() {
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) { LiveSubtitleWav.write(samples, wav) }
-                val recognized = WhisperCppEngine().transcribe(
+                val recognized = liveWhisperEngine.transcribe(
                     wav, AiSubtitleModelStore.file(this@PlayerActivity, model), language
                 )
                 if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
