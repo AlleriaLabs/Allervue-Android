@@ -2058,7 +2058,7 @@ class PlayerActivity : ComponentActivity() {
     private fun transcribeLiveWindow(samples: ShortArray, windowEndMs: Long) {
         val model = liveSubtitleModel ?: return
         val requestedItemId = itemId
-        val windowStartMs = (windowEndMs - 8000L).coerceAtLeast(0L)
+        val windowStartMs = (windowEndMs - 12_000L).coerceAtLeast(0L)
         val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getString("language", "auto") ?: "auto"
         val wav = File(cacheDir, "live_subtitle_${UUID.randomUUID()}.wav")
