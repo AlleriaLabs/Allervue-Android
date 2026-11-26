@@ -8,6 +8,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import android.util.Log
 
 /**
  * Copies decoded PCM from ExoPlayer's audio sink without changing the audible output.
@@ -17,7 +18,7 @@ import java.nio.ByteOrder
 class LiveSubtitleAudioProcessor(
     private val onWindow: (ShortArray) -> Unit
 ) : BaseAudioProcessor() {
-    private val windowSamples = 16_000 * 8
+    private val windowSamples = 16_000 * 12
     private val hopSamples = 16_000 * 6
     private val ring = ShortArray(windowSamples)
     private var writeIndex = 0
@@ -32,6 +33,7 @@ class LiveSubtitleAudioProcessor(
         sampleRate = inputAudioFormat.sampleRate
         channels = inputAudioFormat.channelCount.coerceAtLeast(1)
         encoding = inputAudioFormat.encoding
+        Log.i("AllervueLiveAudio", "PCM format rate=$sampleRate channels=$channels encoding=$encoding")
         return inputAudioFormat
     }
 
@@ -92,6 +94,16 @@ class LiveSubtitleAudioProcessor(
             val first = ring.size - start
             System.arraycopy(ring, start, snapshot, 0, first)
             if (start > 0) System.arraycopy(ring, 0, snapshot, first, start)
+            // Record real input levels to distinguish silence/format issues from Whisper failures.
+            var sumSquares = 0.0
+            var peak = 0
+            snapshot.forEach { value ->
+                val magnitude = kotlin.math.abs(value.toInt())
+                if (magnitude > peak) peak = magnitude
+                sumSquares += value.toDouble() * value.toDouble()
+            }
+            val rms = kotlin.math.sqrt(sumSquares / snapshot.size) / 32768.0
+            Log.i("AllervueLiveAudio", "window ready samples=${snapshot.size} rms=${"%.5f".format(rms)} peak=${peak / 32768.0}")
             // The callback must only enqueue work; it runs on ExoPlayer's audio thread.
             onWindow(snapshot)
         }
