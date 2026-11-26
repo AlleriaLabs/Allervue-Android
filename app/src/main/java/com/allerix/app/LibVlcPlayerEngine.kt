@@ -121,6 +121,17 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
         .lowercase(java.util.Locale.ROOT)
         .replace(Regex("[^a-z0-9]"), "")
 
+    private fun languageName(value: String?): String {
+        val tag = value.orEmpty().lowercase(java.util.Locale.ROOT)
+        val mapped = when (tag.substringBefore('-').substringBefore('_')) {
+            "eng" -> "en"; "spa" -> "es"; "jpn" -> "ja"; "kor" -> "ko"
+            "zho", "chi" -> "zh"; "fra", "fre" -> "fr"; "deu", "ger" -> "de"
+            "ita" -> "it"; "por" -> "pt"; "rus" -> "ru"; "ara" -> "ar"
+            "fil", "tgl" -> "fil"; else -> tag
+        }
+        return java.util.Locale.forLanguageTag(mapped).getDisplayLanguage(java.util.Locale.ENGLISH)
+    }
+
     private fun chooseTrackId(
         descriptions: Array<MediaPlayer.TrackDescription>?,
         selection: PlaybackTrackSelection?
@@ -129,15 +140,17 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
         val tracks = descriptions?.filter { it.id >= 0 }.orEmpty()
         if (tracks.isEmpty()) return null
         val language = normalized(selection.language)
+        val languageLabel = normalized(languageName(selection.language))
         val title = normalized(selection.title)
         val codec = normalized(selection.codec)
-        return tracks.firstOrNull { desc ->
-            val name = normalized(desc.name)
-            (language.isNotEmpty() && (name.contains(language) ||
-                name.contains(language.take(2)))) ||
-                (title.isNotEmpty() && name.contains(title)) ||
-                (codec.isNotEmpty() && name.contains(codec))
-        }?.id ?: tracks.singleOrNull()?.id
+        return tracks.firstOrNull { it.id == selection.streamIndex }?.id
+            ?: tracks.firstOrNull { desc ->
+                val name = normalized(desc.name)
+                (languageLabel.isNotEmpty() && name.contains(languageLabel)) ||
+                    (language.length >= 2 && name.contains(language.take(2))) ||
+                    (title.isNotEmpty() && name.contains(title)) ||
+                    (codec.isNotEmpty() && name.contains(codec))
+            }?.id ?: tracks.singleOrNull()?.id
     }
 
     private fun applyRequestedTracks() {
