@@ -138,7 +138,7 @@ object AiSubtitleModelDownloads {
         val request = DownloadManager.Request(Uri.parse(model.downloadUrl))
             .setTitle("Allervue · ${model.title}")
             .setDescription("Downloading offline AI subtitle model")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
             .setAllowedOverRoaming(false)
             .setDestinationInExternalFilesDir(
                 context,
