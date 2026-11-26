@@ -95,8 +95,8 @@ class PlaybackEngineManager(
     fun bufferedPositionMs(): Long = activeEngine.snapshot().bufferedPositionMs
     fun seekTo(positionMs: Long) = activeEngine.seekTo(positionMs)
     fun setPlaybackSpeed(speed: Float) = activeEngine.setPlaybackSpeed(speed)
-    fun selectAudioTrack(trackId: String?) = activeEngine.selectAudioTrack(trackId)
-    fun selectSubtitleTrack(trackId: String?) = activeEngine.selectSubtitleTrack(trackId)
+    fun selectAudioTrack(track: PlaybackTrackSelection?) = activeEngine.selectAudioTrack(track)
+    fun selectSubtitleTrack(track: PlaybackTrackSelection?) = activeEngine.selectSubtitleTrack(track)
 
     fun release() {
         pendingPrevious?.let { if (it !== exoEngine) it.release() }
