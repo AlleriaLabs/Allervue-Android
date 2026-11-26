@@ -1535,16 +1535,24 @@ class PlayerActivity : ComponentActivity() {
         val labels = ArrayList<String>()
         labels.add("Off")
         subStreams.forEach { labels.add(streamLabel(it) + (if (it.isText) "" else "  (image)")) }
+        val imageSelected = selectedImageSubtitleStreamIndex?.let { index ->
+            subStreams.indexOfFirst { it.index == index }
+        } ?: -1
         val checked = when {
             !subOn -> 0
             activeSub >= 0 -> activeSub + 1
+            imageSelected >= 0 -> imageSelected + 1
             else -> 0
         }
         box.addView(radioGroup(100, labels, checked) { i ->
             dlg.dismiss()
             when {
                 i == 0 -> subtitlesOff()
-                else -> selectSubStream(i - 1)
+                else -> {
+                    val streamIndex = i - 1
+                    if (subStreams.getOrNull(streamIndex)?.isText == true) selectSubStream(streamIndex)
+                    else selectImageSubtitleStream(streamIndex)
+                }
             }
         })
         val nativeGroups = nativeImageGroups()
@@ -2175,6 +2183,7 @@ class PlayerActivity : ComponentActivity() {
         cues = emptyList(); subOn = false; activeSub = -1; subStreams = emptyList(); audioStreams = emptyList(); shownText = ""
         defaultAudioApplied = false; defaultSubtitleApplied = false
         setNativeText(null)
+        playbackEngineManager.pause()
         playbackEngineManager.selectAudioTrack(null)
         playbackEngineManager.selectSubtitleTrack(null)
         player.stop(); player.clearMediaItems()
@@ -2191,14 +2200,23 @@ class PlayerActivity : ComponentActivity() {
 
     private fun applyPlayback() {
         if (sourceId.isEmpty()) return
-        val pos = playbackPositionMs()
-
+        val snapshot = runCatching { playbackEngineManager.snapshot() }.getOrNull()
+        val pos = snapshot?.positionMs ?: playbackPositionMs()
+        val wasPlaying = snapshot?.playWhenReady ?: player.playWhenReady
 
         showHud("Switching to ${quality.label} · Audio: ${audioMode.label}…", 2500)
         lifecycleScope.launch {
             val mi = buildMediaItem()
-            player.setMediaItem(mi, pos)
-            player.prepare(); player.play()
+            if (playbackEngineManager.activeEngine.id == PlaybackEngineId.EXOPLAYER) {
+                player.setMediaItem(mi, pos)
+                player.prepare()
+                player.playWhenReady = wasPlaying
+            } else {
+                val uri = mi.localConfiguration?.uri?.toString() ?: error("Playback URL unavailable")
+                playbackEngineManager.retryCurrent(
+                    currentPlaybackRequest(uri, mi.localConfiguration?.mimeType, pos, wasPlaying)
+                )
+            }
         }
     }
 
