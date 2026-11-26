@@ -2330,7 +2330,19 @@ class PlayerActivity : ComponentActivity() {
                 cues = cues.filterNot { kotlin.math.abs(it.startMs - previousPartialStart) < 300L }
             }
             val cueStartMs = event.mediaStartMs.coerceAtLeast(0L)
-            val cueEndMs = maxOf(event.mediaEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
+            // Streaming hypotheses often arrive after the corresponding media timestamp.
+            // Keep the mutable partial alive slightly ahead of the playhead so the overlay
+            // does not blink off between 100 ms recognizer updates. Final cues retain their
+            // model-derived end time and normal minimum display duration.
+            val cueEndMs = if (event is LiveCaptionEvent.Partial) {
+                maxOf(
+                    event.mediaEndMs,
+                    cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS,
+                    playbackPositionMs() + LIVE_SUBTITLE_PARTIAL_HOLD_MS
+                )
+            } else {
+                maxOf(event.mediaEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
+            }
             val candidate = SubCue(cueStartMs, cueEndMs, text)
             cues = normalizeLiveCueTimeline(cues + candidate)
             livePartialCueStartMs = if (event is LiveCaptionEvent.Partial) cueStartMs else null
@@ -2364,7 +2376,7 @@ class PlayerActivity : ComponentActivity() {
         val now = SystemClock.elapsedRealtime()
         // Whisper is a low-frequency second pass beside sherpa, but remains the primary
         // fallback when no streaming engine is ready.
-        val minimumCorrectionIntervalMs = if (sherpaReady) 12_000L else 2_000L
+        val minimumCorrectionIntervalMs = if (sherpaReady) 6_000L else 2_000L
         if (now - lastWhisperCorrectionElapsedMs < minimumCorrectionIntervalMs) return
         lastWhisperCorrectionElapsedMs = now
         val deliveryPositionMs = playbackPositionMs()
@@ -2382,6 +2394,7 @@ class PlayerActivity : ComponentActivity() {
      *  from stacking duplicate hypotheses into a wall of text. */
     private companion object {
         const val LIVE_SUBTITLE_MIN_DISPLAY_MS = 1_800L
+        const val LIVE_SUBTITLE_PARTIAL_HOLD_MS = 1_600L
     }
 
     private fun normalizeLiveCueTimeline(input: List<SubCue>): List<SubCue> {
