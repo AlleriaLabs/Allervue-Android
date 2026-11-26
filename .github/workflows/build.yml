@@ -4,6 +4,10 @@ name: Allervue Phase 2 APK
   push:
   workflow_dispatch:
 
+concurrency:
+  group: allervue-android-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
