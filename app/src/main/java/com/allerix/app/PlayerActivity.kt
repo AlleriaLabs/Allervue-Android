@@ -1435,11 +1435,18 @@ class PlayerActivity : ComponentActivity() {
         }
         // The active decoder may be ExoPlayer, libmpv, or LibVLC. Read the shared
         // engine position so custom text subtitles stay synchronized after engine fallback.
-        val txt = SubParser.activeText(cues, playbackPositionMs() - subDelayMs)
+        val subtitlePositionMs = playbackPositionMs() - subDelayMs
+        val txt = SubParser.activeText(cues, subtitlePositionMs)
         if (txt != shownText) {
             shownText = txt
             subText.text = txt
             subText.visibility = if (txt.isEmpty()) View.GONE else View.VISIBLE
+            if (liveSubtitleActive) {
+                DiagnosticLog.record(
+                    this,
+                    "LIVE_SUBTITLE_RENDER positionMs=$subtitlePositionMs visible=${txt.isNotEmpty()} chars=${txt.length} cueCount=${cues.size}"
+                )
+            }
         }
     }
 
@@ -2078,7 +2085,7 @@ class PlayerActivity : ComponentActivity() {
     private fun transcribeLiveWindow(samples: ShortArray, windowEndMs: Long) {
         val model = liveSubtitleModel ?: return
         val requestedItemId = itemId
-        val windowStartMs = (windowEndMs - 12_000L).coerceAtLeast(0L)
+        val windowStartMs = (windowEndMs - 6_000L).coerceAtLeast(0L)
         val windowSequence = ++liveWindowSequence
         val inferenceSession = sessionId
         val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
@@ -2138,6 +2145,12 @@ class PlayerActivity : ComponentActivity() {
                 subOn = cues.isNotEmpty()
                 activeSub = -2
                 shownText = "~"
+                val renderPositionMs = playbackPositionMs() - subDelayMs
+                val activeCueCount = cues.count { it.startMs <= renderPositionMs && it.endMs >= renderPositionMs }
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
+                )
                 updateSubtitle()
 
                 val output = aiSubtitleFileFor(requestedItemId)
