@@ -187,6 +187,7 @@ class PlayerActivity : ComponentActivity() {
     private val liveWhisperEngine = WhisperCppEngine()
     private var livePendingWindow: Pair<ShortArray, Long>? = null
     private var liveSubtitleFirstCue = true
+    private var liveWindowSequence = 0L
     private var aiModelWaitRunnable: Runnable? = null
     private var autoSubtitleAttemptedItemId: String? = null
 
@@ -1671,6 +1672,7 @@ class PlayerActivity : ComponentActivity() {
         activeSub = -2
         shownText = "~"
         updateSubtitle()
+        DiagnosticLog.record(this, "AI_SUBTITLE_HISTORY_RESTORED item=$itemId source=saved_srt cues=${parsed.size} first=${parsed.firstOrNull()?.startMs}ms")
         showHud("AI subtitles · saved", 1800)
     }
 
@@ -2057,10 +2059,28 @@ class PlayerActivity : ComponentActivity() {
         transcribeLiveWindow(samples, endPositionMs)
     }
 
+    /** Live Whisper windows overlap by six seconds. Keep the resulting timeline single-line
+     *  so overlapping Tiny hypotheses cannot be stacked into a wall of text. */
+    private fun normalizeLiveCueTimeline(input: List<SubCue>): List<SubCue> {
+        val sorted = input.asSequence()
+            .filter { it.text.isNotBlank() && it.endMs > it.startMs }
+            .sortedWith(compareBy<SubCue> { it.startMs }.thenBy { it.endMs })
+            .toList()
+        val output = ArrayList<SubCue>(sorted.size)
+        sorted.forEachIndexed { index, cue ->
+            val next = sorted.getOrNull(index + 1)
+            val clippedEnd = if (next != null && next.startMs < cue.endMs) next.startMs else cue.endMs
+            if (clippedEnd - cue.startMs >= 250L) output += cue.copy(endMs = clippedEnd)
+        }
+        return output
+    }
+
     private fun transcribeLiveWindow(samples: ShortArray, windowEndMs: Long) {
         val model = liveSubtitleModel ?: return
         val requestedItemId = itemId
         val windowStartMs = (windowEndMs - 12_000L).coerceAtLeast(0L)
+        val windowSequence = ++liveWindowSequence
+        val inferenceSession = sessionId
         val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getString("language", "auto") ?: "auto"
         val wav = File(cacheDir, "live_subtitle_${UUID.randomUUID()}.wav")
@@ -2079,8 +2099,17 @@ class PlayerActivity : ComponentActivity() {
                     this@PlayerActivity,
                     "LIVE_AI_SUBTITLES input item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} samples=${samples.size} rms=${"%.6f".format(Locale.US, sampleRms)} peak=${"%.6f".format(Locale.US, samplePeak / 32768.0)} $wavDiagnostics"
                 )
+                val inferenceStartedAt = SystemClock.elapsedRealtime()
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "LIVE_WHISPER_INFERENCE_START session=$inferenceSession window=$windowSequence item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} windowStartMs=$windowStartMs windowEndMs=$windowEndMs playbackPositionMs=${playbackPositionMs()} samples=${samples.size}"
+                )
                 val recognized = liveWhisperEngine.transcribe(
                     wav, AiSubtitleModelStore.file(this@PlayerActivity, model), language
+                )
+                DiagnosticLog.record(
+                    this@PlayerActivity,
+                    "LIVE_WHISPER_INFERENCE_END session=$inferenceSession window=$windowSequence item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} durationMs=${SystemClock.elapsedRealtime() - inferenceStartedAt} segments=${recognized.size}"
                 )
                 DiagnosticLog.record(
                     this@PlayerActivity,
@@ -2105,7 +2134,7 @@ class PlayerActivity : ComponentActivity() {
                         if (!duplicate) merged += candidate
                     }
                 }
-                cues = merged.sortedBy { it.startMs }
+                cues = normalizeLiveCueTimeline(merged)
                 subOn = cues.isNotEmpty()
                 activeSub = -2
                 shownText = "~"
@@ -2380,6 +2409,7 @@ class PlayerActivity : ComponentActivity() {
                     activeSub = -2
                     shownText = "~"
                     updateSubtitle()
+                    DiagnosticLog.record(this@PlayerActivity, "AI_SUBTITLE_HISTORY_RESTORED item=$itemId source=load_and_play_srt cues=${parsed.size} first=${parsed.firstOrNull()?.startMs}ms")
                 }
             }
         }
