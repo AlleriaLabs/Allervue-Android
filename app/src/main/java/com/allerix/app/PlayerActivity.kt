@@ -1949,7 +1949,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun maybeStartAutomaticAiSubtitles() {
         val currentId = itemId
-        if (currentId.isBlank() || offlinePath != null) return
+        if (currentId.isBlank() || sourceId.isBlank() || offlinePath != null) return
         if (autoSubtitleAttemptedItemId == currentId) return
         val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getBoolean("auto_generate", true)
@@ -1972,6 +1972,7 @@ class PlayerActivity : ComponentActivity() {
     private fun applyDefaultSubtitle() {
         if (defaultSubtitleApplied) return
         if (subStreams.isEmpty()) {
+            if (sourceId.isBlank()) return
             defaultSubtitleApplied = true
             maybeStartAutomaticAiSubtitles()
             return
