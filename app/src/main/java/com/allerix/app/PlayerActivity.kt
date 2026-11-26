@@ -1648,10 +1648,8 @@ class PlayerActivity : ComponentActivity() {
 
     private fun generateAiSubtitlesForCurrentItem(automatic: Boolean = false) {
         if (aiSubtitleJob?.isActive == true) {
-            if (automatic) return
-            aiSubtitleJob?.cancel()
-            aiSubtitleJob = null
-            showHud("AI subtitle generation cancelled")
+            showHud("AI subtitle generation is already running", 2500)
+            DiagnosticLog.record(this, "AI subtitle request ignored: generation already active for item=" + itemId)
             return
         }
         if (offlinePath != null) {
