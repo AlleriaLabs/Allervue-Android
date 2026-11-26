@@ -20,6 +20,7 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
 import android.os.Build
@@ -43,6 +44,7 @@ import android.view.MotionEvent
 import android.view.PixelCopy
 import android.view.ScaleGestureDetector
 import android.view.SurfaceView
+import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -55,7 +57,6 @@ import android.widget.RadioGroup
 import android.widget.ScrollView
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
@@ -193,7 +194,10 @@ class PlayerActivity : ComponentActivity() {
     private var autoSubtitleAttemptedItemId: String? = null
     // Optional pre-roll: decode the opening audio silently, prepare Whisper cues, then rewind.
     private var preRollOverlay: FrameLayout? = null
-    private var preRollVideo: VideoView? = null
+    private var preRollTexture: TextureView? = null
+    private var preRollMediaPlayer: MediaPlayer? = null
+    private var preRollSurface: Surface? = null
+    private var preRollFirstTextureFrameLogged = false
     private var preRollInProgress = false
     private var preRollVideoEnded = false
     private var preRollFirstWindowFinished = false
@@ -1904,7 +1908,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun scheduleHide() {
         handler.removeCallbacks(autoHide)
-        if (isPlaybackPlaying()) handler.postDelayed(autoHide, 4000)
+        if (isPlaybackPlaying() && !preRollInProgress) handler.postDelayed(autoHide, 4000)
     }
 
     private fun updateChapterDotColors(positionMs: Long) {
@@ -2094,6 +2098,8 @@ class PlayerActivity : ComponentActivity() {
         preRollStartedAt = SystemClock.elapsedRealtime()
         preRollPreviousVolume = player.volume
         player.volume = 0f
+        handler.removeCallbacks(autoHide)
+        if (::controls.isInitialized) controls.visibility = View.VISIBLE
         player.seekTo(0L)
         player.playWhenReady = true
         liveAudioProcessor?.clearCapture()
@@ -2111,48 +2117,71 @@ class PlayerActivity : ComponentActivity() {
         if (!::root.isInitialized || preRollOverlay != null) return
         val overlay = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
-            isClickable = true
-            isFocusable = true
+            // Keep this layer non-interactive: player gestures and controls remain above it.
+            isClickable = false
+            isFocusable = false
         }
         val rawId = resources.getIdentifier("allervue_intro", "raw", packageName)
         if (rawId != 0) {
-            val video = VideoView(this).apply {
-                setBackgroundColor(Color.BLACK)
-                // VideoView is backed by a SurfaceView. Keep its surface above the main
-                // player's video surface so the ident is actually visible during pre-roll.
-                setZOrderMediaOverlay(true)
-                setOnPreparedListener { media ->
-                    media.setVolume(0f, 0f)
-                    media.isLooping = false
-                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_prepared durationMs=${media.duration} size=${width}x${height}")
-                    start()
-                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_start requested")
-                }
-                setOnInfoListener { _, what, extra ->
-                    if (what == android.media.MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                        DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL first_frame_rendered")
-                    } else if (what == android.media.MediaPlayer.MEDIA_INFO_VIDEO_TRACK_LAGGING) {
-                        DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_track_lagging")
+            val texture = TextureView(this).apply {
+                isOpaque = false
+                surfaceTextureListener = object : TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(surfaceTexture: android.graphics.SurfaceTexture, width: Int, height: Int) {
+                        runCatching {
+                            val output = Surface(surfaceTexture)
+                            preRollSurface = output
+                            val media = MediaPlayer()
+                            preRollMediaPlayer = media
+                            media.setSurface(output)
+                            media.setDataSource(this@PlayerActivity, Uri.parse("android.resource://$packageName/$rawId"))
+                            media.setOnPreparedListener {
+                                it.setVolume(0f, 0f)
+                                it.isLooping = false
+                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_prepared durationMs=${it.duration} size=${width}x${height}")
+                                it.start()
+                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_start requested")
+                            }
+                            media.setOnInfoListener { _, what, _ ->
+                                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
+                                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_first_frame_rendered")
+                                }
+                                false
+                            }
+                            media.setOnCompletionListener {
+                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_completed")
+                                preRollVideoEnded = true
+                                maybeFinishSubtitlePreRoll()
+                            }
+                            media.setOnErrorListener { _, what, extra ->
+                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_error what=$what extra=$extra")
+                                preRollVideoEnded = true
+                                maybeFinishSubtitlePreRoll()
+                                true
+                            }
+                            media.prepareAsync()
+                        }.onFailure { error ->
+                            DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_setup_error: ${error.message}", error)
+                            preRollVideoEnded = true
+                            maybeFinishSubtitlePreRoll()
+                        }
                     }
-                    false
-                }
-                setOnCompletionListener {
-                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_completed")
-                    preRollVideoEnded = true
-                    maybeFinishSubtitlePreRoll()
-                }
-                setOnErrorListener { _, what, extra ->
-                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL video_error what=$what extra=$extra")
-                    preRollVideoEnded = true
-                    maybeFinishSubtitlePreRoll()
-                    true
+
+                    override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) = Unit
+                    override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {
+                        if (!preRollFirstTextureFrameLogged) {
+                            preRollFirstTextureFrameLogged = true
+                            DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_frame_updated")
+                        }
+                    }
+                    override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
+                        releasePreRollMediaPlayer()
+                        return true
+                    }
                 }
             }
-            overlay.addView(video, FrameLayout.LayoutParams(-1, -1))
-            preRollVideo = video
-            video.setVideoURI(Uri.parse("android.resource://$packageName/$rawId"))
+            overlay.addView(texture, FrameLayout.LayoutParams(-1, -1))
+            preRollTexture = texture
         } else {
-            // Fallback until the generated MP4 is added at app/src/main/res/raw/allervue_intro.mp4.
             val brand = TextView(this).apply {
                 text = "ALLERVUE"
                 gravity = Gravity.CENTER
@@ -2170,10 +2199,24 @@ class PlayerActivity : ComponentActivity() {
             }, 5_000L)
         }
         preRollOverlay = overlay
-        root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
-        overlay.bringToFront()
-        preRollVideo?.bringToFront()
-        DiagnosticLog.record(this, "AI_PREROLL overlay=${if (rawId != 0) "video_asset" else "brand_fallback"}")
+        // Place the intro above the main video surface but below gesture and control layers.
+        root.addView(overlay, 1, FrameLayout.LayoutParams(-1, -1))
+        overlay.invalidate()
+        DiagnosticLog.record(this, "AI_PREROLL overlay=${if (rawId != 0) "texture_video_asset" else "brand_fallback"}")
+    }
+
+    private fun releasePreRollMediaPlayer() {
+        runCatching {
+            preRollMediaPlayer?.setOnCompletionListener(null)
+            preRollMediaPlayer?.setOnErrorListener(null)
+            preRollMediaPlayer?.setOnInfoListener(null)
+            preRollMediaPlayer?.stop()
+            preRollMediaPlayer?.release()
+        }
+        preRollMediaPlayer = null
+        runCatching { preRollSurface?.release() }
+        preRollSurface = null
+        preRollTexture = null
     }
 
     private fun maybeFinishSubtitlePreRoll() {
@@ -2189,8 +2232,7 @@ class PlayerActivity : ComponentActivity() {
         preRollInProgress = false
         preRollTimeout?.let(handler::removeCallbacks)
         preRollTimeout = null
-        runCatching { preRollVideo?.stopPlayback() }
-        preRollVideo = null
+        releasePreRollMediaPlayer()
         preRollOverlay?.let { root.removeView(it) }
         preRollOverlay = null
         if (::player.isInitialized) {
@@ -2201,6 +2243,7 @@ class PlayerActivity : ComponentActivity() {
         liveAudioProcessor?.clearCapture()
         DiagnosticLog.record(this, "AI_PREROLL finished elapsedMs=${SystemClock.elapsedRealtime() - preRollStartedAt} firstWindowFinished=$preRollFirstWindowFinished")
         showHud(if (cues.isNotEmpty()) "AI subtitles ready · starting from beginning" else "Starting playback", 1800)
+        scheduleHide()
     }
 
     private fun cancelSubtitlePreRoll() {
