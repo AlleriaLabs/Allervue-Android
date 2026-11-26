@@ -188,7 +188,7 @@ class PlayerActivity : ComponentActivity() {
     private var liveSubtitleBusy = false
     private var liveSubtitleModel: AiSubtitleModel? = null
     private val liveWhisperEngine = WhisperCppEngine()
-    private var livePendingWindow: Pair<ShortArray, Long>? = null
+    private var livePendingWindow: Pair<LiveSubtitleAudioWindow, Long>? = null
     private var liveSubtitleFirstCue = true
     private var liveWindowSequence = 0L
     private var aiModelWaitRunnable: Runnable? = null
@@ -356,9 +356,10 @@ class PlayerActivity : ComponentActivity() {
         }
         val captureProcessor = LiveSubtitleAudioProcessor(
             onDiagnostic = { message -> DiagnosticLog.record(applicationContext, message) }
-        ) { samples ->
-            // Only enqueue the immutable PCM window here; never run inference on the audio thread.
-            handler.post { onLiveAudioWindow(samples) }
+        ) { window ->
+            // Carry the capture timestamp across the thread hop. Never query the player clock
+            // or run inference on ExoPlayer's audio thread.
+            handler.post { onLiveAudioWindow(window) }
         }
         liveAudioProcessor = captureProcessor
         val factory = object : DefaultRenderersFactory(this) {
@@ -2258,14 +2259,19 @@ class PlayerActivity : ComponentActivity() {
         if (::player.isInitialized) player.volume = preRollPreviousVolume
     }
 
-    private fun onLiveAudioWindow(samples: ShortArray) {
+    private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) {
         if (!liveSubtitleActive || isFinishing || isDestroyed) return
-        val endPositionMs = playbackPositionMs()
+        // The audio processor callback can be delivered ahead of the main-thread handler.
+        // Estimate the media clock at capture time, not at inference completion.
+        val deliveryPositionMs = playbackPositionMs()
+        val deliveryElapsedMs = SystemClock.elapsedRealtime()
+        val callbackDelayMs = (deliveryElapsedMs - window.capturedAtElapsedRealtimeMs).coerceAtLeast(0L)
+        val mediaEndMs = (deliveryPositionMs - (callbackDelayMs * speed).toLong()).coerceAtLeast(0L)
         if (liveSubtitleBusy) {
-            livePendingWindow = samples to endPositionMs
+            livePendingWindow = window to mediaEndMs
             return
         }
-        transcribeLiveWindow(samples, endPositionMs)
+        transcribeLiveWindow(window.samples, mediaEndMs)
     }
 
     /** Keep very short Whisper fragments readable while preventing overlapping windows
@@ -2330,18 +2336,12 @@ class PlayerActivity : ComponentActivity() {
                 )
                 if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
 
-                // Whisper inference finishes behind playback. Anchor the newest recognized
-                // endpoint to the playback clock, then give short fragments a readable hold.
-                // Without the hold, the newest cue ends at "now" and disappears on the next
-                // 50 ms subtitle refresh, which looks like a one-frame flicker.
-                val latestRecognizedEndMs = recognized.maxOfOrNull { it.endMs } ?: 0L
-                val renderClockMs = playbackPositionMs()
-                val recognizedEndOnTimelineMs = windowStartMs + latestRecognizedEndMs
-                val alignmentOffsetMs = (renderClockMs - recognizedEndOnTimelineMs).coerceAtLeast(0L)
+                // Keep the capture-time media anchor stable. Never shift old recognition
+                // results to the playback position observed when inference happens to finish.
                 val merged = cues.toMutableList()
                 recognized.forEach { segment ->
-                    val cueStartMs = (windowStartMs + segment.startMs + alignmentOffsetMs).coerceAtLeast(0L)
-                    val rawCueEndMs = (windowStartMs + segment.endMs + alignmentOffsetMs).coerceAtLeast(0L)
+                    val cueStartMs = (windowStartMs + segment.startMs).coerceAtLeast(0L)
+                    val rawCueEndMs = (windowStartMs + segment.endMs).coerceAtLeast(0L)
                     val cueEndMs = maxOf(rawCueEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
                     val candidate = SubCue(
                         cueStartMs,
@@ -2366,7 +2366,7 @@ class PlayerActivity : ComponentActivity() {
                 val activeCueCount = cues.count { it.startMs <= renderPositionMs && it.endMs >= renderPositionMs }
                 DiagnosticLog.record(
                     this@PlayerActivity,
-                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs alignmentOffsetMs=$alignmentOffsetMs renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
+                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs captureAnchored=true renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
                 )
                 updateSubtitle()
 
@@ -2400,7 +2400,7 @@ class PlayerActivity : ComponentActivity() {
                 val pending = livePendingWindow
                 livePendingWindow = null
                 if (liveSubtitleActive && pending != null && itemId == requestedItemId) {
-                    transcribeLiveWindow(pending.first, pending.second)
+                    transcribeLiveWindow(pending.first.samples, pending.second)
                 }
             }
         }
