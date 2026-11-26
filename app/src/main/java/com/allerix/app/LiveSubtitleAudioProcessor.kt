@@ -124,6 +124,21 @@ class LiveSubtitleAudioProcessor(
 
 /** Writes a captured 16 kHz mono PCM window as the WAV format expected by Whisper.cpp. */
 object LiveSubtitleWav {
+    /** Read back the actual file header before JNI so malformed WAV writes are visible in diagnostics. */
+    fun diagnosticSummary(file: File): String = runCatching {
+        val header = ByteArray(44)
+        java.io.RandomAccessFile(file, "r").use { input -> input.readFully(header) }
+        val data = ByteBuffer.wrap(header).order(ByteOrder.LITTLE_ENDIAN)
+        val riff = String(header, 0, 4, Charsets.US_ASCII)
+        val wave = String(header, 8, 4, Charsets.US_ASCII)
+        val format = data.getShort(20).toInt() and 0xffff
+        val channels = data.getShort(22).toInt() and 0xffff
+        val rate = data.getInt(24)
+        val bits = data.getShort(34).toInt() and 0xffff
+        val dataBytes = data.getInt(40)
+        "fileBytes=${file.length()} riff=$riff wave=$wave format=$format channels=$channels rate=$rate bits=$bits dataBytes=$dataBytes expectedFileBytes=${44L + dataBytes}"
+    }.getOrElse { "wavHeaderReadFailed=${it.javaClass.simpleName}:${it.message}" }
+
     fun write(samples: ShortArray, destination: File) {
         destination.parentFile?.mkdirs()
         val dataBytes = samples.size * 2
