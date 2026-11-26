@@ -2051,7 +2051,8 @@ class PlayerActivity : ComponentActivity() {
         val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getString("model", "base") ?: "base"
         val preferredModel = AiSubtitleModels.get(preferredId) ?: AiSubtitleModels.get("base")!!
-        if (!AiSubtitleModelStore.isInstalled(this, preferredModel)) {
+        val anyModelInstalled = AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this, it) }
+        if (!anyModelInstalled) {
             if (AiSubtitleModelDownloads.state(this, preferredModel)?.isActive != true) {
                 AiSubtitleModelDownloads.enqueue(this, preferredModel)
             }
@@ -2494,8 +2495,6 @@ class PlayerActivity : ComponentActivity() {
                     this@PlayerActivity,
                     "LIVE_AI_SUBTITLES window failed item=$requestedItemId: ${error.message}", error
                 )
-                if (liveSubtitleFirstCue && itemId == requestedItemId) {
-                }
             } finally {
                 wav.delete()
                 liveSubtitleBusy = false
