@@ -349,6 +349,7 @@ fun MainShell(onLogout: () -> Unit) {
                 )
                 Nav.Appearance -> AppearanceSettingsScreen(back)
                 Nav.AiSubtitles -> AiSubtitleSettingsScreen(back)
+                Nav.ParentalControls -> ParentalControlsScreen(back)
                 Nav.RequestShow -> RequestShowScreen(back)
                 Nav.ClientSettings -> ClientSettingsScreen(
                     back, onServerChanged = signOut, loggedIn = true,
