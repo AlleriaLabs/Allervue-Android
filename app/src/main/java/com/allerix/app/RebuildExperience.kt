@@ -55,7 +55,10 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val scope = rememberCoroutineScope()
     var tab by remember { mutableStateOf(RebuildTab.HOME) }
     val stack = remember { mutableStateListOf<Nav>() }
-    val onPlay: (Item) -> Unit = { target ->
+    var restrictedTarget by remember { mutableStateOf<Item?>(null) }
+    var parentPinInput by remember { mutableStateOf("") }
+    var parentPinError by remember { mutableStateOf("") }
+    val launchPlayback: (Item) -> Unit = { target ->
         scope.launch {
             val playable = if (target.type == "Series" || target.type == "Season")
                 runCatching { Api.nextEpisode(target.id, target.type) }.getOrNull() else target
@@ -63,6 +66,13 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                 Intent(ctx, PlayerActivity::class.java).putExtra("id", playable.id).putExtra("title", playable.name)
             )
         }
+    }
+    val onPlay: (Item) -> Unit = { target ->
+        if (ParentalControls.requiresPin(ctx, target)) {
+            restrictedTarget = target
+            parentPinInput = ""
+            parentPinError = ""
+        } else launchPlayback(target)
     }
     val onOpen: (Item) -> Unit = { target ->
         stack.add(if (target.type in rebuildDetailTypes || !target.isFolder) Nav.Detail(target) else Nav.Grid(target))
@@ -123,6 +133,38 @@ fun RebuildMainShell(onLogout: () -> Unit) {
             }
         }
         if (showNav) RebuildBottomNav(tab) { selected -> stack.clear(); tab = selected }
+        }
+        restrictedTarget?.let { target ->
+            AlertDialog(
+                onDismissRequest = { restrictedTarget = null; parentPinInput = "" },
+                title = { Text("Parent approval required") },
+                text = {
+                    Column {
+                        Text("${target.name} is above the allowed rating. Enter the parent PIN to continue.")
+                        OutlinedTextField(
+                            value = parentPinInput,
+                            onValueChange = { parentPinInput = it.filter(Char::isDigit).take(8); parentPinError = "" },
+                            label = { Text("Parent PIN") },
+                            singleLine = true,
+                            visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword)
+                        )
+                        if (parentPinError.isNotBlank()) Text(parentPinError, color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        if (ParentalControls.verifyPin(ctx, parentPinInput)) {
+                            restrictedTarget = null
+                            parentPinInput = ""
+                            launchPlayback(target)
+                        } else parentPinError = "Incorrect PIN."
+                    }) { Text("Unlock & play") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { restrictedTarget = null; parentPinInput = "" }) { Text("Cancel") }
+                }
+            )
         }
     }
 }
