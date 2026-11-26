@@ -188,6 +188,9 @@ class PlayerActivity : ComponentActivity() {
     private var liveSubtitleBusy = false
     private var liveSubtitleModel: AiSubtitleModel? = null
     private val liveWhisperEngine = WhisperCppEngine()
+    private var sherpaStreamingEngine: SherpaStreamingCaptionEngine? = null
+    private var livePartialCueStartMs: Long? = null
+    private var lastWhisperCorrectionElapsedMs = 0L
     private var livePendingWindow: Pair<LiveSubtitleAudioWindow, Long>? = null
     private var liveSubtitleFirstCue = true
     private var liveWindowSequence = 0L
@@ -355,10 +358,13 @@ class PlayerActivity : ComponentActivity() {
             selected
         }
         val captureProcessor = LiveSubtitleAudioProcessor(
-            onDiagnostic = { message -> DiagnosticLog.record(applicationContext, message) }
+            onDiagnostic = { message -> DiagnosticLog.record(applicationContext, message) },
+            onChunk = { chunk ->
+                // Stream small PCM blocks to sherpa; all player-clock reads happen on main.
+                handler.post { onLiveAudioChunk(chunk) }
+            }
         ) { window ->
-            // Carry the capture timestamp across the thread hop. Never query the player clock
-            // or run inference on ExoPlayer's audio thread.
+            // Six-second snapshots are reserved for occasional optional Whisper correction.
             handler.post { onLiveAudioWindow(window) }
         }
         liveAudioProcessor = captureProcessor
@@ -2014,7 +2020,7 @@ class PlayerActivity : ComponentActivity() {
         val check = object : Runnable {
             override fun run() {
                 if (isFinishing || isDestroyed || itemId != requestedItemId) return
-                if (AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this@PlayerActivity, it) }) {
+                if (SherpaStreamingModelStore.isInstalled(this@PlayerActivity)) {
                     aiModelWaitRunnable = null
                     autoSubtitleAttemptedItemId = requestedItemId
                     startLiveAiSubtitles()
@@ -2039,14 +2045,12 @@ class PlayerActivity : ComponentActivity() {
             val parsed = runCatching { SubParser.parse(saved.readText(Charsets.UTF_8)) }.getOrNull()
             if (!parsed.isNullOrEmpty()) return
         }
-        if (!AiSubtitleEngineStatus.NATIVE_RUNTIME_READY) return
-        val modelInstalled = AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this, it) }
-        if (!modelInstalled) {
-            val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
+        if (!SherpaStreamingModelStore.isInstalled(this)) {
+            val queued = SherpaStreamingModelStore.ensureDownloaded(this)
             showHud(
-                if (queued > 0) "Downloading Whisper Tiny + Base for AI subtitles"
-                else "Whisper models are downloading; AI subtitles will be ready after download",
-                4000
+                if (queued > 0) "Downloading Allervue English live-caption model"
+                else "Live-caption model is downloading; captions will start when ready",
+                4500
             )
             waitForAiSubtitleModels(currentId)
             return
@@ -2057,27 +2061,64 @@ class PlayerActivity : ComponentActivity() {
 
     private fun startLiveAiSubtitles() {
         if (offlinePath != null || liveSubtitleActive || !::player.isInitialized) return
-        val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getString("model", "base") ?: "base"
-        val model = AiSubtitleModels.get(preferredId)
-            ?.takeIf { AiSubtitleModelStore.isInstalled(this, it) }
-            ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
-        if (model == null) {
-            val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
-            showHud(if (queued > 0) "Downloading Whisper models · live subtitles will start when ready"
-                else "Whisper models are still downloading", 4000)
+        if (!SherpaStreamingModelStore.isInstalled(this)) {
+            val queued = SherpaStreamingModelStore.ensureDownloaded(this)
+            showHud(if (queued > 0) "Downloading live-caption model"
+                else "Live-caption model is still downloading", 4000)
             waitForAiSubtitleModels(itemId)
             return
         }
-        liveSubtitleModel = model
+
+        // Whisper is optional: it can re-check finalized phrases in the background, but
+        // the streaming path must be usable without downloading or loading Whisper.
+        val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("model", "base") ?: "base"
+        liveSubtitleModel = AiSubtitleModels.get(preferredId)
+            ?.takeIf { AiSubtitleModelStore.isInstalled(this, it) }
+            ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
         liveSubtitleActive = true
         liveSubtitleBusy = false
         livePendingWindow = null
+        livePartialCueStartMs = null
+        lastWhisperCorrectionElapsedMs = 0L
         liveSubtitleFirstCue = true
         liveAudioProcessor?.clearCapture()
-        showHud("Live AI subtitles · listening", 2500)
-        DiagnosticLog.record(this, "LIVE_AI_SUBTITLES started item=$itemId model=${model.id}")
-        startSubtitlePreRoll()
+        showHud("Starting on-device streaming captions", 2500)
+        DiagnosticLog.record(this, "LIVE_AI_SUBTITLES started item=$itemId primary=sherpa whisperCorrection=${liveSubtitleModel?.id ?: "off"}")
+
+        val requestedItemId = itemId
+        val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("language", "auto") ?: "auto"
+        lifecycleScope.launch {
+            try {
+                val engine = withContext(Dispatchers.IO) {
+                    SherpaStreamingCaptionEngine(SherpaStreamingModelStore.directory(this@PlayerActivity)).also {
+                        it.start(
+                            sampleRate = 16_000,
+                            language = language,
+                            onEvent = { event -> onLiveCaptionEvent(requestedItemId, event) },
+                            onError = { error ->
+                                DiagnosticLog.record(this@PlayerActivity, "SHERPA_STREAMING error item=$requestedItemId: ${error.message}", error)
+                            }
+                        )
+                    }
+                }
+                if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) {
+                    engine.close()
+                    return@launch
+                }
+                sherpaStreamingEngine?.close()
+                sherpaStreamingEngine = engine
+                DiagnosticLog.record(this@PlayerActivity, "SHERPA_STREAMING ready item=$requestedItemId engine=${engine.engineId}")
+                showHud("Live captions active · sherpa streaming", 2200)
+            } catch (error: Exception) {
+                DiagnosticLog.record(this@PlayerActivity, "SHERPA_STREAMING startup failed item=$requestedItemId: ${error.message}", error)
+                if (itemId == requestedItemId) {
+                    liveSubtitleActive = false
+                    showHud("Live captions could not start: ${error.message ?: "model error"}", 4500)
+                }
+            }
+        }
     }
 
     /**
@@ -2259,10 +2300,58 @@ class PlayerActivity : ComponentActivity() {
         if (::player.isInitialized) player.volume = preRollPreviousVolume
     }
 
-    private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) {
+    private fun onLiveAudioChunk(chunk: LiveSubtitleAudioChunk) {
         if (!liveSubtitleActive || isFinishing || isDestroyed) return
-        // The audio processor callback can be delivered ahead of the main-thread handler.
-        // Estimate the media clock at capture time, not at inference completion.
+        val engine = sherpaStreamingEngine ?: return
+        if (!engine.isReady) return
+        val deliveryPositionMs = playbackPositionMs()
+        val deliveryElapsedMs = SystemClock.elapsedRealtime()
+        val callbackDelayMs = (deliveryElapsedMs - chunk.capturedAtElapsedRealtimeMs).coerceAtLeast(0L)
+        val mediaEndMs = (deliveryPositionMs - (callbackDelayMs * speed).toLong()).coerceAtLeast(0L)
+        val chunkDurationMs = chunk.samples.size * 1_000L / 16_000L
+        val mediaStartMs = (mediaEndMs - (chunkDurationMs * speed).toLong()).coerceAtLeast(0L)
+        val floats = FloatArray(chunk.samples.size) { index -> chunk.samples[index] / 32768.0f }
+        engine.acceptAudio(floats, mediaStartMs, chunk.capturedAtElapsedRealtimeMs)
+    }
+
+    private fun onLiveCaptionEvent(requestedItemId: String, event: LiveCaptionEvent) {
+        handler.post {
+            if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@post
+            val text = event.text.trim()
+            if (text.isBlank()) return@post
+            val previousPartialStart = livePartialCueStartMs
+            if (previousPartialStart != null) {
+                cues = cues.filterNot { kotlin.math.abs(it.startMs - previousPartialStart) < 300L }
+            }
+            val cueStartMs = event.mediaStartMs.coerceAtLeast(0L)
+            val cueEndMs = maxOf(event.mediaEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
+            val candidate = SubCue(cueStartMs, cueEndMs, text)
+            cues = normalizeLiveCueTimeline(cues + candidate)
+            livePartialCueStartMs = if (event is LiveCaptionEvent.Partial) cueStartMs else null
+            subOn = true
+            activeSub = -2
+            shownText = "~"
+            updateSubtitle()
+            if (liveSubtitleFirstCue) {
+                liveSubtitleFirstCue = false
+                showHud("Live captions active · sherpa streaming", 1800)
+            }
+            DiagnosticLog.record(
+                this,
+                "LIVE_SHERPA_CAPTION type=${if (event is LiveCaptionEvent.Partial) "partial" else "final"} startMs=$cueStartMs endMs=$cueEndMs chars=${text.length}"
+            )
+        }
+    }
+
+    private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) {
+        if (!liveSubtitleActive || isFinishing || isDestroyed || liveSubtitleModel == null) return
+        val correctionEnabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getBoolean("whisper_correction", true)
+        if (!correctionEnabled) return
+        val now = SystemClock.elapsedRealtime()
+        // Whisper is a low-frequency second pass. It never gates the sherpa audio stream.
+        if (now - lastWhisperCorrectionElapsedMs < 12_000L) return
+        lastWhisperCorrectionElapsedMs = now
         val deliveryPositionMs = playbackPositionMs()
         val deliveryElapsedMs = SystemClock.elapsedRealtime()
         val callbackDelayMs = (deliveryElapsedMs - window.capturedAtElapsedRealtimeMs).coerceAtLeast(0L)
@@ -2807,6 +2896,9 @@ class PlayerActivity : ComponentActivity() {
     private fun switchTo(newId: String) {
         cancelSubtitlePreRoll()
         liveSubtitleActive = false
+        sherpaStreamingEngine?.close()
+        sherpaStreamingEngine = null
+        livePartialCueStartMs = null
         liveSubtitleModel = null
         livePendingWindow = null
         liveAudioProcessor?.clearCapture()
@@ -3069,6 +3161,7 @@ class PlayerActivity : ComponentActivity() {
         liveAudioProcessor?.clearCapture()
         livePendingWindow = null
         val target = positionMs.coerceAtLeast(0L)
+        sherpaStreamingEngine?.reset(target)
         if (::playbackEngineManager.isInitialized) playbackEngineManager.seekTo(target)
         else player.seekTo(target)
     }
@@ -3249,6 +3342,9 @@ class PlayerActivity : ComponentActivity() {
     override fun onDestroy() {
         cancelSubtitlePreRoll()
         liveSubtitleActive = false
+        sherpaStreamingEngine?.close()
+        sherpaStreamingEngine = null
+        livePartialCueStartMs = null
         liveSubtitleModel = null
         livePendingWindow = null
         liveAudioProcessor?.clearCapture()
