@@ -13,15 +13,15 @@ import android.util.Log
 
 /**
  * Copies decoded PCM from ExoPlayer's audio sink without changing the audible output.
- * It maintains an eight-second, 16 kHz mono ring buffer and emits overlapping windows.
+ * It maintains a six-second, 16 kHz mono ring buffer and emits frequent overlapping windows.
  */
 @OptIn(UnstableApi::class)
 class LiveSubtitleAudioProcessor(
     private val onDiagnostic: (String) -> Unit = {},
     private val onWindow: (ShortArray) -> Unit
 ) : BaseAudioProcessor() {
-    private val windowSamples = 16_000 * 12
-    private val hopSamples = 16_000 * 6
+    private val windowSamples = 16_000 * 6
+    private val hopSamples = 16_000 * 2
     private val ring = ShortArray(windowSamples)
     private var writeIndex = 0
     private var sampleCount = 0
