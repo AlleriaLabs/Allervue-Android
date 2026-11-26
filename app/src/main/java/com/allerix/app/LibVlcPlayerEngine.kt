@@ -26,8 +26,10 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
     override val view: View get() = videoLayout
 
     private var listener: PlayerEngine.Listener? = null
-    private var requestedAudioTrackId: String? = null
-    private var requestedSubtitleTrackId: String? = null
+    private var requestedAudioTrack: PlaybackTrackSelection? = null
+    private var requestedSubtitleTrack: PlaybackTrackSelection? = null
+    private var requestedPlayWhenReady = true
+    private var requestedSpeed = 1f
     private var lastRequest: PlaybackRequest? = null
 
     private val eventListener = MediaPlayer.EventListener { event ->
@@ -60,6 +62,10 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
 
     override fun play(request: PlaybackRequest) {
         lastRequest = request
+        requestedAudioTrack = request.audioTrack
+        requestedSubtitleTrack = request.subtitleTrack
+        requestedPlayWhenReady = request.playWhenReady
+        requestedSpeed = request.playbackSpeed.coerceIn(0.25f, 4f)
         val media = Media(libVlc, Uri.parse(request.uri))
         request.headers.forEach { (name, value) ->
             if (name.equals("User-Agent", true)) media.addOption(":http-user-agent=$value")
@@ -73,14 +79,17 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
             mediaPlayer.setTime(request.startPositionMs)
         }
         mediaPlayer.play()
+        mediaPlayer.setRate(requestedSpeed)
         if (!request.playWhenReady) mediaPlayer.pause()
     }
 
     override fun pause() {
+        requestedPlayWhenReady = false
         mediaPlayer.pause()
     }
 
     override fun resume() {
+        requestedPlayWhenReady = true
         mediaPlayer.play()
     }
 
@@ -92,28 +101,57 @@ class LibVlcPlayerEngine(context: Context) : PlayerEngine {
         mediaPlayer.setRate(speed.coerceIn(0.25f, 4f))
     }
 
-    override fun selectAudioTrack(trackId: String?) {
-        requestedAudioTrackId = trackId
+    override fun selectAudioTrack(track: PlaybackTrackSelection?) {
+        requestedAudioTrack = track
         applyRequestedTracks()
     }
 
-    override fun selectSubtitleTrack(trackId: String?) {
-        requestedSubtitleTrackId = trackId
+    override fun selectSubtitleTrack(track: PlaybackTrackSelection?) {
+        requestedSubtitleTrack = track
         applyRequestedTracks()
+    }
+
+    private fun normalized(value: String?): String = value.orEmpty()
+        .lowercase(java.util.Locale.ROOT)
+        .replace(Regex("[^a-z0-9]"), "")
+
+    private fun chooseTrackId(
+        descriptions: Array<MediaPlayer.TrackDescription>?,
+        selection: PlaybackTrackSelection?
+    ): Int? {
+        if (selection == null) return null
+        val tracks = descriptions?.filter { it.id >= 0 }.orEmpty()
+        if (tracks.isEmpty()) return null
+        val language = normalized(selection.language)
+        val title = normalized(selection.title)
+        val codec = normalized(selection.codec)
+        return tracks.firstOrNull { desc ->
+            val name = normalized(desc.name)
+            (language.isNotEmpty() && (name.contains(language) ||
+                name.contains(language.take(2)))) ||
+                (title.isNotEmpty() && name.contains(title)) ||
+                (codec.isNotEmpty() && name.contains(codec))
+        }?.id ?: tracks.singleOrNull()?.id
     }
 
     private fun applyRequestedTracks() {
-        requestedAudioTrackId?.toIntOrNull()?.let { mediaPlayer.setAudioTrack(it) }
-        requestedSubtitleTrackId?.toIntOrNull()?.let { mediaPlayer.setSpuTrack(it) }
+        val audioId = chooseTrackId(mediaPlayer.audioTracks, requestedAudioTrack)
+        if (audioId != null) mediaPlayer.setAudioTrack(audioId)
+        else if (requestedAudioTrack == null) {
+            mediaPlayer.audioTracks?.firstOrNull { it.id >= 0 }?.let { mediaPlayer.setAudioTrack(it.id) }
+        }
+
+        val subtitleId = chooseTrackId(mediaPlayer.spuTracks, requestedSubtitleTrack)
+        mediaPlayer.setSpuTrack(subtitleId ?: -1)
     }
 
     override fun snapshot(): PlaybackSnapshot = PlaybackSnapshot(
         positionMs = mediaPlayer.time.coerceAtLeast(0L),
         durationMs = mediaPlayer.length.coerceAtLeast(0L),
         isPlaying = mediaPlayer.isPlaying,
-        isBuffering = mediaPlayer.isPlaying.not() && mediaPlayer.time >= 0L,
-        audioTrackId = requestedAudioTrackId,
-        subtitleTrackId = requestedSubtitleTrackId
+        isBuffering = mediaPlayer.isPlaying.not() && requestedPlayWhenReady,
+        playWhenReady = requestedPlayWhenReady,
+        playbackSpeed = requestedSpeed
     )
 
     override fun release() {
