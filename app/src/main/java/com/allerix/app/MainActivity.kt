@@ -55,6 +55,7 @@ sealed class Nav {
     object Profile : Nav()
     object Appearance : Nav()
     object AiSubtitles : Nav()
+    object ParentalControls : Nav()
     object RequestShow : Nav()
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
