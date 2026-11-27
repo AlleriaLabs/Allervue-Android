@@ -194,6 +194,14 @@ internal fun AllervueHome(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    var notificationEntries by remember(Api.userId) {
+        mutableStateOf(AllervueNotificationStore.load(context))
+    }
+    LaunchedEffect(Api.userId) {
+        notificationEntries = runCatching {
+            AllervueNotificationStore.sync(context)
+        }.getOrDefault(AllervueNotificationStore.load(context))
+    }
     var hasLocationPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -729,6 +737,16 @@ internal fun AllervueHome(
                         .clickable(onClick = onSearch),
                     contentAlignment = Alignment.Center
                 ) { Text("⌕", color = Color.White, fontSize = 28.sp) }
+                Spacer(Modifier.width(10.dp))
+                AllervueNotificationBell(
+                    entries = notificationEntries,
+                    onRefresh = { notificationEntries = AllervueNotificationStore.load(context) },
+                    onOpenContent = { itemId ->
+                        scope.launch {
+                            runCatching { Api.item(itemId) }.getOrNull()?.let(onOpen)
+                        }
+                    }
+                )
                 Spacer(Modifier.width(10.dp))
                 Box(
                     Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
