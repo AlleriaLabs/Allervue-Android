@@ -359,6 +359,7 @@ fun MainShell(onLogout: () -> Unit) {
                 is Nav.Web -> key(top) { WebScreen(top.url, top.title, back) }
                 Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
                 Nav.Diagnostics -> DiagnosticScreen(back)
+                Nav.About -> AllervueAboutScreen(back)
             }
         }
         if (showBar) BottomBar(tab) { selected -> stack.clear(); tab = selected }
