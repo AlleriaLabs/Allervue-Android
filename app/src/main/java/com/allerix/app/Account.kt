@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -1129,7 +1130,10 @@ fun AppearanceSettingsScreen(back: () -> Unit) {
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp))
         options.forEach { (value, label) ->
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(18.dp))\n                    .background(BrandSurface).border(1.dp, if (mode == value) BrandGold.copy(alpha = .55f) else BrandGold.copy(alpha = .10f), RoundedCornerShape(18.dp)).clickable {
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(DriftPanel)
+                    .border(1.dp, if (mode == value) DriftCoral.copy(alpha = .72f) else DriftBorder, RoundedCornerShape(18.dp)).clickable {
                     mode = value
                     prefs.edit().putString("theme_mode", value).apply()
                     (ctx as? android.app.Activity)?.recreate()
