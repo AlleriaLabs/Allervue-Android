@@ -195,7 +195,6 @@ internal fun AllervueNotificationBell(
     Box {
         Box(
             Modifier.size(44.dp).clip(CircleShape)
-                .background(Color(0x33201D31))
                 .clickable {
                     expanded = true
                     onRefresh()
