@@ -48,6 +48,7 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.random.Random
 
@@ -1056,6 +1057,16 @@ internal fun AllervueHome(
                 onHide = { item ->
                     ContinueWatching.hide(context, item.id)
                     resume = resume.filterNot { it.id == item.id }
+                },
+                onDoneWatching = { item ->
+                    // Only remove the card after Jellyfin confirms it was marked played.
+                    scope.launch {
+                        runCatching { Api.markPlayed(item.id) }
+                            .onSuccess {
+                                ContinueWatching.hide(context, item.id)
+                                resume = resume.filterNot { it.id == item.id }
+                            }
+                    }
                 }
             )
         }
@@ -1066,9 +1077,11 @@ internal fun AllervueHome(
 private fun ContinueWatchingShelf(
     entries: List<Item>,
     onPlay: (Item) -> Unit,
-    onHide: (Item) -> Unit
+    onHide: (Item) -> Unit,
+    onDoneWatching: (Item) -> Unit
 ) {
     if (entries.isEmpty()) return
+    val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     Column(
         Modifier.fillMaxWidth()
             .padding(top = 20.dp, bottom = 22.dp)
@@ -1089,8 +1102,8 @@ private fun ContinueWatchingShelf(
                 fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
         }
         LazyRow(
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            contentPadding = PaddingValues(horizontal = 0.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(entries, key = { it.id }) { item ->
                 val runtime = item.runTimeTicks ?: 0L
@@ -1101,12 +1114,12 @@ private fun ContinueWatchingShelf(
                 val remainingMinutes = if (runtime > 0L) {
                     (((runtime - position).coerceAtLeast(0L) / 10_000_000L) / 60L).toInt()
                 } else null
+                var menuExpanded by remember(item.id) { mutableStateOf(false) }
                 Column(
-                    Modifier.width(214.dp).clip(RoundedCornerShape(14.dp))
-                        .background(Color(0x66100E20))
-                        .clickable { onPlay(item) }
+                    Modifier.width(screenWidth).background(Color(0x66100E20))
                 ) {
-                    Box(Modifier.fillMaxWidth().height(112.dp)) {
+                    Box(Modifier.fillMaxWidth().height(190.dp)
+                        .clickable { onPlay(item) }) {
                         AsyncImage(
                             model = Api.landscape(item),
                             contentDescription = item.name,
@@ -1117,7 +1130,7 @@ private fun ContinueWatchingShelf(
                             Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC100E20)))
                         ))
                         Box(
-                            Modifier.align(Alignment.TopEnd).padding(7.dp)
+                            Modifier.align(Alignment.TopStart).padding(12.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(Color(0xCC17152C))
                                 .padding(horizontal = 7.dp, vertical = 4.dp)
@@ -1126,6 +1139,37 @@ private fun ContinueWatchingShelf(
                                 "S${item.parentIndex} · E${item.index}" else item.type
                             Text(episode, color = Color.White, fontSize = 9.sp,
                                 fontWeight = FontWeight.SemiBold)
+                        }
+                        Box(Modifier.align(Alignment.TopEnd).padding(7.dp)) {
+                            IconButton(
+                                onClick = { menuExpanded = true },
+                                modifier = Modifier.size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xCC17152C))
+                            ) {
+                                Text("⋮", color = Color.White, fontSize = 23.sp,
+                                    fontWeight = FontWeight.Bold)
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false },
+                                modifier = Modifier.background(Color(0xFF211B38))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Done watching", color = Color(0xFFF7F3FF)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onDoneWatching(item)
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Remove from list", color = Color(0xFFF7F3FF)) },
+                                    onClick = {
+                                        menuExpanded = false
+                                        onHide(item)
+                                    }
+                                )
+                            }
                         }
                         Box(
                             Modifier.align(Alignment.Center).size(34.dp).clip(CircleShape)
