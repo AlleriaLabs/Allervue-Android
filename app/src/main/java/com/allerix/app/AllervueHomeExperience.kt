@@ -429,7 +429,7 @@ internal fun AllervueHome(
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
     Column(
-        Modifier.fillMaxSize().drawBehind {
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).drawBehind {
             // Day and night use deliberately distinct full-screen palettes.
             // Daylight is bright and airy rather than a slightly warmer version of night.
             drawRect(
@@ -941,9 +941,8 @@ internal fun AllervueHome(
         }
 
         Column(
-            Modifier.fillMaxWidth().height(360.dp)
+            Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
-                .verticalScroll(rememberScrollState())
                 .drawBehind {
                     drawRect(Brush.verticalGradient(if (isDaytime) listOf(Color(0xF22B293D), Color(0xE61B3040)) else listOf(Color(0xF2141930), Color(0xE60D1D2B))))
                     val phase = Math.toRadians((automaticRotation * .52f).toDouble())
