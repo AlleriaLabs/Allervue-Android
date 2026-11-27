@@ -771,7 +771,7 @@ fun RequestShowScreen(back: () -> Unit) {
         if (connected) requests = runCatching { SeerrApi.myRequests() }.getOrDefault(emptyList())
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))))) {
         ScreenHeader("Request Movies & TV", back)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -779,8 +779,8 @@ fun RequestShowScreen(back: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("ALLERVUE REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text("Search the catalog and request titles for your library.", color = Grey, fontSize = 13.sp)
+                    Text("ALLERVUE REQUESTS", color = DriftCoral, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Search the catalog and request titles for your library.", color = DriftMuted, fontSize = 13.sp)
                 }
                 Text(if (connected) "CONNECTED" else "NOT CONNECTED",
                     color = if (connected) Color(0xFF72C99A) else Grey, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -789,9 +789,9 @@ fun RequestShowScreen(back: () -> Unit) {
 
             if (!connected) {
                 Column(
-                    Modifier.fillMaxWidth().background(Color(0xFF171719), RoundedCornerShape(14.dp)).padding(16.dp)
+                    Modifier.fillMaxWidth().background(DriftPanel, RoundedCornerShape(18.dp)).padding(16.dp)
                 ) {
-                    Text("Finish connecting your account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Finish connecting your account", color = DriftText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "Allervue connects your request account automatically when you sign in. If you were already signed in before this update, sign out of Allervue and sign in again once. You won't need a separate request login.",
@@ -815,7 +815,7 @@ fun RequestShowScreen(back: () -> Unit) {
                             busy = false
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Red)
+                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = DriftCoral)
                 ) { Text(if (busy) "Searching…" else "Search Allervue", color = Color.White) }
 
                 if (results.isNotEmpty()) {
@@ -824,7 +824,7 @@ fun RequestShowScreen(back: () -> Unit) {
                     results.forEach { item ->
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                                .background(Color(0xFF171719), RoundedCornerShape(12.dp)).padding(10.dp),
+                                .background(Color(0xFF171719), RoundedCornerShape(16.dp)).padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (item.posterPath.isNotBlank()) {
@@ -840,7 +840,7 @@ fun RequestShowScreen(back: () -> Unit) {
                                 Text((if (item.year.isNotBlank()) item.year + " · " else "") +
                                     if (item.mediaType == "movie") "Movie" else "TV Series",
                                     color = Grey, fontSize = 11.sp)
-                                if (item.overview.isNotBlank()) Text(item.overview, color = Dim, fontSize = 11.sp,
+                                if (item.overview.isNotBlank()) Text(item.overview, color = DriftMuted, fontSize = 11.sp,
                                     maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 Spacer(Modifier.height(6.dp))
                                 if (item.requestStatus.isNotBlank()) {
@@ -888,7 +888,7 @@ fun RequestShowScreen(back: () -> Unit) {
                     ) {
                         Box(
                             Modifier.width(64.dp).height(94.dp).clip(RoundedCornerShape(7.dp))
-                                .background(Color(0xFF29292D)),
+                                .background(Color(0xFF332B4A)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (request.posterPath.isNotBlank()) {
@@ -1079,27 +1079,27 @@ fun ProfileScreen(
     onPortal: () -> Unit,
     onSignOut: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20)))).verticalScroll(rememberScrollState())) {
         ScreenHeader("Profile & account", back)
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Color(0xFF171925))
-                .border(1.dp, Color.White.copy(alpha = .08f), RoundedCornerShape(22.dp))
+                .background(DriftPanel)
+                .border(1.dp, DriftText.copy(alpha = .08f), RoundedCornerShape(22.dp))
                 .padding(20.dp)
         ) {
             Text(Api.username.ifBlank { "Jellyfin user" }, color = Color.White,
                 fontSize = 23.sp, fontWeight = FontWeight.Bold)
-            Text("Signed in to Allervue", color = Color(0xFF9CA6B5), fontSize = 13.sp)
+            Text("Signed in to Allervue", color = DriftMuted, fontSize = 13.sp)
             Spacer(Modifier.height(18.dp))
-            Text("JELLYFIN SERVER", color = Color(0xFF65D6D0), fontSize = 11.sp,
+            Text("JELLYFIN SERVER", color = DriftCoral, fontSize = 11.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
             Text(Api.base, color = Color.White, fontSize = 14.sp,
                 modifier = Modifier.padding(top = 5.dp))
             Text("USER ID", color = Color(0xFF65D6D0), fontSize = 11.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
                 modifier = Modifier.padding(top = 16.dp))
-            Text(Api.userId.ifBlank { "Unavailable" }, color = Color(0xFFB6BFCC),
+            Text(Api.userId.ifBlank { "Unavailable" }, color = DriftMuted,
                 fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
             Text("REQUESTS", color = Color(0xFF65D6D0), fontSize = 11.sp,
                 fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
