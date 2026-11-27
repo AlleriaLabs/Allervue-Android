@@ -295,33 +295,51 @@ object Api {
     }.getOrDefault(emptyList())
 
     /**
-     * Reads Intro Skipper's Jellyfin 12 Media Segments projection.
-     * Jellyfin stores segment timestamps in 100-nanosecond ticks (10,000 per ms).
-     * Keep this request best-effort so segment lookup never delays playback startup.
+     * Reads Jellyfin's native Media Segments API (used by Intro Skipper on Jellyfin 12).
+     * Segment timestamps are 100-nanosecond ticks (10,000 ticks per millisecond).
+     *
+     * Some server/plugin combinations ignore the type filter or return an empty filtered
+     * projection. Retry the unfiltered endpoint in that case and filter locally. This is
+     * best-effort metadata and must never sit on the playback startup path.
      */
-    suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
-        val root = json.parseToJsonElement(
-            call("GET", "/MediaSegments/$id?includeSegmentTypes=Intro")
-        )
-        val array = when (root) {
-            is kotlinx.serialization.json.JsonArray -> root
-            is kotlinx.serialization.json.JsonObject ->
-                (root["Items"] ?: root["items"] ?: root["MediaSegments"] ?: root["mediaSegments"])
-                    as? kotlinx.serialization.json.JsonArray
-                    ?: kotlinx.serialization.json.JsonArray(emptyList())
-            else -> kotlinx.serialization.json.JsonArray(emptyList())
+    suspend fun introSegments(id: String): List<Pair<Long, Long>> = withContext(Dispatchers.IO) {
+        fun parseSegments(payload: String): List<Pair<Long, Long>> {
+            val root = json.parseToJsonElement(payload)
+            val array = when (root) {
+                is kotlinx.serialization.json.JsonArray -> root
+                is kotlinx.serialization.json.JsonObject -> {
+                    val candidate = root["Items"] ?: root["items"]
+                        ?: root["MediaSegments"] ?: root["mediaSegments"]
+                        ?: root["Segments"] ?: root["segments"]
+                    candidate as? kotlinx.serialization.json.JsonArray
+                        ?: kotlinx.serialization.json.JsonArray(emptyList())
+                }
+                else -> kotlinx.serialization.json.JsonArray(emptyList())
+            }
+            return array.mapNotNull { element ->
+                val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val type = (obj["Type"] ?: obj["type"])?.toString()?.trim('"').orEmpty()
+                if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
+                val start = (obj["StartTicks"] ?: obj["startTicks"])
+                    ?.let { runCatching { it.toString().trim('"').toLong() }.getOrNull() }
+                    ?: return@mapNotNull null
+                val end = (obj["EndTicks"] ?: obj["endTicks"])
+                    ?.let { runCatching { it.toString().trim('"').toLong() }.getOrNull() }
+                    ?: return@mapNotNull null
+                if (start < 0L || end <= start) null else (start / 10_000L) to (end / 10_000L)
+            }.distinct().sortedBy { it.first }
         }
-        array.mapNotNull { element ->
-            val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-            val type = (obj["Type"] ?: obj["type"])?.toString()?.trim('"').orEmpty()
-            if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
-            val start = (obj["StartTicks"] ?: obj["startTicks"])?.toString()?.toLongOrNull()
-                ?: return@mapNotNull null
-            val end = (obj["EndTicks"] ?: obj["endTicks"])?.toString()?.toLongOrNull()
-                ?: return@mapNotNull null
-            if (start < 0L || end <= start) null else (start / 10_000L) to (end / 10_000L)
-        }.distinct().sortedBy { it.first }
-    }.getOrDefault(emptyList())
+
+        val filtered = runCatching {
+            parseSegments(call("GET", "/MediaSegments/$id?includeSegmentTypes=Intro"))
+        }.getOrDefault(emptyList())
+        if (filtered.isNotEmpty()) return@withContext filtered
+
+        // Fallback for servers that do not honor includeSegmentTypes consistently.
+        runCatching {
+            parseSegments(call("GET", "/MediaSegments/$id"))
+        }.getOrDefault(emptyList())
+    }
 
     suspend fun favorites(): List<Item> = json.decodeFromString<ItemsResult>(
         call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName&fields=Genres,Tags,ParentId,SeriesId,ImageTags,BackdropImageTags,ParentBackdropItemId")
