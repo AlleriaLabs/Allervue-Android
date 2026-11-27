@@ -387,26 +387,47 @@ private fun appFieldColors() = OutlinedTextFieldDefaults.colors(
 
 @Composable
 private fun ScreenHeader(title: String, back: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = back) { Text("‹", color = Color.White, fontSize = 28.sp) }
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    Column(Modifier.fillMaxWidth().background(BrandInk)) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
+                    .background(BrandSurface).border(1.dp, BrandGold.copy(alpha = .22f), RoundedCornerShape(14.dp))
+                    .clickable(onClick = back),
+                contentAlignment = Alignment.Center
+            ) { Text("‹", color = BrandGoldBright, fontSize = 30.sp) }
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Text(title, color = BrandIvory, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                Text("ALLERVUE SETTINGS", color = BrandGold.copy(alpha = .82f),
+                    fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
+            }
+        }
+        HorizontalDivider(color = BrandGold.copy(alpha = .14f))
     }
 }
 
 @Composable
 private fun SettingsRow(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 16.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(17.dp)).background(BrandSurface)
+            .border(1.dp, BrandGold.copy(alpha = .12f), RoundedCornerShape(17.dp))
+            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(icon, fontSize = 22.sp, modifier = Modifier.width(40.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            if (subtitle.isNotEmpty()) Text(subtitle, color = Grey, fontSize = 13.sp)
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
+                .background(BrandGold.copy(alpha = .12f)),
+            contentAlignment = Alignment.Center
+        ) { Text(icon, color = BrandGoldBright, fontSize = 19.sp) }
+        Column(Modifier.weight(1f).padding(start = 13.dp)) {
+            Text(title, color = BrandIvory, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (subtitle.isNotEmpty()) Text(subtitle, color = Grey, fontSize = 12.sp)
         }
-        Text("›", color = Grey, fontSize = 22.sp)
+        Text("›", color = BrandGold, fontSize = 25.sp)
     }
-    HorizontalDivider(color = Color(0xFF222222))
 }
 
 @Composable
@@ -1088,22 +1109,22 @@ fun AppearanceSettingsScreen(back: () -> Unit) {
     val prefs = remember { ctx.getSharedPreferences("allervue_appearance", Context.MODE_PRIVATE) }
     var mode by remember { mutableStateOf(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM") }
     val options = listOf("SYSTEM" to "Follow device", "DARK" to "Dark", "LIGHT" to "Light")
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().background(BrandInk).verticalScroll(rememberScrollState())) {
         ScreenHeader("Appearance", back)
-        Text("THEME", color = Color(0xFF65D6D0), fontSize = 12.sp,
+        Text("THEME", color = BrandGold, fontSize = 12.sp,
             fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp))
         options.forEach { (value, label) ->
             Row(
-                Modifier.fillMaxWidth().clickable {
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(18.dp))\n                    .background(BrandSurface).border(1.dp, if (mode == value) BrandGold.copy(alpha = .55f) else BrandGold.copy(alpha = .10f), RoundedCornerShape(18.dp)).clickable {
                     mode = value
                     prefs.edit().putString("theme_mode", value).apply()
                     (ctx as? android.app.Activity)?.recreate()
-                }.padding(horizontal = 20.dp, vertical = 17.dp),
+                }.padding(horizontal = 16.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(label, color = BrandIvory, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text(when (value) {
                         "DARK" -> "Always use the dark Allervue interface"
                         "LIGHT" -> "Always use the light Allervue interface"
@@ -1114,9 +1135,9 @@ fun AppearanceSettingsScreen(back: () -> Unit) {
                     mode = value
                     prefs.edit().putString("theme_mode", value).apply()
                     (ctx as? android.app.Activity)?.recreate()
-                }, colors = RadioButtonDefaults.colors(selectedColor = Color(0xFF65D6D0)))
+                }, colors = RadioButtonDefaults.colors(selectedColor = BrandGoldBright, unselectedColor = Grey))
             }
-            HorizontalDivider(color = Color(0xFF292D39))
+            Spacer(Modifier.height(5.dp))
         }
         Text("The selected theme is saved on this device and applied immediately.",
             color = Grey, fontSize = 12.sp, modifier = Modifier.padding(20.dp))
