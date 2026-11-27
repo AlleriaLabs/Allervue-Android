@@ -13,8 +13,8 @@ import android.util.Log
 import android.os.SystemClock
 
 /**
- * Copies decoded PCM from ExoPlayer's audio sink without changing the audible output.
- * It maintains a six-second, 16 kHz mono ring buffer and emits frequent overlapping windows.
+ * Copies decoded PCM from ExoPlayer's audio sink without changing audible output.
+ * The live path emits 100 ms 16 kHz mono chunks; rolling windows are optional and disabled there.
  */
 @OptIn(UnstableApi::class)
 class LiveSubtitleAudioProcessor(
