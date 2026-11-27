@@ -91,7 +91,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -182,7 +181,6 @@ class PlayerActivity : ComponentActivity() {
     private var subDownX = 0f
     private var subDownY = 0f
     private var subStartPos = 0f
-    private var aiSubtitleJob: Job? = null
     private var liveAudioProcessor: LiveSubtitleAudioProcessor? = null
     @Volatile private var liveSubtitleActive = false
     private var liveCaptionEngine: LiveCaptionEngine? = null
@@ -1068,17 +1066,6 @@ class PlayerActivity : ComponentActivity() {
             })
         }
         label(left, "SUBTITLES")
-        val savedAiSubtitle = aiSubtitleFileFor(itemId)
-        if (savedAiSubtitle.isFile) {
-            option(left, "AI generated subtitles", subOn && activeSub == -2) {
-                loadSavedAiSubtitles()
-                root.removeView(overlay); showControls()
-            }
-        }
-        option(left, "Generate AI subtitles", false) {
-            root.removeView(overlay)
-            generateAiSubtitlesForCurrentItem()
-        }
         option(left, "Off", !subOn) { subtitlesOff(); root.removeView(overlay); showControls() }
         subStreams.forEachIndexed { i, stream ->
             val selected = if (stream.isText) subOn && activeSub == i
@@ -1652,11 +1639,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         })
-        box.addView(pill("✨  Generate AI subtitles") {
-            dlg.dismiss()
-            generateAiSubtitlesForCurrentItem()
-        })
-        box.addView(noteText("Uses the optional legacy offline batch model. Live playback captions use Sherpa or Vosk instead."))
         val preRollPrefs = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
         val preRollEnabled = preRollPrefs.getBoolean("intro_preroll", true)
         box.addView(pill("AI subtitle intro pre-roll: ${if (preRollEnabled) "ON" else "OFF"}") {
@@ -1677,94 +1659,6 @@ class PlayerActivity : ComponentActivity() {
         box.addView(noteText(
             "Choose an embedded subtitle track. Tip: swipe left or right on the subtitle text to jump " +
                 "between lines, and drag it up or down to move it."))
-    }
-
-    private fun aiSubtitleFileFor(id: String): File {
-        val documents = getExternalFilesDir(android.os.Environment.DIRECTORY_DOCUMENTS) ?: filesDir
-        return File(File(documents, "AI Subtitles"), id.replace(Regex("[^A-Za-z0-9._-]"), "_") + "_AI_Subtitles.srt")
-    }
-
-    private fun loadSavedAiSubtitles() {
-        val file = aiSubtitleFileFor(itemId)
-        val parsed = runCatching { SubParser.parse(file.readText(Charsets.UTF_8)) }.getOrNull()
-        if (parsed.isNullOrEmpty()) {
-            return
-        }
-        setNativeText(null)
-        selectedImageSubtitleStreamIndex = null
-        playbackEngineManager.selectSubtitleTrack(null)
-        cues = parsed
-        subOn = true
-        activeSub = -2
-        shownText = "~"
-        updateSubtitle()
-        DiagnosticLog.record(this, "AI_SUBTITLE_HISTORY_RESTORED item=$itemId source=saved_srt cues=${parsed.size} first=${parsed.firstOrNull()?.startMs}ms")
-    }
-
-    private fun generateAiSubtitlesForCurrentItem(automatic: Boolean = false) {
-        if (aiSubtitleJob?.isActive == true) {
-            DiagnosticLog.record(this, "AI subtitle request ignored: generation already active for item=" + itemId)
-            return
-        }
-        if (offlinePath != null) {
-            return
-        }
-        val requestedItemId = itemId
-        val requestedSourceId = sourceId
-        if (requestedSourceId.isBlank()) {
-            return
-        }
-        val preferredModelId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getString("model", "base") ?: "base"
-        val model = AiSubtitleModels.get(preferredModelId)
-            ?.takeIf { AiSubtitleModelStore.isInstalled(this, it) }
-            ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
-        if (model == null) {
-            val queued = AiSubtitleModelDownloads.ensureDefaultModels(this)
-            return
-        }
-        val selectedAudio = audioStreams.firstOrNull { it.index == selectedAudioStreamIndex }
-            ?: audioStreams.firstOrNull { it.isDefault }
-            ?: audioStreams.firstOrNull()
-        val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getString("language", "auto") ?: "auto"
-        val outputName = requestedItemId
-        aiSubtitleJob = lifecycleScope.launch {
-            try {
-                val result = AiSubtitlePlaybackGenerator.generate(
-                    context = this@PlayerActivity,
-                    itemId = requestedItemId,
-                    mediaSourceId = requestedSourceId,
-                    audioStreamIndex = selectedAudio?.index,
-                    model = model,
-                    language = language,
-                    outputName = outputName
-                )
-                if (isFinishing || isDestroyed || itemId != requestedItemId) return@launch
-                setNativeText(null)
-                selectedImageSubtitleStreamIndex = null
-                playbackEngineManager.selectSubtitleTrack(null)
-                cues = result.segments.map { SubCue(it.startMs, it.endMs, it.text) }
-                subOn = true
-                activeSub = -2
-                shownText = "~"
-                updateSubtitle()
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "AI subtitles generated: item=" + requestedItemId + " language=" + language +
-                        " model=" + model.id + " cues=" + result.segments.size
-                )
-            } catch (error: kotlinx.coroutines.CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                if (itemId == requestedItemId && !isFinishing && !isDestroyed) {
-                    DiagnosticLog.record(this@PlayerActivity,
-                        "AI subtitle generation failed: item=" + requestedItemId + ": " + error.message, error)
-                }
-            } finally {
-                if (itemId == requestedItemId) aiSubtitleJob = null
-            }
-        }
     }
 
     private fun showSubtitleSyncSheet() = sheet("Subtitle sync") { box, _ ->
@@ -2035,11 +1929,6 @@ class PlayerActivity : ComponentActivity() {
         val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getBoolean("auto_generate", true)
         if (!enabled) return
-        val saved = aiSubtitleFileFor(currentId)
-        if (saved.isFile && saved.length() > 0L) {
-            val parsed = runCatching { SubParser.parse(saved.readText(Charsets.UTF_8)) }.getOrNull()
-            if (!parsed.isNullOrEmpty()) return
-        }
         autoSubtitleAttemptedItemId = currentId
         startLiveAiSubtitles()
     }
@@ -2601,18 +2490,6 @@ class PlayerActivity : ComponentActivity() {
         DiagnosticLog.record(this@PlayerActivity, "loadAndPlay: begin; offline=" + (offlinePath != null))
         val file = offlinePath
         if (file == null) {
-            val savedAi = aiSubtitleFileFor(itemId)
-            if (savedAi.isFile) {
-                val parsed = runCatching { SubParser.parse(savedAi.readText(Charsets.UTF_8)) }.getOrNull()
-                if (!parsed.isNullOrEmpty()) {
-                    cues = parsed
-                    subOn = true
-                    activeSub = -2
-                    shownText = "~"
-                    updateSubtitle()
-                    DiagnosticLog.record(this@PlayerActivity, "AI_SUBTITLE_HISTORY_RESTORED item=$itemId source=load_and_play_srt cues=${parsed.size} first=${parsed.firstOrNull()?.startMs}ms")
-                }
-            }
         }
         if (file != null) {
             player.setMediaItem(MediaItem.fromUri(Uri.fromFile(File(file))))
@@ -2778,7 +2655,6 @@ class PlayerActivity : ComponentActivity() {
         liveCaptionEngine = null
         livePartialCueStartMs = null
         liveAudioProcessor?.clearCapture()
-        aiSubtitleJob?.cancel(); aiSubtitleJob = null
         aiModelWaitRunnable?.let(handler::removeCallbacks); aiModelWaitRunnable = null
         report("stop")
         handler.removeCallbacks(progressTick)
@@ -3222,7 +3098,6 @@ class PlayerActivity : ComponentActivity() {
         liveCaptionEngine = null
         livePartialCueStartMs = null
         liveAudioProcessor?.clearCapture()
-        aiSubtitleJob?.cancel(); aiSubtitleJob = null
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {
