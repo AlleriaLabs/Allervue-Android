@@ -638,7 +638,7 @@ internal fun AllervueHome(
             )
         }
     ) {
-        Box(Modifier.fillMaxWidth().height(360.dp)) {
+        Box(Modifier.fillMaxWidth().height(420.dp)) {
             Canvas(Modifier.fillMaxSize()) {
                 val cx = size.width * .5f
                 val cy = size.height * .55f
@@ -781,7 +781,7 @@ internal fun AllervueHome(
                 // Planet diameters vary like a miniature solar system; each slot
                 // keeps its own size when artwork is shuffled every eight seconds.
                 val planetSizes = listOf(42.dp, 58.dp, 36.dp, 64.dp, 48.dp, 32.dp)
-                val centerSize = (w * .48f).coerceIn(172.dp, 216.dp)
+                val centerSize = (w * .42f).coerceIn(156.dp, 184.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .50f
                 // Every artwork node follows the same fixed elliptical orbit.
@@ -792,23 +792,23 @@ internal fun AllervueHome(
                 // varying radius and rotation speed so the field never reads as one ellipse.
                 // Slot geometry is tied only to layout dimensions and node count—not movie IDs.
                 // Replacing/shuffling artwork therefore never resets a circle's path or position.
-                val orbitSlots = remember(visibleOrbitItems.size, w, h, planetSizes) {
-                    val count = visibleOrbitItems.size.coerceAtLeast(1)
-                    List(visibleOrbitItems.size) { slot ->
+                val orbitSlots = remember(visiblePlanetCount, visibleOrbitItems.size, w, h, planetSizes) {
+                    val count = visiblePlanetCount.coerceAtMost(visibleOrbitItems.size).coerceAtLeast(1)
+                    List(count) { slot ->
                         val baseAngle = -90f + slot * (360f / count)
                         val phaseJitter = kotlin.random.Random.nextFloat() * 34f - 17f
                         val planetSize = planetSizes[slot % planetSizes.size]
-                        // Use the rendered outer-node diameter for orbit clearance.
-                        // The vertical orbit must reach at least the top tangent of
-                        // the center artwork instead of stopping short above it.
-                        val outerSize = planetSize + 40.dp
-                        val radiusX = (w * (.25f + kotlin.random.Random.nextFloat() * .18f))
-                            .coerceAtMost((w - outerSize) / 2 - 6.dp)
-                        val minimumVerticalRadius = centerSize / 2 + outerSize / 2 + 8.dp
-                        val maximumVerticalRadius = (h - outerSize) / 2 - 12.dp
-                        val radiusY = (h * (.13f + kotlin.random.Random.nextFloat() * .20f))
-                            .coerceAtLeast(minimumVerticalRadius)
-                            .coerceAtMost(maximumVerticalRadius)
+                        // Keep poster artwork outside the featured artwork with a
+                        // consistent visual gap; glow padding is not part of the
+                        // poster's actual collision diameter.
+                        val minimumHorizontalRadius = centerSize / 2 + planetSize / 2 + 12.dp
+                        val maximumHorizontalRadius = (w - planetSize) / 2 - 12.dp
+                        val radiusX = (w * (.34f + kotlin.random.Random.nextFloat() * .06f))
+                            .coerceIn(minimumHorizontalRadius, maximumHorizontalRadius)
+                        val minimumVerticalRadius = centerSize / 2 + planetSize / 2 + 12.dp
+                        val maximumVerticalRadius = (h - planetSize) / 2 - 12.dp
+                        val radiusY = (h * (.34f + kotlin.random.Random.nextFloat() * .06f))
+                            .coerceIn(minimumVerticalRadius, maximumVerticalRadius)
                         val speed = .65f + kotlin.random.Random.nextFloat() * .7f
                         Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
                     }
@@ -1166,7 +1166,9 @@ private fun ContinueWatchingShelf(
                 } else null
                 var menuExpanded by remember(item.id) { mutableStateOf(false) }
                 Column(
-                    Modifier.width(screenWidth).background(Color(0x66100E20))
+                    Modifier.width((screenWidth - 40.dp).coerceAtLeast(280.dp))
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0x66100E20))
                 ) {
                     Box(Modifier.fillMaxWidth().height(190.dp)
                         .clickable { onPlay(item) }) {
