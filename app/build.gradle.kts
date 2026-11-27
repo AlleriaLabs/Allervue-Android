@@ -116,6 +116,8 @@ kotlin {
 dependencies {
     // Official sherpa-onnx Android runtime; fetched and SHA-256 verified before Android preBuild.
     implementation(files(sherpaAarFile))
+    // Vosk offline streaming recognizer; language model is downloaded on demand.
+    implementation("com.alphacephei:vosk-android:0.3.75")
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
