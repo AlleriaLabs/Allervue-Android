@@ -35,6 +35,8 @@ class LiveSubtitleAudioProcessor(
     private var channels = 0
     private var encoding = C.ENCODING_INVALID
     private var resamplePhase = 0L
+    private var resampleSum = 0f
+    private var resampleCount = 0
     private var inputBlockCount = 0L
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
@@ -78,10 +80,19 @@ class LiveSubtitleAudioProcessor(
                         }
                     }
                     mono /= channels
+                    // Box-filter before downsampling. Picking every third 48 kHz sample
+                    // aliases high frequencies and can hurt phoneme recognition.
+                    resampleSum += mono
+                    resampleCount++
                     resamplePhase += 16_000L
                     if (resamplePhase >= sampleRate) {
-                        resamplePhase -= sampleRate.toLong()
-                        append((mono.coerceIn(-1f, 1f) * 32767f).toInt().toShort())
+                        val filtered = (resampleSum / resampleCount.coerceAtLeast(1)).coerceIn(-1f, 1f)
+                        while (resamplePhase >= sampleRate) {
+                            append((filtered * 32767f).toInt().toShort())
+                            resamplePhase -= sampleRate.toLong()
+                        }
+                        resampleSum = 0f
+                        resampleCount = 0
                     }
                 }
             }
@@ -141,6 +152,8 @@ class LiveSubtitleAudioProcessor(
         samplesSinceWindow = 0
         streamingChunkCount = 0
         resamplePhase = 0L
+        resampleSum = 0f
+        resampleCount = 0
     }
 }
 
