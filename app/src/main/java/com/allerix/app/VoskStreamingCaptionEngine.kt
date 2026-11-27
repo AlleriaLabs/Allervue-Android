@@ -205,13 +205,10 @@ class VoskStreamingCaptionEngine(
                 try {
                     val active = recognizer ?: return@execute
                     if (lastAudioEndMs == 0L) utteranceStartMs = mediaStartMs
-                    val pcm = ByteArray(audio.size * 2)
-                    for (i in audio.indices) {
-                        val value = (audio[i].coerceIn(-1f, 1f) * 32767f).toInt()
-                        pcm[i * 2] = value.toByte()
-                        pcm[i * 2 + 1] = (value shr 8).toByte()
-                    }
-                    val isEndpoint = active.acceptWaveForm(pcm, pcm.size)
+                    // Vosk's native API accepts normalized float PCM directly; avoid
+                    // allocating/converting an extra 16-bit buffer for every 100 ms chunk.
+                    for (i in audio.indices) audio[i] = audio[i].coerceIn(-1f, 1f)
+                    val isEndpoint = active.acceptWaveForm(audio, audio.size)
                     lastAudioEndMs = mediaStartMs + audio.size * 1_000L / 16_000L
                     if (isEndpoint) {
                         emitFinal(JSONObject(active.result))
