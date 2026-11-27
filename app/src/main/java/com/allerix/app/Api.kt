@@ -209,7 +209,7 @@ object Api {
     }
 
     suspend fun resume(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview,ImageTags,BackdropImageTags,ParentBackdropItemId")).items
+        call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview,ImageTags,BackdropImageTags,ParentBackdropItemId,RunTimeTicks,UserData,SeriesName,IndexNumber,ParentIndexNumber,ProductionYear")).items
 
     /** Random movies/series that have backdrops, for the home carousel. */
     suspend fun featured(): List<Item> = json.decodeFromString<ItemsResult>(
