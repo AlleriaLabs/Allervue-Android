@@ -166,7 +166,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                     }
                     val activeModel = AiSubtitleModels.get(selectedModelId)
                     Text(
-                        "Playback model: ${activeModel?.title ?: "Whisper Base"}. This choice is saved and used for automatic AI subtitles when installed.",
+                        "Offline batch model: ${activeModel?.title ?: "Whisper Base"}. This choice affects manual SRT generation only, not live playback captions.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         lineHeight = 14.sp,
@@ -180,7 +180,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                             Text("Automatic subtitles during playback",
                                 color = MaterialTheme.colorScheme.onSurface,
                                 fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                            Text("Generate in the background when a movie or episode has no subtitle tracks.",
+                            Text("Create live captions from the audio stream when a movie or episode has no subtitle tracks.",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 10.sp, lineHeight = 14.sp)
                         }
@@ -199,7 +199,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                         "en" to "English"
                     )
                     var languageMenuExpanded by remember { mutableStateOf(false) }
-                    val selectedLanguageLabel = languageOptions.firstOrNull { it.first == language }?.second ?: "Auto detect"
+                    val selectedLanguageLabel = languageOptions.firstOrNull { it.first == language }?.second ?: "Auto · Filipino-first"
                     ExposedDropdownMenuBox(
                         expanded = languageMenuExpanded,
                         onExpandedChange = { languageMenuExpanded = it },
@@ -277,7 +277,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
             }
 
             item {
-                Text("AVAILABLE MODELS", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                Text("OPTIONAL LEGACY BATCH MODELS", color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
             }
 
@@ -347,7 +347,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
 
             item {
                 Text(
-                    "Tiny is the recommended first download for phones. Base may improve recognition but needs more processing time and memory. Downloaded models remain in Allervue's private app storage.",
+                    "These Whisper models are only for optional offline SRT generation. They are not downloaded automatically and are not used by live playback captions.",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
                     lineHeight = 16.sp, modifier = Modifier.padding(vertical = 8.dp)
                 )
