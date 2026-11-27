@@ -66,13 +66,3 @@ interface LiveCaptionEngine : Closeable {
     fun flush()
     fun reset(mediaPositionMs: Long)
 }
-
-/** Optional second-pass correction; never allowed to delay streaming caption events. */
-interface CaptionCorrectionEngine {
-    suspend fun correct(
-        audioWindow: LiveSubtitleAudioWindow,
-        modelFile: java.io.File,
-        workDirectory: java.io.File,
-        language: String
-    ): List<AiSubtitleSegment>
-}
