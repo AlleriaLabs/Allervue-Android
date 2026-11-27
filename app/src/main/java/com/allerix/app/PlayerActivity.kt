@@ -1407,13 +1407,20 @@ class PlayerActivity : ComponentActivity() {
 
     // ================================================================= subtitles
     private fun applySubStyle() {
-        // Allervue subtitle standard: clean white text with a restrained black shadow.
-        subText.textSize = if (isInPictureInPictureMode) 12f else 20f
+        // Compact, readable subtitle treatment: sentence case, soft dark backing,
+        // and a restrained shadow for bright scenes.
+        subText.textSize = if (isInPictureInPictureMode) 11f else 17f
         subText.setTextColor(Color.WHITE)
-        subText.setTypeface(Typeface.DEFAULT, Typeface.NORMAL)
-        subText.setPadding(0, 0, 0, 0)
-        subText.background = null
-        subText.setShadowLayer(2.5f, 0f, 1.5f, Color.BLACK)
+        subText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL))
+        subText.gravity = Gravity.CENTER
+        subText.maxLines = 2
+        subText.setLineSpacing(dp(2).toFloat(), 1.0f)
+        subText.setPadding(dp(12), dp(6), dp(12), dp(6))
+        subText.background = android.graphics.drawable.GradientDrawable().apply {
+            setColor(0xB8000000.toInt())
+            cornerRadius = dp(8).toFloat()
+        }
+        subText.setShadowLayer(1.5f, 0f, 1f, Color.BLACK)
     }
 
     private fun layoutSubtitle() {
@@ -1421,9 +1428,9 @@ class PlayerActivity : ComponentActivity() {
         val pip = isInPictureInPictureMode
         val h = if (root.height > 0) root.height else resources.displayMetrics.heightPixels
         val w = if (root.width > 0) root.width else resources.displayMetrics.widthPixels
-        subText.textSize = if (pip) 12f else 20f
+        subText.textSize = if (pip) 11f else 17f
         lp.bottomMargin = if (pip) dp(8) else (subPos * h).toInt() + (if (controlsVisible) dp(110) else 0)
-        subText.maxWidth = (w * if (pip) 0.82f else 0.85f).toInt()
+        subText.maxWidth = (w * if (pip) 0.86f else 0.80f).toInt()
         subText.layoutParams = lp
     }
 
@@ -2194,10 +2201,25 @@ class PlayerActivity : ComponentActivity() {
         engine.acceptAudio(floats, mediaStartMs, chunk.capturedAtElapsedRealtimeMs)
     }
 
+    private fun formatLiveCaptionText(raw: String, isFinal: Boolean): String {
+        val trimmed = raw.trim().replace(Regex("\\s+"), " ")
+        if (trimmed.isBlank()) return ""
+        val letters = trimmed.filter { it.isLetter() }
+        val looksAllCaps = letters.length > 1 &&
+            letters.count { it.isUpperCase() }.toFloat() / letters.length >= 0.85f
+        val sentence = if (looksAllCaps) {
+            trimmed.lowercase(Locale.ROOT).replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+        } else {
+            trimmed.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+        }
+        return if (isFinal && sentence.lastOrNull()?.let { it in ".!?…" } == false) "$sentence."
+            else sentence
+    }
+
     private fun onLiveCaptionEvent(requestedItemId: String, event: LiveCaptionEvent) {
         handler.post {
             if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@post
-            val text = event.text.trim()
+            val text = formatLiveCaptionText(event.text, event is LiveCaptionEvent.Final)
             if (text.isBlank()) return@post
             val previousPartialStart = livePartialCueStartMs
             if (previousPartialStart != null) {
