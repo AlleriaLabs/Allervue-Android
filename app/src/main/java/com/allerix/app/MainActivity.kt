@@ -323,12 +323,12 @@ fun MainShell(onLogout: () -> Unit) {
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
-                    NavTab.HOME -> HomeScreen(
-                        onOpen, onPlay, onSeeAll = { _, items ->
-                            stack.clear()
-                            tab = if (items.firstOrNull()?.type == "Movie") NavTab.MOVIES else NavTab.SHOWS
-                        },
-                        onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, onLogout = signOut
+                    NavTab.HOME -> AllervueHome(
+                        onOpen = onOpen,
+                        onPlay = onPlay,
+                        onSearch = { stack.add(Nav.Search) },
+                        onSettings = openSettings,
+                        onLogout = signOut
                     )
                     NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, libraryNames = listOf("Movies", "Kid's Movies"))
                     NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true, libraryNames = listOf("Series"))
