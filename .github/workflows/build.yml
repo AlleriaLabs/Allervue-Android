@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    name: Build debug APK (Whisper native)
+    name: Build debug APK (Sherpa + Vosk)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -62,7 +62,7 @@ jobs:
       - name: Upload Allervue APK
         uses: actions/upload-artifact@v4
         with:
-          name: Allervue-Phase2-Whisper-debug
+          name: Allervue-Sherpa-Vosk-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
