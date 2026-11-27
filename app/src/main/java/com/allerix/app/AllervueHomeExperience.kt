@@ -733,7 +733,7 @@ internal fun AllervueHome(
                     modifier = Modifier.weight(1f)
                 )
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
+                    Modifier.size(44.dp).clip(CircleShape)
                         .clickable(onClick = onSearch),
                     contentAlignment = Alignment.Center
                 ) { Text("⌕", color = Color.White, fontSize = 28.sp) }
@@ -749,7 +749,7 @@ internal fun AllervueHome(
                 )
                 Spacer(Modifier.width(10.dp))
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(Color(0x33201D31))
+                    Modifier.size(44.dp).clip(CircleShape)
                         .clickable(onClick = onSettings),
                     contentAlignment = Alignment.Center
                 ) { Text("♙", color = Color.White, fontSize = 23.sp) }
@@ -959,7 +959,7 @@ internal fun AllervueHome(
                     drawCircle(Brush.radialGradient(listOf(Color(0xFFFF6E9D).copy(alpha = .22f), Color(0xFFB56CFF).copy(alpha = .08f), Color.Transparent), glowA, radius), radius, glowA)
                     drawCircle(Brush.radialGradient(listOf(Color(0xFF53D8D5).copy(alpha = .18f), Color(0xFF668BFF).copy(alpha = .07f), Color.Transparent), glowB, radius * .82f), radius * .82f, glowB)
                 }
-                .padding(start = 20.dp, end = 20.dp, top = 30.dp, bottom = 14.dp)
+                .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)
         ) {
             Row(
                 Modifier.fillMaxWidth().height(82.dp),
@@ -1053,7 +1053,7 @@ internal fun AllervueHome(
                 overflow = TextOverflow.Ellipsis
             )
             Row(
-                Modifier.fillMaxWidth().height(32.dp),
+                Modifier.fillMaxWidth().height(36.dp),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1061,10 +1061,42 @@ internal fun AllervueHome(
                     horizontalArrangement = Arrangement.spacedBy(7.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("MORE IN THIS MOOD", color = Color(0xFF8CE0E2), fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp)
+                    Text(
+                        "MORE IN THIS MOOD",
+                        Modifier.clip(RoundedCornerShape(50))
+                            .clickable {
+                                val mood = shownCenterItem?.genres.orEmpty()
+                                val next = allItems.firstOrNull { candidate ->
+                                    candidate.id != shownCenterItem?.id &&
+                                        (mood.isEmpty() || candidate.genres.any { g ->
+                                            mood.any { it.equals(g, ignoreCase = true) }
+                                        })
+                                } ?: allItems.firstOrNull { it.id != shownCenterItem?.id }
+                                if (next != null) {
+                                    selected = next
+                                    displayedCenterItem = next
+                                }
+                            }
+                            .padding(horizontal = 5.dp, vertical = 7.dp),
+                        color = Color(0xFF8CE0E2), fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.1.sp
+                    )
                     (shownCenterItem?.genres.orEmpty().take(2)).forEach { genre ->
-                        Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF302A48)).padding(horizontal = 9.dp, vertical = 5.dp)) {
+                        Box(
+                            Modifier.clip(RoundedCornerShape(50))
+                                .background(Color(0xFF302A48))
+                                .clickable {
+                                    val next = allItems.firstOrNull { candidate ->
+                                        candidate.id != shownCenterItem?.id &&
+                                            candidate.genres.any { it.equals(genre, ignoreCase = true) }
+                                    }
+                                    if (next != null) {
+                                        selected = next
+                                        displayedCenterItem = next
+                                    }
+                                }
+                                .padding(horizontal = 9.dp, vertical = 5.dp)
+                        ) {
                             Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
                         }
                     }
