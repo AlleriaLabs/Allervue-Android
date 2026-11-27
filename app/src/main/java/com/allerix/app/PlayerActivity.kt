@@ -185,13 +185,12 @@ class PlayerActivity : ComponentActivity() {
     private var aiSubtitleJob: Job? = null
     private var liveAudioProcessor: LiveSubtitleAudioProcessor? = null
     @Volatile private var liveSubtitleActive = false
-    private var liveSubtitleBusy = false
     private var liveCaptionEngine: LiveCaptionEngine? = null
     private var livePartialCueStartMs: Long? = null
     private var liveSubtitleFirstCue = true
     private var aiModelWaitRunnable: Runnable? = null
     private var autoSubtitleAttemptedItemId: String? = null
-    // Optional pre-roll: decode the opening audio silently, prepare Whisper cues, then rewind.
+    // Optional pre-roll: decode the opening audio silently so streaming captions can initialize.
     private var preRollOverlay: FrameLayout? = null
     private var preRollTexture: TextureView? = null
     private var preRollMediaPlayer: MediaPlayer? = null
@@ -2005,19 +2004,24 @@ class PlayerActivity : ComponentActivity() {
         val check = object : Runnable {
             override fun run() {
                 if (isFinishing || isDestroyed || itemId != requestedItemId) return
-                val english = language == "en"
-                val installed = if (english) {
-                    SherpaStreamingModelStore.isInstalled(this@PlayerActivity)
-                } else {
-                    VoskFilipinoModelStore.extractIfDownloaded(this@PlayerActivity)
-                }
-                if (installed) {
-                    aiModelWaitRunnable = null
-                    startLiveAiSubtitles()
-                } else {
-                    if (english) SherpaStreamingModelStore.ensureDownloaded(this@PlayerActivity)
-                    else VoskFilipinoModelStore.ensureDownloaded(this@PlayerActivity)
-                    handler.postDelayed(this, 3_000L)
+                lifecycleScope.launch {
+                    val english = language == "en"
+                    val installed = withContext(Dispatchers.IO) {
+                        if (english) SherpaStreamingModelStore.isInstalled(this@PlayerActivity)
+                        else VoskFilipinoModelStore.extractIfDownloaded(this@PlayerActivity)
+                    }
+                    if (installed) {
+                        aiModelWaitRunnable = null
+                        startLiveAiSubtitles()
+                    } else {
+                        withContext(Dispatchers.IO) {
+                            if (english) SherpaStreamingModelStore.ensureDownloaded(this@PlayerActivity)
+                            else VoskFilipinoModelStore.ensureDownloaded(this@PlayerActivity)
+                        }
+                        if (!isFinishing && !isDestroyed && itemId == requestedItemId) {
+                            handler.postDelayed(this, 3_000L)
+                        }
+                    }
                 }
             }
         }
@@ -2054,7 +2058,7 @@ class PlayerActivity : ComponentActivity() {
         val installed = if (english) {
             SherpaStreamingModelStore.isInstalled(this)
         } else {
-            VoskFilipinoModelStore.extractIfDownloaded(this)
+            VoskFilipinoModelStore.isInstalled(this)
         }
         if (!installed) {
             if (english) SherpaStreamingModelStore.ensureDownloaded(this)
@@ -3030,9 +3034,8 @@ class PlayerActivity : ComponentActivity() {
     private fun seekPlaybackTo(positionMs: Long) {
         if (!::player.isInitialized) return
         liveAudioProcessor?.clearCapture()
-        livePendingWindow = null
         val target = positionMs.coerceAtLeast(0L)
-        sherpaStreamingEngine?.reset(target)
+        liveCaptionEngine?.reset(target)
         if (::playbackEngineManager.isInitialized) playbackEngineManager.seekTo(target)
         else player.seekTo(target)
     }
