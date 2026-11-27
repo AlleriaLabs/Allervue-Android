@@ -1656,7 +1656,7 @@ class PlayerActivity : ComponentActivity() {
             dlg.dismiss()
             generateAiSubtitlesForCurrentItem()
         })
-        box.addView(noteText("Uses your Jellyfin audio stream and the downloaded on-device Whisper model. Playback continues while subtitles are generated."))
+        box.addView(noteText("Uses the optional legacy offline batch model. Live playback captions use Sherpa or Vosk instead."))
         val preRollPrefs = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
         val preRollEnabled = preRollPrefs.getBoolean("intro_preroll", true)
         box.addView(pill("AI subtitle intro pre-roll: ${if (preRollEnabled) "ON" else "OFF"}") {
@@ -2116,7 +2116,7 @@ class PlayerActivity : ComponentActivity() {
 
     /**
      * The original ExoPlayer session runs silently behind the intro. Its existing audio
-     * processor captures the first six seconds; after the first Whisper pass, rewind to zero.
+     * processor feeds incremental audio chunks; the first caption releases the intro overlay.
      */
     private fun startSubtitlePreRoll() {
         val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
