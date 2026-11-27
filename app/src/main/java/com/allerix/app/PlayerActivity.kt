@@ -186,14 +186,9 @@ class PlayerActivity : ComponentActivity() {
     private var liveAudioProcessor: LiveSubtitleAudioProcessor? = null
     @Volatile private var liveSubtitleActive = false
     private var liveSubtitleBusy = false
-    private var liveSubtitleModel: AiSubtitleModel? = null
-    private val liveWhisperEngine = WhisperCppEngine()
-    private var sherpaStreamingEngine: SherpaStreamingCaptionEngine? = null
+    private var liveCaptionEngine: LiveCaptionEngine? = null
     private var livePartialCueStartMs: Long? = null
-    private var lastWhisperCorrectionElapsedMs = 0L
-    private var livePendingWindow: Pair<LiveSubtitleAudioWindow, Long>? = null
     private var liveSubtitleFirstCue = true
-    private var liveWindowSequence = 0L
     private var aiModelWaitRunnable: Runnable? = null
     private var autoSubtitleAttemptedItemId: String? = null
     // Optional pre-roll: decode the opening audio silently, prepare Whisper cues, then rewind.
@@ -2005,31 +2000,35 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun waitForAiSubtitleModels(requestedItemId: String) {
+    private fun waitForCaptionEngineModel(requestedItemId: String, language: String) {
         aiModelWaitRunnable?.let(handler::removeCallbacks)
         val check = object : Runnable {
             override fun run() {
                 if (isFinishing || isDestroyed || itemId != requestedItemId) return
-                val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-                    .getString("model", "base") ?: "base"
-                val model = AiSubtitleModels.get(preferredId) ?: AiSubtitleModels.get("base")!!
-                if (AiSubtitleModelStore.isInstalled(this@PlayerActivity, model)) {
+                val english = language == "en"
+                val installed = if (english) {
+                    SherpaStreamingModelStore.isInstalled(this@PlayerActivity)
+                } else {
+                    VoskFilipinoModelStore.extractIfDownloaded(this@PlayerActivity)
+                }
+                if (installed) {
                     aiModelWaitRunnable = null
-                    autoSubtitleAttemptedItemId = requestedItemId
                     startLiveAiSubtitles()
                 } else {
-                    handler.postDelayed(this, 5_000L)
+                    if (english) SherpaStreamingModelStore.ensureDownloaded(this@PlayerActivity)
+                    else VoskFilipinoModelStore.ensureDownloaded(this@PlayerActivity)
+                    handler.postDelayed(this, 3_000L)
                 }
             }
         }
         aiModelWaitRunnable = check
-        handler.postDelayed(check, 5_000L)
+        handler.post(check)
     }
 
     private fun maybeStartAutomaticAiSubtitles() {
         val currentId = itemId
         if (currentId.isBlank() || sourceId.isBlank() || offlinePath != null) return
-        if (autoSubtitleAttemptedItemId == currentId) return
+        if (autoSubtitleAttemptedItemId == currentId || liveSubtitleActive) return
         val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
             .getBoolean("auto_generate", true)
         if (!enabled) return
@@ -2038,50 +2037,76 @@ class PlayerActivity : ComponentActivity() {
             val parsed = runCatching { SubParser.parse(saved.readText(Charsets.UTF_8)) }.getOrNull()
             if (!parsed.isNullOrEmpty()) return
         }
-        val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getString("model", "base") ?: "base"
-        val preferredModel = AiSubtitleModels.get(preferredId) ?: AiSubtitleModels.get("base")!!
-        val anyModelInstalled = AiSubtitleModels.all.any { AiSubtitleModelStore.isInstalled(this, it) }
-        if (!anyModelInstalled) {
-            if (AiSubtitleModelDownloads.state(this, preferredModel)?.isActive != true) {
-                AiSubtitleModelDownloads.enqueue(this, preferredModel)
-            }
-            waitForAiSubtitleModels(currentId)
-            return
-        }
-        autoSubtitleAttemptedItemId = currentId
         startLiveAiSubtitles()
     }
 
+    /**
+     * English uses Sherpa's incremental Zipformer model. Auto/Filipino uses the
+     * Filipino Vosk model so Tagalog audio is never sent into an English-only model.
+     * Only one recognizer is loaded at a time to protect CPU, RAM and battery.
+     */
     private fun startLiveAiSubtitles() {
         if (offlinePath != null || liveSubtitleActive || !::player.isInitialized) return
-
-        // The installed Sherpa pack is English-only. For automatic language recognition,
-        // use Whisper's multilingual language detector as the primary recognizer instead
-        // of feeding Tagalog/Taglish audio into an English-only streaming model.
-        val preferredId = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getString("model", "base") ?: "base"
-        val preferredModel = AiSubtitleModels.get(preferredId) ?: AiSubtitleModels.get("base")!!
-        liveSubtitleModel = preferredModel.takeIf { AiSubtitleModelStore.isInstalled(this, it) }
-            ?: AiSubtitleModels.all.firstOrNull { AiSubtitleModelStore.isInstalled(this, it) }
-        if (liveSubtitleModel == null) {
-            if (AiSubtitleModelDownloads.state(this, preferredModel)?.isActive != true) {
-                AiSubtitleModelDownloads.enqueue(this, preferredModel)
-            }
-            waitForAiSubtitleModels(itemId)
+        val requestedItemId = itemId
+        val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
+            .getString("language", "auto") ?: "auto"
+        val english = language == "en"
+        val installed = if (english) {
+            SherpaStreamingModelStore.isInstalled(this)
+        } else {
+            VoskFilipinoModelStore.extractIfDownloaded(this)
+        }
+        if (!installed) {
+            if (english) SherpaStreamingModelStore.ensureDownloaded(this)
+            else VoskFilipinoModelStore.ensureDownloaded(this)
+            waitForCaptionEngineModel(requestedItemId, language)
             return
         }
 
-        sherpaStreamingEngine?.close()
-        sherpaStreamingEngine = null
+        autoSubtitleAttemptedItemId = requestedItemId
+        liveCaptionEngine?.close()
+        liveCaptionEngine = null
+        val engine: LiveCaptionEngine = if (english) {
+            SherpaStreamingCaptionEngine(SherpaStreamingModelStore.directory(this), threadCount = 2)
+        } else {
+            VoskStreamingCaptionEngine(VoskFilipinoModelStore.directory(this))
+        }
+        liveCaptionEngine = engine
         liveSubtitleActive = true
-        liveSubtitleBusy = false
-        livePendingWindow = null
         livePartialCueStartMs = null
-        lastWhisperCorrectionElapsedMs = 0L
         liveSubtitleFirstCue = true
         liveAudioProcessor?.clearCapture()
-        DiagnosticLog.record(this, "LIVE_AI_SUBTITLES started item=$itemId primary=whisper-multilingual model=${liveSubtitleModel?.id} language=auto")
+        DiagnosticLog.record(
+            this,
+            "LIVE_CAPTIONS_START item=$requestedItemId engine=${engine.engineId} language=${if (english) "en" else "filipino-first"}"
+        )
+
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    engine.start(
+                        sampleRate = 16_000,
+                        language = if (english) "en" else "tl",
+                        onEvent = { event -> onLiveCaptionEvent(requestedItemId, event) },
+                        onError = { error ->
+                            handler.post {
+                                if (liveCaptionEngine === engine && !isFinishing && !isDestroyed) {
+                                    DiagnosticLog.record(this@PlayerActivity, "LIVE_CAPTION_ENGINE_ERROR ${engine.engineId}: ${error.message}", error)
+                                }
+                            }
+                        }
+                    )
+                }
+                DiagnosticLog.record(this@PlayerActivity, "LIVE_CAPTIONS_READY engine=${engine.engineId}")
+            } catch (error: Exception) {
+                DiagnosticLog.record(this@PlayerActivity, "LIVE_CAPTIONS_INIT_FAILED engine=${engine.engineId}: ${error.message}", error)
+                if (liveCaptionEngine === engine) {
+                    liveSubtitleActive = false
+                    liveCaptionEngine = null
+                    engine.close()
+                }
+            }
+        }
     }
 
     /**
@@ -2116,7 +2141,7 @@ class PlayerActivity : ComponentActivity() {
                 finishSubtitlePreRoll()
             }
         }.also { handler.postDelayed(it, 12_000L) }
-        DiagnosticLog.record(this, "AI_PREROLL started item=$itemId model=${liveSubtitleModel?.id} maxWaitMs=12000")
+        DiagnosticLog.record(this, "AI_PREROLL started item=$itemId engine=${liveCaptionEngine?.engineId ?: "loading"} maxWaitMs=12000")
     }
 
     private fun showPreRollOverlay() {
@@ -2226,9 +2251,8 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun maybeFinishSubtitlePreRoll() {
-        // The ident is a visual pre-roll, not a gate for Whisper. Base-model inference can
-        // take longer than the intro on mid-range devices; never leave a black player waiting
-        // for transcription. Any completed first window still populates cues during playback.
+        // The ident is a visual pre-roll, not a gate for model initialization. Never leave
+        // playback hidden while a model is downloading or initializing.
         if (!preRollInProgress || !preRollVideoEnded) return
         finishSubtitlePreRoll()
     }
@@ -2264,7 +2288,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun onLiveAudioChunk(chunk: LiveSubtitleAudioChunk) {
         if (!liveSubtitleActive || isFinishing || isDestroyed) return
-        val engine = sherpaStreamingEngine ?: return
+        val engine = liveCaptionEngine ?: return
         if (!engine.isReady) return
         val deliveryPositionMs = playbackPositionMs()
         val deliveryElapsedMs = SystemClock.elapsedRealtime()
@@ -2309,42 +2333,22 @@ class PlayerActivity : ComponentActivity() {
 
             DiagnosticLog.record(
                 this,
-                "LIVE_SHERPA_CAPTION type=${if (event is LiveCaptionEvent.Partial) "partial" else "final"} startMs=$cueStartMs endMs=$cueEndMs chars=${text.length}"
+                "LIVE_CAPTION engine=${liveCaptionEngine?.engineId ?: "unknown"} type=${if (event is LiveCaptionEvent.Partial) "partial" else "final"} startMs=$cueStartMs endMs=$cueEndMs chars=${text.length}"
             )
+            if (liveSubtitleFirstCue) {
+                liveSubtitleFirstCue = false
+                if (preRollInProgress) {
+                    preRollFirstWindowFinished = true
+                    maybeFinishSubtitlePreRoll()
+                }
+            }
         }
     }
 
-    private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) {
-        if (!liveSubtitleActive || isFinishing || isDestroyed || liveSubtitleModel == null) return
-        val sherpaReady = sherpaStreamingEngine?.isReady == true
-        val correctionEnabled = if (sherpaReady) {
-            getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-                .getBoolean("whisper_correction", true)
-        } else {
-            // If sherpa cannot initialize (for example, a non-English selection), Whisper
-            // remains the functional fallback rather than silently disabling captions.
-            true
-        }
-        if (!correctionEnabled) return
-        val now = SystemClock.elapsedRealtime()
-        // Whisper is a low-frequency second pass beside sherpa, but remains the primary
-        // fallback when no streaming engine is ready.
-        val minimumCorrectionIntervalMs = if (sherpaReady) 6_000L else 2_000L
-        if (now - lastWhisperCorrectionElapsedMs < minimumCorrectionIntervalMs) return
-        lastWhisperCorrectionElapsedMs = now
-        val deliveryPositionMs = playbackPositionMs()
-        val deliveryElapsedMs = SystemClock.elapsedRealtime()
-        val callbackDelayMs = (deliveryElapsedMs - window.capturedAtElapsedRealtimeMs).coerceAtLeast(0L)
-        val mediaEndMs = (deliveryPositionMs - (callbackDelayMs * speed).toLong()).coerceAtLeast(0L)
-        if (liveSubtitleBusy) {
-            livePendingWindow = window to mediaEndMs
-            return
-        }
-        transcribeLiveWindow(window.samples, mediaEndMs)
-    }
+    // Rolling six-second snapshots are intentionally ignored. Live captions consume
+    // 100 ms decoded-PCM chunks through Sherpa or Vosk only.
+    private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) = Unit
 
-    /** Keep very short Whisper fragments readable while preventing overlapping windows
-     *  from stacking duplicate hypotheses into a wall of text. */
     private companion object {
         const val LIVE_SUBTITLE_MIN_DISPLAY_MS = 1_800L
         const val LIVE_SUBTITLE_PARTIAL_HOLD_MS = 1_600L
@@ -2362,143 +2366,6 @@ class PlayerActivity : ComponentActivity() {
             if (clippedEnd - cue.startMs >= 250L) output += cue.copy(endMs = clippedEnd)
         }
         return output
-    }
-
-    private fun transcribeLiveWindow(samples: ShortArray, windowEndMs: Long) {
-        val model = liveSubtitleModel ?: return
-        val requestedItemId = itemId
-        val windowStartMs = (windowEndMs - 6_000L).coerceAtLeast(0L)
-        val windowSequence = ++liveWindowSequence
-        val inferenceSession = sessionId
-        // Live playback always detects the spoken language, ignoring any stale manual selection.
-        val language = "auto"
-        val wav = File(cacheDir, "live_subtitle_${UUID.randomUUID()}.wav")
-        liveSubtitleBusy = true
-        lifecycleScope.launch {
-            try {
-                val wavDiagnostics = withContext(Dispatchers.IO) {
-                    LiveSubtitleWav.write(samples, wav)
-                    LiveSubtitleWav.diagnosticSummary(wav)
-                }
-                val samplePeak = samples.maxOfOrNull { kotlin.math.abs(it.toInt()) } ?: 0
-                val sampleRms = if (samples.isEmpty()) 0.0 else kotlin.math.sqrt(
-                    samples.sumOf { it.toDouble() * it.toDouble() } / samples.size
-                ) / 32768.0
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "LIVE_AI_SUBTITLES input item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} samples=${samples.size} rms=${"%.6f".format(Locale.US, sampleRms)} peak=${"%.6f".format(Locale.US, samplePeak / 32768.0)} $wavDiagnostics"
-                )
-                val inferenceStartedAt = SystemClock.elapsedRealtime()
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "LIVE_WHISPER_INFERENCE_START session=$inferenceSession window=$windowSequence item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} windowStartMs=$windowStartMs windowEndMs=$windowEndMs playbackPositionMs=${playbackPositionMs()} samples=${samples.size}"
-                )
-                val recognized = liveWhisperEngine.transcribe(
-                    wav, AiSubtitleModelStore.file(this@PlayerActivity, model), language
-                )
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "LIVE_WHISPER_INFERENCE_END session=$inferenceSession window=$windowSequence item=$requestedItemId model=${model.id} language=${language.ifBlank { "auto" }} durationMs=${SystemClock.elapsedRealtime() - inferenceStartedAt} segments=${recognized.size}"
-                )
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "LIVE_AI_SUBTITLES result item=$requestedItemId language=${language.ifBlank { "auto" }} segments=${recognized.size}"
-                )
-                if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@launch
-
-                // Keep the capture-time media anchor stable. Never shift old recognition
-                // results to the playback position observed when inference happens to finish.
-                val merged = cues.toMutableList()
-                var whisperCorrections = 0
-                var whisperSupplementalCues = 0
-                recognized.forEach { segment ->
-                    val cueStartMs = (windowStartMs + segment.startMs).coerceAtLeast(0L)
-                    val rawCueEndMs = (windowStartMs + segment.endMs).coerceAtLeast(0L)
-                    val cueEndMs = maxOf(rawCueEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
-                    val candidate = SubCue(
-                        cueStartMs,
-                        cueEndMs,
-                        segment.text.trim()
-                    )
-                    if (candidate.text.isNotBlank()) {
-                        val overlapIndex = merged.indexOfLast { existing ->
-                            candidate.startMs < existing.endMs && candidate.endMs > existing.startMs
-                        }
-                        if (overlapIndex >= 0) {
-                            val existing = merged[overlapIndex]
-                            val oldWords = existing.text.lowercase(Locale.ROOT)
-                                .split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
-                            val newWords = candidate.text.lowercase(Locale.ROOT)
-                                .split(Regex("\\s+")).filter { it.isNotBlank() }.toSet()
-                            val wordAgreement = if (oldWords.isEmpty() || newWords.isEmpty()) 0f
-                                else oldWords.intersect(newWords).size.toFloat() / maxOf(oldWords.size, newWords.size)
-                            // Whisper is the primary multilingual recognizer in auto mode.
-                            // The agreement gate is only needed when correcting a separate streaming engine.
-                            val hasSeparateStreamingHypothesis = sherpaStreamingEngine?.isReady == true
-                            if (!hasSeparateStreamingHypothesis || wordAgreement >= 0.35f) {
-                                merged[overlapIndex] = SubCue(
-                                    minOf(existing.startMs, candidate.startMs),
-                                    maxOf(existing.endMs, candidate.endMs),
-                                    candidate.text
-                                )
-                                whisperCorrections++
-                            }
-                        } else {
-                            val normalized = candidate.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
-                            val duplicate = merged.any { existing ->
-                                val existingText = existing.text.lowercase(Locale.ROOT).filter { it.isLetterOrDigit() }
-                                existingText == normalized &&
-                                    kotlin.math.abs(existing.startMs - candidate.startMs) < 2500L
-                            }
-                            if (!duplicate) {
-                                merged += candidate
-                                whisperSupplementalCues++
-                            }
-                        }
-                    }
-                }
-                cues = normalizeLiveCueTimeline(merged)
-                subOn = cues.isNotEmpty()
-                activeSub = -2
-                shownText = "~"
-                val renderPositionMs = playbackPositionMs() - subDelayMs
-                val activeCueCount = cues.count { it.startMs <= renderPositionMs && it.endMs >= renderPositionMs }
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "LIVE_SUBTITLE_CUES window=$windowSequence recognized=${recognized.size} whisperCorrections=$whisperCorrections whisperSupplemental=$whisperSupplementalCues total=${cues.size} windowStartMs=$windowStartMs windowEndMs=$windowEndMs captureAnchored=true renderPositionMs=$renderPositionMs activeCues=$activeCueCount firstCueMs=${cues.minOfOrNull { it.startMs } ?: -1L} lastCueMs=${cues.maxOfOrNull { it.endMs } ?: -1L}"
-                )
-                updateSubtitle()
-
-                val output = aiSubtitleFileFor(requestedItemId)
-                val saveSegments = cues.map { AiSubtitleSegment(it.startMs, it.endMs, it.text) }
-                withContext(Dispatchers.IO) {
-                    output.parentFile?.mkdirs()
-                    output.writeText(AiSubtitleGenerator.toSrt(saveSegments), Charsets.UTF_8)
-                }
-                if (liveSubtitleFirstCue && recognized.isNotEmpty()) {
-                    liveSubtitleFirstCue = false
-                }
-            } catch (error: kotlinx.coroutines.CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                DiagnosticLog.record(
-                    this@PlayerActivity,
-                    "LIVE_AI_SUBTITLES window failed item=$requestedItemId: ${error.message}", error
-                )
-            } finally {
-                wav.delete()
-                liveSubtitleBusy = false
-                if (preRollInProgress && itemId == requestedItemId) {
-                    preRollFirstWindowFinished = true
-                    maybeFinishSubtitlePreRoll()
-                }
-                val pending = livePendingWindow
-                livePendingWindow = null
-                if (liveSubtitleActive && pending != null && itemId == requestedItemId) {
-                    transcribeLiveWindow(pending.first.samples, pending.second)
-                }
-            }
-        }
     }
 
     private fun applyDefaultSubtitle() {
@@ -2902,11 +2769,9 @@ class PlayerActivity : ComponentActivity() {
     private fun switchTo(newId: String) {
         cancelSubtitlePreRoll()
         liveSubtitleActive = false
-        sherpaStreamingEngine?.close()
-        sherpaStreamingEngine = null
+        liveCaptionEngine?.close()
+        liveCaptionEngine = null
         livePartialCueStartMs = null
-        liveSubtitleModel = null
-        livePendingWindow = null
         liveAudioProcessor?.clearCapture()
         aiSubtitleJob?.cancel(); aiSubtitleJob = null
         aiModelWaitRunnable?.let(handler::removeCallbacks); aiModelWaitRunnable = null
@@ -3348,11 +3213,9 @@ class PlayerActivity : ComponentActivity() {
     override fun onDestroy() {
         cancelSubtitlePreRoll()
         liveSubtitleActive = false
-        sherpaStreamingEngine?.close()
-        sherpaStreamingEngine = null
+        liveCaptionEngine?.close()
+        liveCaptionEngine = null
         livePartialCueStartMs = null
-        liveSubtitleModel = null
-        livePendingWindow = null
         liveAudioProcessor?.clearCapture()
         aiSubtitleJob?.cancel(); aiSubtitleJob = null
         handler.removeCallbacksAndMessages(null)
