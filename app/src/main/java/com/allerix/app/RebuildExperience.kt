@@ -1250,8 +1250,8 @@ private fun RebuildSettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(66.dp).border(3.dp,
-                        Brush.sweepGradient(listOf(BrandGold, Color(0xFFFF6B72), Color(0xFF36C6C0), BrandGold)),
-                        CircleShape).padding(5.dp).clip(CircleShape).background(BrandSurface),
+                        Brush.sweepGradient(listOf(Color(0xFF43D9D0), Color(0xFF8067F2), Color(0xFFFF5D91), Color(0xFFFFB36B), Color(0xFF43D9D0))),
+                        CircleShape).padding(5.dp).clip(CircleShape).background(Color(0xD91A1530)),
                         contentAlignment = Alignment.Center) {
                         androidx.compose.foundation.Image(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.ic_allervue_emblem),
@@ -1259,11 +1259,11 @@ private fun RebuildSettingsScreen(
                         )
                     }
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(displayName, color = BrandIvory, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        Text(displayName, color = Color(0xFFF5F0FA), fontSize = 20.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text("Jellyfin account", color = Color(0xFFB8B0C6), fontSize = 13.sp)
                     }
-                    Text("›", color = BrandGold, fontSize = 30.sp)
+                    Text("›", color = Color(0xFFB8B0C6), fontSize = 30.sp)
                 }
             }
             item { RebuildSettingsLabel("PERSONALIZATION") }
@@ -1333,7 +1333,7 @@ private fun RebuildSettingsScreen(
                         .clickable(onClick = onSignOut),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Sign out", color = BrandGoldBright, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Sign out", color = Color(0xFFFF8B8F), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             item {
@@ -1346,30 +1346,30 @@ private fun RebuildSettingsScreen(
 
 @Composable
 private fun RebuildSettingsLabel(text: String) {
-    Text(text, color = Color(0xFFB7B0C0), fontSize = 12.sp, fontWeight = FontWeight.Bold,
+    Text(text, color = Color(0xFFB8B0C6), fontSize = 12.sp, fontWeight = FontWeight.Bold,
         letterSpacing = 2.sp, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp))
 }
 
 @Composable
 private fun RebuildSettingsGroup(content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
-        .background(Color(0xCC171329)).border(1.dp, Color(0x553F354D), RoundedCornerShape(30.dp)),
+        .background(Color(0xD91A1530)).border(1.dp, Color(0x554F4564), RoundedCornerShape(30.dp)),
         content = content)
 }
 
 @Composable
 private fun RebuildSettingsDivider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x333F354D)))
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x334F4564)))
 }
 
 @Composable
 private fun RebuildSettingsActionRow(title: String, value: String?, onClick: () -> Unit) {
     Row(Modifier.fillMaxWidth().height(55.dp).clickable(onClick = onClick)
         .padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = Color(0xFFF0ECF5), fontSize = 15.sp, modifier = Modifier.weight(1f),
+        Text(title, color = Color(0xFFF5F0FA), fontSize = 15.sp, modifier = Modifier.weight(1f),
             maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (!value.isNullOrBlank()) Text(value, color = Color(0xFFB7AFC3), fontSize = 14.sp)
-        Text("›", color = Color(0xFFA79CB5), fontSize = 26.sp, modifier = Modifier.padding(start = 10.dp))
+        if (!value.isNullOrBlank()) Text(value, color = Color(0xFFB8B0C6), fontSize = 14.sp)
+        Text("›", color = Color(0xFFB8B0C6), fontSize = 26.sp, modifier = Modifier.padding(start = 10.dp))
     }
 }
 
@@ -1379,7 +1379,7 @@ private fun RebuildSettingsSwitchRow(title: String, checked: Boolean, onCheckedC
         verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = Color(0xFFF0ECF5), fontSize = 15.sp, modifier = Modifier.weight(1f))
         Switch(checked = checked, onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFFF5A70),
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFFFF6B72),
                 uncheckedThumbColor = Color.White, uncheckedTrackColor = Color(0xFF514966),
                 uncheckedBorderColor = Color.Transparent, checkedBorderColor = Color.Transparent))
     }
