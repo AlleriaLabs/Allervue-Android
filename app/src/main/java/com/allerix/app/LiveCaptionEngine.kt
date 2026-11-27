@@ -42,10 +42,9 @@ sealed interface LiveCaptionEvent {
 /**
  * Streaming engine contract for Allervue.
  *
- * Implementations must accept decoded playback PCM (not microphone input), must not
- * block the caller, and must emit partial hypotheses before endpoint/final events.
- * A sherpa-onnx OnlineRecognizer adapter will implement this contract; Whisper is
- * intentionally kept outside this interface as a background correction engine.
+ * Implementations accept decoded playback PCM (not microphone input), must not block
+ * the caller, and emit partial hypotheses before endpoint/final events. Sherpa and Vosk
+ * are selectable streaming backends; legacy batch SRT generation is kept separate.
  */
 interface LiveCaptionEngine : Closeable {
     val engineId: String
