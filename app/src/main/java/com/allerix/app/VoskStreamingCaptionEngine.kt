@@ -101,7 +101,7 @@ object VoskFilipinoModelStore {
         staging.deleteRecursively()
         staging.mkdirs()
         val stagingCanonical = staging.canonicalFile
-        try {
+        return try {
             ZipInputStream(FileInputStream(zip).buffered()).use { input ->
                 val buffer = ByteArray(256 * 1024)
                 while (true) {
@@ -205,16 +205,15 @@ class VoskStreamingCaptionEngine(
         capturedAtElapsedRealtimeMs: Long
     ) {
         if (!isReady || samples.isEmpty()) return
-        val audio = samples.copyOf()
+        val audio = ShortArray(samples.size) { index ->
+            (samples[index].coerceIn(-1f, 1f) * 32767f).toInt().toShort()
+        }
         runCatching {
             worker.execute {
                 if (!isReady) return@execute
                 try {
                     val active = recognizer ?: return@execute
                     if (lastAudioEndMs == 0L) utteranceStartMs = mediaStartMs
-                    // Vosk's native API accepts normalized float PCM directly; avoid
-                    // allocating/converting an extra 16-bit buffer for every 100 ms chunk.
-                    for (i in audio.indices) audio[i] = audio[i].coerceIn(-1f, 1f)
                     val isEndpoint = active.acceptWaveForm(audio, audio.size)
                     lastAudioEndMs = mediaStartMs + audio.size * 1_000L / 16_000L
                     if (isEndpoint) {
