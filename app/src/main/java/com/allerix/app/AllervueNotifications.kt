@@ -154,7 +154,7 @@ internal object AllervueNotificationStore {
                 }
             }
         }
-        preferences.edit().putStringSet(KNOWN_CONTENT, known.takeLast(500).toSet()).apply()
+        preferences.edit().putStringSet(KNOWN_CONTENT, known.toList().takeLast(500).toSet()).apply()
 
         // App updates are first-party Allervue notifications, separate from Jellyfin alerts.
         val update = runCatching {
