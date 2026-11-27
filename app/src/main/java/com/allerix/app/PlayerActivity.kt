@@ -2312,7 +2312,7 @@ class PlayerActivity : ComponentActivity() {
             if (text.isBlank()) return@post
             val previousPartialStart = livePartialCueStartMs
             if (previousPartialStart != null) {
-                cues = cues.filterNot { kotlin.math.abs(it.startMs - previousPartialStart) < 300L }
+                cues = cues.filterNot { it.startMs == previousPartialStart }
             }
             val cueStartMs = event.mediaStartMs.coerceAtLeast(0L)
             // Streaming hypotheses often arrive after the corresponding media timestamp.
@@ -2356,7 +2356,7 @@ class PlayerActivity : ComponentActivity() {
 
     private companion object {
         const val LIVE_SUBTITLE_MIN_DISPLAY_MS = 1_800L
-        const val LIVE_SUBTITLE_PARTIAL_HOLD_MS = 1_600L
+        const val LIVE_SUBTITLE_PARTIAL_HOLD_MS = 2_400L
     }
 
     private fun normalizeLiveCueTimeline(input: List<SubCue>): List<SubCue> {
