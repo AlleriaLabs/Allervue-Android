@@ -99,7 +99,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
             Column(Modifier.weight(1f)) {
                 Text("AI Subtitles", color = MaterialTheme.colorScheme.onBackground,
                     fontSize = 25.sp, fontWeight = FontWeight.Bold)
-                Text("Offline speech recognition models",
+                Text("Live streaming speech recognition",
                     color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
         }
@@ -133,6 +133,11 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                     Text("Available on device: ${formatAiBytes(stat.availableBytes)}",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
                         modifier = Modifier.padding(top = 4.dp))
+                    Text(
+                        "Filipino model download is about 320 MB and extracts on first use. Its CC-BY-NC-SA license is non-commercial; review the model terms before distributing Allervue.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 10.sp,
+                        lineHeight = 14.sp, modifier = Modifier.padding(top = 7.dp)
+                    )
                 }
             }
 
