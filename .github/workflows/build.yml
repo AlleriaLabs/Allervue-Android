@@ -1,5 +1,5 @@
-name: Allervue Phase 2 APK
-# Rebuild after Sherpa + Vosk streaming integration
+name: Allervue Android APK
+# Build the player without the removed experimental AI subtitle stack
 
 'on':
   push:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build debug APK (Sherpa + Vosk)
+    name: Build debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -63,7 +63,7 @@ jobs:
       - name: Upload Allervue APK
         uses: actions/upload-artifact@v4
         with:
-          name: Allervue-Sherpa-Vosk-debug
+          name: Allervue-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14

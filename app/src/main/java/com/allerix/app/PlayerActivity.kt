@@ -3,7 +3,6 @@ package com.allerix.app
 import android.app.Dialog
 import android.app.PictureInPictureParams
 import android.content.ContentValues
-import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo

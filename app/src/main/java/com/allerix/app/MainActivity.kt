@@ -1,7 +1,6 @@
 package com.allerix.app
 
 import android.content.Intent
-import android.app.DownloadManager
 import android.os.Environment
 import java.io.File
 import android.os.Bundle
@@ -87,18 +86,10 @@ class MainActivity : FragmentActivity() {
                 .crossfade(false)
                 .build()
         )
-        // Cancel any model downloads queued by older app versions and remove their model files.
+        // Remove speech-recognition model files left by older builds; AI subtitles are no longer part of Allervue.
         runCatching {
-            val legacyPrefs = getSharedPreferences("ai_subtitle_models", MODE_PRIVATE)
-            val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-            listOf("tiny", "base").forEach { modelId ->
-                val downloadId = legacyPrefs.getLong("download_$modelId", -1L)
-                if (downloadId >= 0L) manager.remove(downloadId)
-            }
-            legacyPrefs.edit().clear().apply()
             val downloads = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
-            val modelDir = File(downloads, "allervue_ai_models")
-            listOf("ggml-tiny.bin", "ggml-base.bin").forEach { File(modelDir, it).delete() }
+            File(downloads, "allervue_ai_models").deleteRecursively()
         }
         DiagnosticLog.install(this)
         DiagnosticLog.record(this, "MainActivity onCreate")
