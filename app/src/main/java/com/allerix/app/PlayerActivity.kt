@@ -2212,8 +2212,19 @@ class PlayerActivity : ComponentActivity() {
         } else {
             trimmed.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
         }
-        return if (isFinal && sentence.lastOrNull()?.let { it in ".!?…" } == false) "$sentence."
+        val punctuated = if (isFinal && sentence.lastOrNull()?.let { it in ".!?…" } == false) "$sentence."
             else sentence
+
+        // Keep the recognizer's full hypothesis internally, but show a compact live
+        // caption window. Prefer the newest complete clause; otherwise trim at a word
+        // boundary so a streaming partial never becomes a wall of text.
+        if (punctuated.length <= LIVE_SUBTITLE_MAX_CHARS) return punctuated
+        val lastClause = punctuated.substringAfterLast(Regex("[,;:—]")).trim()
+        if (lastClause.length in 20..LIVE_SUBTITLE_MAX_CHARS) return lastClause
+        val tail = punctuated.takeLast(LIVE_SUBTITLE_MAX_CHARS)
+        val firstWordBoundary = tail.indexOf(' ')
+        return (if (firstWordBoundary >= 0) tail.substring(firstWordBoundary + 1) else tail)
+            .trimStart().let { "…$it" }
     }
 
     private fun onLiveCaptionEvent(requestedItemId: String, event: LiveCaptionEvent) {
@@ -2268,6 +2279,7 @@ class PlayerActivity : ComponentActivity() {
     private companion object {
         const val LIVE_SUBTITLE_MIN_DISPLAY_MS = 1_800L
         const val LIVE_SUBTITLE_PARTIAL_HOLD_MS = 2_400L
+        const val LIVE_SUBTITLE_MAX_CHARS = 72
     }
 
     private fun normalizeLiveCueTimeline(input: List<SubCue>): List<SubCue> {
