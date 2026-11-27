@@ -638,7 +638,7 @@ internal fun AllervueHome(
             )
         }
     ) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(360.dp)) {
             Canvas(Modifier.fillMaxSize()) {
                 val cx = size.width * .5f
                 val cy = size.height * .55f
