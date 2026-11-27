@@ -1206,14 +1206,14 @@ private fun RebuildSettingsScreen(
     }
     val displayName = Api.username.ifBlank { "Jellyfin user" }
 
-    Box(Modifier.fillMaxSize().background(Color(0xFF080A11))) {
+    Box(Modifier.fillMaxSize().background(BrandInk)) {
         Canvas(Modifier.fillMaxSize()) {
             val radius = size.maxDimension * .72f
-            drawRect(Brush.radialGradient(listOf(Color(0xFF54201F).copy(alpha = .78f), Color.Transparent),
+            drawRect(Brush.radialGradient(listOf(BrandGold.copy(alpha = .12f), Color.Transparent),
                 Offset(size.width * .12f, size.height * .10f), radius))
-            drawRect(Brush.radialGradient(listOf(Color(0xFF392078).copy(alpha = .72f), Color.Transparent),
+            drawRect(Brush.radialGradient(listOf(Color(0xFF8A7654).copy(alpha = .10f), Color.Transparent),
                 Offset(size.width * .98f, size.height * .48f), radius * .90f))
-            drawRect(Brush.radialGradient(listOf(Color(0xFF003D3D).copy(alpha = .62f), Color.Transparent),
+            drawRect(Brush.radialGradient(listOf(Color(0xFF6B7B82).copy(alpha = .08f), Color.Transparent),
                 Offset(size.width * .06f, size.height * .88f), radius * .86f))
             val stars = listOf(
                 .05f to .04f, .51f to .04f, .97f to .08f, .23f to .15f, .69f to .15f,
@@ -1234,11 +1234,11 @@ private fun RebuildSettingsScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 28.dp)) {
                     Box(Modifier.size(48.dp).clip(CircleShape)
-                        .background(Color(0x5520182C)).border(1.dp, Color(0x66FFFFFF), CircleShape)
+                        .background(BrandSurface).border(1.dp, BrandGold.copy(alpha = .25f), CircleShape)
                         .clickable(onClick = back), contentAlignment = Alignment.Center) {
                         SmallIcon(R.drawable.ic_back, Color.White, 23)
                     }
-                    Text("Settings", color = Color(0xFFF7F3FA), fontSize = 30.sp,
+                    Text("Settings", color = BrandIvory, fontSize = 28.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
                 }
             }
@@ -1250,8 +1250,8 @@ private fun RebuildSettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(66.dp).border(3.dp,
-                        Brush.sweepGradient(listOf(Color(0xFF31D5D0), Color(0xFFFF9A55), Color(0xFFFF3D83), Color(0xFF754BFF), Color(0xFF31D5D0))),
-                        CircleShape).padding(5.dp).clip(CircleShape).background(Color(0xFF24152F)),
+                        Brush.sweepGradient(listOf(BrandGold, BrandGoldBright, Color(0xFF7D8C96), BrandGold)),
+                        CircleShape).padding(5.dp).clip(CircleShape).background(BrandSurface),
                         contentAlignment = Alignment.Center) {
                         androidx.compose.foundation.Image(
                             painter = androidx.compose.ui.res.painterResource(R.drawable.ic_allervue_emblem),
@@ -1259,11 +1259,11 @@ private fun RebuildSettingsScreen(
                         )
                     }
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text(displayName, color = Color(0xFFF5F0FA), fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                        Text(displayName, color = BrandIvory, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Jellyfin account", color = Color(0xFFB7AFC3), fontSize = 13.sp)
+                        Text("Jellyfin account", color = Grey, fontSize = 13.sp)
                     }
-                    Text("›", color = Color(0xFFA79CB5), fontSize = 30.sp)
+                    Text("›", color = BrandGold, fontSize = 30.sp)
                 }
             }
             item { RebuildSettingsLabel("PERSONALIZATION") }
@@ -1333,7 +1333,7 @@ private fun RebuildSettingsScreen(
                         .clickable(onClick = onSignOut),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("Sign out", color = Color(0xFFFF9A82), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Sign out", color = BrandGoldBright, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             item {
