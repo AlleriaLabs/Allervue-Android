@@ -1347,6 +1347,81 @@ private fun RebuildSettingsScreen(
 }
 
 @Composable
+private fun AllervueAboutScreen(back: () -> Unit) {
+    val context = LocalContext.current
+    val version = remember {
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+            .getOrNull() ?: "Unknown"
+    }
+    Column(Modifier.fillMaxSize().background(Color(0xFF0B0A16))) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            Canvas(Modifier.fillMaxSize()) {
+                val radius = size.maxDimension * .75f
+                drawRect(Brush.radialGradient(listOf(Color(0x66FF5B43), Color.Transparent),
+                    Offset(size.width * .12f, size.height * .12f), radius))
+                drawRect(Brush.radialGradient(listOf(Color(0x665E35B1), Color.Transparent),
+                    Offset(size.width * .95f, size.height * .50f), radius))
+                drawRect(Brush.radialGradient(listOf(Color(0x5530B9A9), Color.Transparent),
+                    Offset(size.width * .08f, size.height * .90f), radius))
+                listOf(.05f to .04f, .51f to .04f, .97f to .08f, .23f to .15f, .69f to .15f,
+                    .05f to .28f, .98f to .29f, .23f to .39f, .69f to .40f, .05f to .57f,
+                    .98f to .60f, .23f to .73f, .69f to .76f, .05f to .91f, .97f to .91f).forEachIndexed { i,p ->
+                    drawCircle(Color.White.copy(alpha = if (i % 3 == 0) .42f else .22f),
+                        if (i % 4 == 0) 1.5.dp.toPx() else 1.dp.toPx(),
+                        Offset(size.width*p.first,size.height*p.second))
+                }
+            }
+            Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    Box(Modifier.size(48.dp).clip(CircleShape).background(Color(0xD91A1530))
+                        .border(1.dp, Color.White.copy(alpha=.22f), CircleShape).clickable(onClick=back),
+                        contentAlignment=Alignment.Center) { SmallIcon(R.drawable.ic_back, Color.White, 23) }
+                }
+                Spacer(Modifier.height(26.dp))
+                Box(Modifier.size(142.dp).border(3.dp, Brush.sweepGradient(
+                    listOf(Color(0xFF43D9D0),Color(0xFF8067F2),Color(0xFFFF5D91),Color(0xFFFFB36B),Color(0xFF43D9D0))), CircleShape)
+                    .padding(6.dp).clip(CircleShape).background(Color(0xFF19132D)), contentAlignment=Alignment.Center) {
+                    androidx.compose.foundation.Image(painter=androidx.compose.ui.res.painterResource(R.drawable.ic_allervue_emblem),
+                        contentDescription="Allervue", modifier=Modifier.fillMaxSize())
+                }
+                Spacer(Modifier.height(24.dp))
+                Text("allervue", color=Color(0xFFF5F0FA), fontSize=42.sp, fontWeight=FontWeight.ExtraBold)
+                Text("Version $version", color=Color(0xFFB8B0C6), fontSize=17.sp,
+                    modifier=Modifier.padding(top=8.dp))
+                Spacer(Modifier.height(20.dp))
+                Row(Modifier.clip(CircleShape).background(Color(0x33221A3B))
+                    .border(1.dp,Color(0x554F4564),CircleShape).padding(horizontal=18.dp,vertical=12.dp),
+                    verticalAlignment=Alignment.CenterVertically) {
+                    Box(Modifier.size(32.dp).clip(CircleShape).background(Brush.horizontalGradient(
+                        listOf(Color(0xFFFF704F),Color(0xFFFF3F8C)))),contentAlignment=Alignment.Center) {
+                        Text("✓",color=Color.White,fontSize=18.sp,fontWeight=FontWeight.Bold)
+                    }
+                    Text("  App information",color=Color(0xFFF5F0FA),fontSize=15.sp,fontWeight=FontWeight.SemiBold)
+                }
+                Spacer(Modifier.height(28.dp))
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(26.dp))
+                    .background(Color(0xD91A1530)).border(1.dp,Color(0x554F4564),RoundedCornerShape(26.dp))) {
+                    listOf("What's new","Terms of service","Privacy policy","Open-source licenses","Rate Allervue","Contact support").forEachIndexed { i,label ->
+                        Row(Modifier.fillMaxWidth().height(64.dp).clickable {
+                            if (label == "What's new") back()
+                        }.padding(horizontal=20.dp),verticalAlignment=Alignment.CenterVertically) {
+                            Text(label,color=Color(0xFFF5F0FA),fontSize=16.sp,modifier=Modifier.weight(1f))
+                            Text("›",color=Color(0xFFB8B0C6),fontSize=26.sp)
+                        }
+                        if(i!=5) Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0x334F4564)))
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+                Text("Android · Jellyfin streaming",color=Color(0xFFB8B0C6),fontSize=13.sp)
+                Text("© 2026 Alleria Labs",color=Color(0xFFB8B0C6),fontSize=13.sp,
+                    modifier=Modifier.padding(top=8.dp,bottom=28.dp))
+            }
+        }
+    }
+}
+
+@Composable
 private fun RebuildSettingsLabel(text: String) {
     Text(text, color = Color(0xFFB8B0C6), fontSize = 12.sp, fontWeight = FontWeight.Bold,
         letterSpacing = 2.sp, modifier = Modifier.padding(start = 20.dp, top = 24.dp, bottom = 12.dp))
