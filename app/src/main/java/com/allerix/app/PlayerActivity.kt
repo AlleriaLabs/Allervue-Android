@@ -2040,6 +2040,7 @@ class PlayerActivity : ComponentActivity() {
             val parsed = runCatching { SubParser.parse(saved.readText(Charsets.UTF_8)) }.getOrNull()
             if (!parsed.isNullOrEmpty()) return
         }
+        autoSubtitleAttemptedItemId = currentId
         startLiveAiSubtitles()
     }
 
@@ -2106,6 +2107,7 @@ class PlayerActivity : ComponentActivity() {
                 if (liveCaptionEngine === engine) {
                     liveSubtitleActive = false
                     liveCaptionEngine = null
+                    autoSubtitleAttemptedItemId = null
                     engine.close()
                 }
             }
@@ -3041,6 +3043,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun pausePlayback() {
         if (!::player.isInitialized) return
+        liveCaptionEngine?.flush()
         if (::playbackEngineManager.isInitialized) playbackEngineManager.pause() else player.pause()
     }
 
