@@ -533,7 +533,13 @@ fun ClientSettingsScreen(
             BiometricManager.BIOMETRIC_SUCCESS
     }
     var biometricEnabled by remember { mutableStateOf(BiometricLogin.hasSavedCredentials(ctx)) }
-    val colors = appFieldColors()
+    val colors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = DriftCoral, unfocusedBorderColor = DriftBorder,
+        cursorColor = DriftCoral, focusedLabelColor = DriftCoral, unfocusedLabelColor = DriftMuted,
+        focusedTextColor = DriftText, unfocusedTextColor = DriftText,
+        focusedContainerColor = Color(0x661A1530),
+        unfocusedContainerColor = Color(0x661A1530)
+    )
 
     fun enableBiometricLogin() {
         val host = activity
@@ -588,10 +594,12 @@ fun ClientSettingsScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(
+        listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))
+    )).verticalScroll(rememberScrollState())) {
         ScreenHeader("Client settings", back)
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Text("SERVER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Text("SERVER CONNECTION", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 url, { url = it; status = "" }, label = { Text("Server URL") }, singleLine = true,
@@ -601,7 +609,7 @@ fun ClientSettingsScreen(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
-                    enabled = !busy, shape = RoundedCornerShape(4.dp),
+                    enabled = !busy, shape = RoundedCornerShape(14.dp),
                     onClick = {
                         busy = true; status = "Testing…"
                         scope.launch {
@@ -610,10 +618,10 @@ fun ClientSettingsScreen(
                             busy = false
                         }
                     }
-                ) { Text("Test connection", color = Color.White) }
+                ) { Text("Test connection", color = DriftText) }
                 Button(
-                    shape = RoundedCornerShape(4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DriftCoral, contentColor = DriftText),
                     onClick = {
                         val n = Api.normalize(url)
                         if (n.isEmpty()) status = "Enter a server URL"
@@ -626,16 +634,16 @@ fun ClientSettingsScreen(
                     }
                 ) { Text("Save", fontWeight = FontWeight.Bold) }
             }
-            if (status.isNotEmpty()) Text(status, color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-            TextButton(onClick = { url = Api.SERVER; status = "" }) { Text("Reset to default", color = Grey) }
+            if (status.isNotEmpty()) Text(status, color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            TextButton(onClick = { url = Api.SERVER; status = "" }) { Text("Reset to default", color = DriftMuted) }
             Text("Changing the server signs you out so you can log in to the new one.",
-                color = Color(0xFF777777), fontSize = 12.sp)
+                color = DriftMuted, fontSize = 12.sp)
 
             if (loggedIn) {
                 Spacer(Modifier.height(20.dp))
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = DriftBorder)
                 Spacer(Modifier.height(16.dp))
-                Text("CHANGE PASSWORD", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("ACCOUNT SECURITY", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(cur, { cur = it }, label = { Text("Current password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), colors = colors, modifier = Modifier.fillMaxWidth())
@@ -647,8 +655,8 @@ fun ClientSettingsScreen(
                     visualTransformation = PasswordVisualTransformation(), colors = colors, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(10.dp))
                 Button(
-                    enabled = !pwBusy, shape = RoundedCornerShape(4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+                    enabled = !pwBusy, shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DriftCoral, contentColor = DriftText),
                     onClick = {
                         when {
                             new1.isEmpty() -> pwStatus = "Enter a new password"
@@ -670,19 +678,19 @@ fun ClientSettingsScreen(
                         }
                     }
                 ) { Text("Change password", fontWeight = FontWeight.Bold) }
-                if (pwStatus.isNotEmpty()) Text(pwStatus, color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                if (pwStatus.isNotEmpty()) Text(pwStatus, color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
             }
 
             if (loggedIn) {
                 Spacer(Modifier.height(20.dp))
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = DriftBorder)
                 Spacer(Modifier.height(16.dp))
-                Text("BIOMETRIC SIGN-IN", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("BIOMETRIC SIGN-IN", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 Text(
                     if (biometricEnabled) "Biometric sign-in is enabled on this device."
                     else "Optional. Enable fingerprint or supported face authentication for quicker sign-in next time.",
-                    color = Grey, fontSize = 13.sp
+                    color = DriftMuted, fontSize = 13.sp
                 )
                 if (biometricEnabled) {
                     Spacer(Modifier.height(10.dp))
@@ -694,11 +702,11 @@ fun ClientSettingsScreen(
                             bioStatus = "Biometric sign-in disabled on this device."
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Disable biometric sign-in", color = Color.White) }
+                    ) { Text("Disable biometric sign-in", color = DriftText) }
                 } else {
                     if (!biometricAvailable) {
                         Text("No supported strong biometric is enrolled on this device.",
-                            color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                            color = DriftMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     } else {
                         Spacer(Modifier.height(10.dp))
                         OutlinedTextField(
@@ -731,25 +739,25 @@ fun ClientSettingsScreen(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White)
+                            colors = ButtonDefaults.buttonColors(containerColor = DriftCoral, contentColor = DriftText)
                         ) { Text("Enable biometric sign-in", fontWeight = FontWeight.Bold) }
                     }
                 }
                 if (bioStatus.isNotEmpty()) {
-                    Text(bioStatus, color = Grey, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text(bioStatus, color = DriftMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
 
             if (loggedIn && Api.JFA_URL.isNotEmpty()) {
-                TextButton(onClick = { onWeb(Api.ACCOUNT_URL, "My account") }) { Text("Manage account on the web (email, Telegram, Discord)", color = Red) }
+                TextButton(onClick = { onWeb(Api.ACCOUNT_URL, "My account") }) { Text("Manage account on the web (email, Telegram, Discord)", color = DriftCoral) }
             }
             Spacer(Modifier.height(20.dp))
-            HorizontalDivider(color = Color(0xFF333333))
+            HorizontalDivider(color = DriftBorder)
             Spacer(Modifier.height(16.dp))
-            Text("PLAYER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("Set default video quality and audio output in Settings, Playback settings. " +
+            Text("PLAYER", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Playback preferences are managed in Playback settings. " +
                 "You can also change them from the More menu inside the player.",
-                color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
             Spacer(Modifier.height(24.dp))
         }
     }
