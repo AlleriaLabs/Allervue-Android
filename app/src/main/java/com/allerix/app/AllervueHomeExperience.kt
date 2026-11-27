@@ -419,7 +419,7 @@ internal fun AllervueHome(
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).drawBehind {
+        Modifier.fillMaxSize().drawBehind {
             // Day and night use deliberately distinct full-screen palettes.
             // Daylight is bright and airy rather than a slightly warmer version of night.
             drawRect(
@@ -628,7 +628,7 @@ internal fun AllervueHome(
             )
         }
     ) {
-        Box(Modifier.fillMaxWidth().height(430.dp)) {
+        Box(Modifier.weight(1f).fillMaxWidth()) {
             Canvas(Modifier.fillMaxSize()) {
                 val cx = size.width * .5f
                 val cy = size.height * .55f
@@ -893,8 +893,9 @@ internal fun AllervueHome(
         }
 
         Column(
-            Modifier.fillMaxWidth().height(254.dp)
+            Modifier.fillMaxWidth().height(360.dp)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .verticalScroll(rememberScrollState())
                 .drawBehind {
                     drawRect(Brush.verticalGradient(if (isDaytime) listOf(Color(0xF22B293D), Color(0xE61B3040)) else listOf(Color(0xF2141930), Color(0xE60D1D2B))))
                     val phase = Math.toRadians((automaticRotation * .52f).toDouble())
@@ -1021,15 +1022,15 @@ internal fun AllervueHome(
                     }
                 }
             }
+            ContinueWatchingShelf(
+                entries = resume,
+                onPlay = onPlay,
+                onHide = { item ->
+                    ContinueWatching.hide(context, item.id)
+                    resume = resume.filterNot { it.id == item.id }
+                }
+            )
         }
-        ContinueWatchingShelf(
-            entries = resume,
-            onPlay = onPlay,
-            onHide = { item ->
-                ContinueWatching.hide(context, item.id)
-                resume = resume.filterNot { it.id == item.id }
-            }
-        )
     }
 }
 
