@@ -658,16 +658,36 @@ internal fun AllervueHome(
                         center = glowCenterB, radius = radius * .82f
                     )
                 )
-                drawCircle(Color.White.copy(alpha = .11f), radius, center, style = Stroke(1.dp.toPx(), pathEffect = dash))
-                drawCircle(Color.White.copy(alpha = .13f), radius * .78f, center, style = Stroke(1.dp.toPx(), pathEffect = dash))
-                drawCircle(Color.White.copy(alpha = .15f), radius * .66f, center, style = Stroke(1.dp.toPx(), pathEffect = dash))
-                drawCircle(Color(0xFFEF6C8B).copy(alpha = .10f), radius * .98f, center, style = Stroke(18.dp.toPx()))
+                // Layered spectral orbital tracks: a luminous outer halo, chromatic
+                // rim and two finer moving rings create a more cinematic discovery field.
                 drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color(0xFF49BFD0).copy(alpha = .16f), Color(0xFF8B4D9A).copy(alpha = .07f), Color.Transparent),
-                        center = center, radius = radius * .78f
-                    ),
-                    radius = radius * .78f, center = center
+                    Brush.radialGradient(
+                        listOf(Color(0xFFFF5E91).copy(alpha = .18f), Color(0xFF8067F2).copy(alpha = .09f), Color.Transparent),
+                        center, radius * 1.10f
+                    ), radius * 1.10f, center
+                )
+                drawCircle(
+                    Brush.sweepGradient(
+                        listOf(Color(0xFF43D9D0).copy(alpha = .78f), Color(0xFF7868FF).copy(alpha = .24f),
+                            Color(0xFFFF5D91).copy(alpha = .82f), Color(0xFFFFB36B).copy(alpha = .32f),
+                            Color(0xFF43D9D0).copy(alpha = .78f)), center
+                    ), radius * .99f, center, style = Stroke(2.4.dp.toPx())
+                )
+                drawCircle(Color.White.copy(alpha = .12f), radius * .87f, center,
+                    style = Stroke(1.dp.toPx(), pathEffect = dash))
+                drawCircle(
+                    Brush.sweepGradient(
+                        listOf(Color.Transparent, Color(0xFF8BE9E5).copy(alpha = .72f),
+                            Color.Transparent, Color(0xFFFF86AE).copy(alpha = .68f), Color.Transparent), center
+                    ), radius * .76f, center, style = Stroke(1.8.dp.toPx())
+                )
+                drawCircle(Color.White.copy(alpha = .09f), radius * .63f, center,
+                    style = Stroke(1.dp.toPx(), pathEffect = dash))
+                drawCircle(
+                    Brush.radialGradient(
+                        listOf(Color(0xFF49BFD0).copy(alpha = .20f), Color(0xFF8B4D9A).copy(alpha = .09f), Color.Transparent),
+                        center, radius * .78f
+                    ), radius * .78f, center
                 )
                 // A restrained particle field drifts continuously around the scene.
                 // Particles are decorative only; they never affect movie-node placement.
@@ -794,36 +814,36 @@ internal fun AllervueHome(
                     ) {
                         Box(
                             Modifier.size(nodeOuterSize).drawBehind {
+                                val c = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
                                 val glowRadius = size.minDimension * .50f
                                 drawCircle(
-                                    brush = Brush.radialGradient(
-                                        colors = listOf(
-                                            artworkGlow.copy(alpha = .76f),
-                                            artworkGlow.copy(alpha = .48f),
-                                            artworkGlow.copy(alpha = .22f),
-                                            artworkGlow.copy(alpha = .08f),
-                                            Color.Transparent
-                                        ),
-                                        center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f),
-                                        radius = glowRadius
-                                    ),
-                                    radius = glowRadius,
-                                    center = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                    Brush.radialGradient(
+                                        listOf(artworkGlow.copy(alpha = .70f), artworkGlow.copy(alpha = .24f), Color.Transparent),
+                                        c, glowRadius
+                                    ), glowRadius, c
                                 )
                             },
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(Modifier.size(nodeSize).clip(CircleShape)
-                                
-                                ) {
-                            HomeArtwork(
-                                model = Api.orbitPoster(item),
-                                contentDescription = item.name,
-                                modifier = Modifier.fillMaxSize().clip(CircleShape).background(Color(0xFF25213A)),
-                                contentScale = ContentScale.Crop,
-                                fallbackModel = Api.heroImage(item),
-                                onArtworkColor = { }
-                            )
+                            Box(
+                                Modifier.size(nodeSize + 10.dp).clip(CircleShape)
+                                    .background(Brush.sweepGradient(
+                                        listOf(Color(0xFF43D9D0), Color(0xFF8067F2), Color(0xFFFF5D91),
+                                            Color(0xFFFFB36B), Color(0xFF43D9D0))
+                                    )).padding(2.dp)
+                            ) {
+                                Box(Modifier.fillMaxSize().clip(CircleShape)
+                                    .background(Color(0xFF151329)).padding(2.dp)) {
+                                    HomeArtwork(
+                                        model = Api.orbitPoster(item),
+                                        contentDescription = item.name,
+                                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                                            .background(Color(0xFF25213A)),
+                                        contentScale = ContentScale.Crop,
+                                        fallbackModel = Api.heroImage(item),
+                                        onArtworkColor = { }
+                                    )
+                                }
                             }
                         }
                     }
@@ -858,29 +878,37 @@ internal fun AllervueHome(
                     )
                     Box(
                         Modifier.offset(
-                            x = orbitCenterX - centerSize / 2,
-                            y = orbitCenterY - centerSize / 2
-                        )
-                            .size(centerSize).clip(CircleShape)
+                            x = orbitCenterX - (centerSize + 20.dp) / 2,
+                            y = orbitCenterY - (centerSize + 20.dp) / 2
+                        ).size(centerSize + 20.dp).clip(CircleShape)
+                            .background(Brush.sweepGradient(
+                                listOf(Color(0xFF43D9D0), Color(0xFF8067F2), Color(0xFFFF5D91),
+                                    Color(0xFFFFB36B), Color(0xFF43D9D0))
+                            )).padding(2.5.dp)
                     ) {
-                        Box(
-                            Modifier.fillMaxSize().clip(CircleShape)
-                                .clickable { shownCenterItem?.let(onOpen) }
-                        ) {
-                            HomeArtwork(
-                                model = Api.homeCenterImage(centerItem),
-                                contentDescription = centerItem.name,
-                                modifier = Modifier.fillMaxSize().clip(CircleShape),
-                                contentScale = ContentScale.Crop,
-                                fallbackModel = Api.heroImage(centerItem),
-                                onModelLoaded = {
-                                    if (selected?.id == centerItem.id) displayedCenterItem = centerItem
-                                },
-                                onArtworkColor = { }
-                            )
-                            Box(Modifier.fillMaxSize().background(
-                                Brush.verticalGradient(listOf(Color.Transparent, Color(0x220B0915), Color(0x550B0915)))
-                            ))
+                        Box(Modifier.fillMaxSize().clip(CircleShape)
+                            .background(Color(0xFF100E20)).padding(2.dp)) {
+                            Box(
+                                Modifier.fillMaxSize().clip(CircleShape)
+                                    .clickable { shownCenterItem?.let(onOpen) }
+                            ) {
+                                HomeArtwork(
+                                    model = Api.homeCenterImage(centerItem),
+                                    contentDescription = centerItem.name,
+                                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                                    contentScale = ContentScale.Crop,
+                                    fallbackModel = Api.heroImage(centerItem),
+                                    onModelLoaded = {
+                                        if (selected?.id == centerItem.id) displayedCenterItem = centerItem
+                                    },
+                                    onArtworkColor = { }
+                                )
+                                Box(Modifier.fillMaxSize().background(
+                                    Brush.verticalGradient(listOf(
+                                        Color(0x220B0915), Color.Transparent, Color(0x660B0915)
+                                    ))
+                                ))
+                            }
                         }
                     }
 
