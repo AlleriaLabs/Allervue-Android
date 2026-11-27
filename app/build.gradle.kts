@@ -57,13 +57,6 @@ android {
         applicationId = "com.allerix.app"
         minSdk = 24
         targetSdk = 34
-        ndk { abiFilters += "arm64-v8a" }
-        externalNativeBuild {
-            cmake {
-                cppFlags += "-std=c++17"
-                arguments += "-DCMAKE_BUILD_TYPE=Release"
-            }
-        }
         versionCode = 37
         versionName = "1.4.0-beta01"
     }
@@ -87,13 +80,6 @@ android {
         }
     }
     buildFeatures { compose = true }
-    ndkVersion = "27.2.12479018"
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
     // LibVLC and libmpvKt both bundle the same C++ shared runtime.
     // Package one copy to avoid duplicate native-library merge failures.
     packaging {
