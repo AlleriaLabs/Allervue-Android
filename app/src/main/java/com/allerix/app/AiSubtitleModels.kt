@@ -84,7 +84,7 @@ object AiSubtitleModelStore {
     }
 
     fun usedBytes(context: Context): Long =
-        directory(context).listFiles()?.filter { it.isFile }?.sumOf { it.length() } ?: 0L
+        directory(context).walkTopDown().filter { it.isFile }.sumOf { it.length() }
 
     fun downloadId(context: Context, modelId: String): Long =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
