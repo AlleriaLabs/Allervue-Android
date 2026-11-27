@@ -75,7 +75,6 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
     }
 
     LaunchedEffect(Unit) {
-        AiSubtitleModelDownloads.ensureDefaultModels(context)
         while (true) {
             delay(1200)
             refresh++
@@ -121,7 +120,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurface, fontSize = 18.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 7.dp))
                     Text(
-                        "Whisper models run locally after the transcription engine is installed. Model downloads use your phone storage; no audio is uploaded.",
+                        "Live playback captions use Sherpa for English and Vosk for Filipino/Tagalog. Recognition runs on this phone; playback audio is not uploaded.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp,
                         lineHeight = 18.sp, modifier = Modifier.padding(top = 6.dp)
                     )
@@ -144,9 +143,9 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                 ) {
                     Text("GENERATE FROM VIDEO", color = AllervueDesign.Cyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text("Create a new subtitle track", color = MaterialTheme.colorScheme.onSurface,
+                    Text("Create an offline subtitle track", color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 17.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp))
-                    Text("Choose a video or audio file. All audio decoding and speech recognition run on this phone.",
+                    Text("Optional batch SRT generation still uses the legacy Whisper model. It is separate from live playback captions.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
                         lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp))
                     Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -195,51 +194,9 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                         )
                     }
                     val languageOptions = listOf(
-                        "auto" to "Auto detect",
-                        "tl" to "Filipino (Tagalog)",
-                        "en" to "English",
-                        "zh" to "Chinese (Simplified)",
-                        "zh-TW" to "Chinese (Traditional)",
-                        "ar" to "Arabic",
-                        "ja" to "Japanese",
-                        "ko" to "Korean",
-                        "es" to "Spanish",
-                        "fr" to "French",
-                        "de" to "German",
-                        "it" to "Italian",
-                        "pt" to "Portuguese",
-                        "ru" to "Russian",
-                        "hi" to "Hindi",
-                        "th" to "Thai",
-                        "vi" to "Vietnamese",
-                        "id" to "Indonesian",
-                        "ms" to "Malay",
-                        "tr" to "Turkish",
-                        "nl" to "Dutch",
-                        "pl" to "Polish",
-                        "uk" to "Ukrainian",
-                        "sv" to "Swedish",
-                        "da" to "Danish",
-                        "fi" to "Finnish",
-                        "no" to "Norwegian",
-                        "el" to "Greek",
-                        "he" to "Hebrew",
-                        "fa" to "Persian",
-                        "ur" to "Urdu",
-                        "bn" to "Bengali",
-                        "ta" to "Tamil",
-                        "te" to "Telugu",
-                        "mr" to "Marathi",
-                        "pa" to "Punjabi",
-                        "ro" to "Romanian",
-                        "hu" to "Hungarian",
-                        "cs" to "Czech",
-                        "sk" to "Slovak",
-                        "bg" to "Bulgarian",
-                        "hr" to "Croatian",
-                        "sr" to "Serbian",
-                        "sl" to "Slovenian",
-                        "ca" to "Catalan"
+                        "auto" to "Auto · Filipino-first",
+                        "tl" to "Filipino / Tagalog",
+                        "en" to "English"
                     )
                     var languageMenuExpanded by remember { mutableStateOf(false) }
                     val selectedLanguageLabel = languageOptions.firstOrNull { it.first == language }?.second ?: "Auto detect"
@@ -274,7 +231,7 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                         }
                     }
                     Text(
-                        "For mixed Tagalog and English, try Filipino first. Auto detection may miss code-switching; dedicated Taglish transcription is a future improvement.",
+                        "Auto is Filipino-first, not automatic language identification. Choose English for English audio. Taglish accuracy depends on the source model and still needs device testing.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         lineHeight = 14.sp,
@@ -307,12 +264,12 @@ fun AiSubtitleSettingsScreen(back: () -> Unit) {
                     Text("ENGINE STATUS", color = AllervueDesign.Cyan, fontSize = 10.sp,
                         fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
                     Text(
-                        if (AiSubtitleEngineStatus.NATIVE_RUNTIME_READY) "Whisper engine ready · CPU mode" else "Whisper native engine unavailable",
+                        "Sherpa streaming (English) · Vosk streaming (Filipino)",
                         color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 6.dp)
                     )
                     Text(
-                        "Whisper.cpp runs locally on the phone. Select a downloaded model above to generate an SRT subtitle file.",
+                        "Live captions process decoded audio in short chunks while the video plays. The Filipino model is downloaded on demand; English uses the smaller Sherpa model pack.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp,
                         lineHeight = 16.sp, modifier = Modifier.padding(top = 4.dp)
                     )
