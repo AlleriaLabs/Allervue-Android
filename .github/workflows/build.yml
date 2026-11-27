@@ -1,4 +1,5 @@
 name: Allervue Phase 2 APK
+# Rebuild after Sherpa + Vosk streaming integration
 
 'on':
   push:
