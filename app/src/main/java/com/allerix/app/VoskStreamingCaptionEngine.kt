@@ -74,7 +74,7 @@ object VoskFilipinoModelStore {
             .setDescription("Downloading the offline Tagalog speech recognition model")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverRoaming(false)
-            .setDestinationUri(Uri.fromFile(target))
+            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, "allervue_ai_models/$MODEL_NAME.zip")
         return runCatching {
             val id = manager.enqueue(request)
             prefs.edit().putLong(DOWNLOAD_KEY, id).apply()
@@ -211,27 +211,26 @@ class VoskStreamingCaptionEngine(
                         pcm[i * 2] = value.toByte()
                         pcm[i * 2 + 1] = (value shr 8).toByte()
                     }
-                    active.acceptWaveForm(pcm, pcm.size)
+                    val isEndpoint = active.acceptWaveForm(pcm, pcm.size)
                     lastAudioEndMs = mediaStartMs + audio.size * 1_000L / 16_000L
-                    val isEndpoint = active.getResult().let { result ->
-                        // acceptWaveForm returns endpoint state; use the return value below instead.
-                        false
-                    }
-                    val partial = runCatching { JSONObject(active.partialResult).optString("partial").trim() }
-                        .getOrDefault("")
-                    if (partial.isNotEmpty() && partial != lastPartial) {
-                        lastPartial = partial
-                        eventCallback?.invoke(
-                            LiveCaptionEvent.Partial(
-                                partial,
-                                utteranceStartMs.coerceAtLeast(0L),
-                                maxOf(lastAudioEndMs, utteranceStartMs + 350L)
+                    if (isEndpoint) {
+                        emitFinal(JSONObject(active.result))
+                        lastPartial = ""
+                        utteranceStartMs = lastAudioEndMs
+                    } else {
+                        val partial = runCatching { JSONObject(active.partialResult).optString("partial").trim() }
+                            .getOrDefault("")
+                        if (partial.isNotEmpty() && partial != lastPartial) {
+                            lastPartial = partial
+                            eventCallback?.invoke(
+                                LiveCaptionEvent.Partial(
+                                    partial,
+                                    utteranceStartMs.coerceAtLeast(0L),
+                                    maxOf(lastAudioEndMs, utteranceStartMs + 350L)
+                                )
                             )
-                        )
+                        }
                     }
-                    // Vosk reports a completed utterance when acceptWaveForm returns true.
-                    // The boolean is captured separately to avoid reparsing partial JSON.
-                    if (isEndpoint) Unit
                 } catch (error: Throwable) {
                     errorCallback?.invoke(error)
                 }
