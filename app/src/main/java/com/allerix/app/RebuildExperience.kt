@@ -1206,14 +1206,14 @@ private fun RebuildSettingsScreen(
     }
     val displayName = Api.username.ifBlank { "Jellyfin user" }
 
-    Box(Modifier.fillMaxSize().background(BrandInk)) {
+    Box(Modifier.fillMaxSize().background(Color(0xFF0B0A16))) {
         Canvas(Modifier.fillMaxSize()) {
             val radius = size.maxDimension * .72f
-            drawRect(Brush.radialGradient(listOf(BrandGold.copy(alpha = .12f), Color.Transparent),
+            drawRect(Brush.radialGradient(listOf(Color(0x55FF6B72), Color.Transparent),
                 Offset(size.width * .12f, size.height * .10f), radius))
-            drawRect(Brush.radialGradient(listOf(Color(0xFF8A7654).copy(alpha = .10f), Color.Transparent),
+            drawRect(Brush.radialGradient(listOf(Color(0x554B2B68), Color.Transparent),
                 Offset(size.width * .98f, size.height * .48f), radius * .90f))
-            drawRect(Brush.radialGradient(listOf(Color(0xFF6B7B82).copy(alpha = .08f), Color.Transparent),
+            drawRect(Brush.radialGradient(listOf(Color(0x55307D78), Color.Transparent),
                 Offset(size.width * .06f, size.height * .88f), radius * .86f))
             val stars = listOf(
                 .05f to .04f, .51f to .04f, .97f to .08f, .23f to .15f, .69f to .15f,
@@ -1234,23 +1234,23 @@ private fun RebuildSettingsScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 28.dp)) {
                     Box(Modifier.size(48.dp).clip(CircleShape)
-                        .background(BrandSurface).border(1.dp, BrandGold.copy(alpha = .25f), CircleShape)
+                        .background(Color(0xD91A1530)).border(1.dp, Color(0xFFFF6B72).copy(alpha = .25f), CircleShape)
                         .clickable(onClick = back), contentAlignment = Alignment.Center) {
                         SmallIcon(R.drawable.ic_back, Color.White, 23)
                     }
-                    Text("Settings", color = BrandIvory, fontSize = 28.sp,
+                    Text("Settings", color = Color(0xFFF5F0FA), fontSize = 28.sp,
                         fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 16.dp))
                 }
             }
             item {
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(30.dp))
-                        .background(Color(0xCC1A1228)).border(1.dp, Color(0x553F354D), RoundedCornerShape(30.dp))
+                        .background(Color(0xD91A1530)).border(1.dp, Color(0x554F4564), RoundedCornerShape(30.dp))
                         .clickable(onClick = onProfile).padding(horizontal = 18.dp, vertical = 18.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(Modifier.size(66.dp).border(3.dp,
-                        Brush.sweepGradient(listOf(BrandGold, BrandGoldBright, Color(0xFF7D8C96), BrandGold)),
+                        Brush.sweepGradient(listOf(BrandGold, Color(0xFFFF6B72), Color(0xFF36C6C0), BrandGold)),
                         CircleShape).padding(5.dp).clip(CircleShape).background(BrandSurface),
                         contentAlignment = Alignment.Center) {
                         androidx.compose.foundation.Image(
@@ -1261,7 +1261,7 @@ private fun RebuildSettingsScreen(
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
                         Text(displayName, color = BrandIvory, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("Jellyfin account", color = Grey, fontSize = 13.sp)
+                        Text("Jellyfin account", color = Color(0xFFB8B0C6), fontSize = 13.sp)
                     }
                     Text("›", color = BrandGold, fontSize = 30.sp)
                 }
