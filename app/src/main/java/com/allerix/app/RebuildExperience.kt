@@ -1348,7 +1348,7 @@ private fun RebuildSettingsScreen(
 }
 
 @Composable
-private fun AllervueAboutScreen(back: () -> Unit) {
+fun AllervueAboutScreen(back: () -> Unit) {
     val context = LocalContext.current
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
