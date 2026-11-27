@@ -154,6 +154,7 @@ class VoskStreamingCaptionEngine(
         Thread(task, "Allervue-Vosk-Streaming").apply { priority = Thread.NORM_PRIORITY }
     }
     private val closed = AtomicBoolean(false)
+    private val lifecycleLock = Any()
     @Volatile private var ready = false
     @Volatile private var recognizer: Recognizer? = null
     @Volatile private var model: Model? = null
@@ -180,15 +181,21 @@ class VoskStreamingCaptionEngine(
         eventCallback = onEvent
         errorCallback = onError
         val loadedModel = Model(modelDirectory.absolutePath)
-        try {
-            val loadedRecognizer = Recognizer(loadedModel, 16_000.0f)
-            runCatching { loadedRecognizer.setWords(true) }
-            model = loadedModel
-            recognizer = loadedRecognizer
-            ready = true
+        val loadedRecognizer = try {
+            Recognizer(loadedModel, 16_000.0f).also { runCatching { it.setWords(true) } }
         } catch (error: Throwable) {
             runCatching { loadedModel.close() }
             throw error
+        }
+        synchronized(lifecycleLock) {
+            if (closed.get()) {
+                runCatching { loadedRecognizer.close() }
+                runCatching { loadedModel.close() }
+                return
+            }
+            model = loadedModel
+            recognizer = loadedRecognizer
+            ready = true
         }
     }
 
@@ -286,12 +293,14 @@ class VoskStreamingCaptionEngine(
     override fun close() {
         if (!closed.compareAndSet(false, true)) return
         ready = false
-        worker.execute {
-            runCatching { recognizer?.close() }
-            recognizer = null
-            runCatching { model?.close() }
-            model = null
-            worker.shutdown()
+        synchronized(lifecycleLock) {
+            worker.execute {
+                runCatching { recognizer?.close() }
+                recognizer = null
+                runCatching { model?.close() }
+                model = null
+                worker.shutdown()
+            }
         }
     }
 }
