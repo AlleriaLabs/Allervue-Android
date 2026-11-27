@@ -356,11 +356,9 @@ class PlayerActivity : ComponentActivity() {
             onChunk = { chunk ->
                 // Avoid posting 10 messages/second when the live-caption feature is inactive.
                 if (liveSubtitleActive) handler.post { onLiveAudioChunk(chunk) }
-            }
-        ) { window ->
-            // Six-second snapshots are reserved for occasional optional Whisper correction.
-            handler.post { onLiveAudioWindow(window) }
-        }
+            },
+            captureWindows = false
+        ) { /* Rolling snapshots are disabled for incremental streaming ASR. */ }
         liveAudioProcessor = captureProcessor
         val factory = object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(
