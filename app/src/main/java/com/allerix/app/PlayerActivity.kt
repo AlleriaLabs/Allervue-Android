@@ -20,7 +20,6 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.ClipDrawable
 import android.graphics.drawable.LayerDrawable
 import android.media.AudioManager
-import android.media.MediaPlayer
 import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
 import android.os.Build
@@ -43,9 +42,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.PixelCopy
 import android.view.ScaleGestureDetector
-import android.view.Surface
 import android.view.SurfaceView
-import android.view.TextureView
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -69,8 +66,6 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.AudioAttributes
 import androidx.media3.exoplayer.DefaultLoadControl
-import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -181,25 +176,6 @@ class PlayerActivity : ComponentActivity() {
     private var subDownX = 0f
     private var subDownY = 0f
     private var subStartPos = 0f
-    private var liveAudioProcessor: LiveSubtitleAudioProcessor? = null
-    @Volatile private var liveSubtitleActive = false
-    private var liveCaptionEngine: LiveCaptionEngine? = null
-    private var livePartialCueStartMs: Long? = null
-    private var liveSubtitleFirstCue = true
-    private var aiModelWaitRunnable: Runnable? = null
-    private var autoSubtitleAttemptedItemId: String? = null
-    // Optional pre-roll: decode the opening audio silently so streaming captions can initialize.
-    private var preRollOverlay: FrameLayout? = null
-    private var preRollTexture: TextureView? = null
-    private var preRollMediaPlayer: MediaPlayer? = null
-    private var preRollSurface: Surface? = null
-    private var preRollFirstTextureFrameLogged = false
-    private var preRollInProgress = false
-    private var preRollVideoEnded = false
-    private var preRollFirstWindowFinished = false
-    private var preRollPreviousVolume = 1f
-    private var preRollStartedAt = 0L
-    private var preRollTimeout: Runnable? = null
 
     // volume boost
     private var enhancer: LoudnessEnhancer? = null
@@ -349,28 +325,8 @@ class PlayerActivity : ComponentActivity() {
             )
             selected
         }
-        val captureProcessor = LiveSubtitleAudioProcessor(
-            onDiagnostic = { message -> DiagnosticLog.record(applicationContext, message) },
-            onChunk = { chunk ->
-                // Avoid posting 10 messages/second when the live-caption feature is inactive.
-                if (liveSubtitleActive) handler.post { onLiveAudioChunk(chunk) }
-            },
-            captureWindows = false
-        ) { /* Rolling snapshots are disabled for incremental streaming ASR. */ }
-        liveAudioProcessor = captureProcessor
-        val factory = object : DefaultRenderersFactory(this) {
-            override fun buildAudioSink(
-                context: Context,
-                enableFloatOutput: Boolean,
-                enableAudioOutputPlaybackParams: Boolean
-            ): AudioSink {
-                return DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(enableFloatOutput)
-                    .setEnableAudioOutputPlaybackParameters(enableAudioOutputPlaybackParams)
-                    .setAudioProcessors(arrayOf(captureProcessor))
-                    .build()
-            }
-        }.setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
+        val factory = DefaultRenderersFactory(this)
+            .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setMediaCodecSelector(selector)
             .setEnableDecoderFallback(true)
         if (decoder == DecoderMode.HW_PLUS) factory.forceEnableMediaCodecAsynchronousQueueing()
@@ -1449,12 +1405,6 @@ class PlayerActivity : ComponentActivity() {
             shownText = txt
             subText.text = txt
             subText.visibility = if (txt.isEmpty()) View.GONE else View.VISIBLE
-            if (liveSubtitleActive) {
-                DiagnosticLog.record(
-                    this,
-                    "LIVE_SUBTITLE_RENDER positionMs=$subtitlePositionMs visible=${txt.isNotEmpty()} chars=${txt.length} cueCount=${cues.size}"
-                )
-            }
         }
     }
 
@@ -1646,12 +1596,6 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         })
-        val preRollPrefs = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-        val preRollEnabled = preRollPrefs.getBoolean("intro_preroll", true)
-        box.addView(pill("AI subtitle intro pre-roll: ${if (preRollEnabled) "ON" else "OFF"}") {
-            preRollPrefs.edit().putBoolean("intro_preroll", !preRollEnabled).apply()
-            dlg.dismiss()
-            })
         val nativeGroups = nativeImageGroups()
         if (nativeGroups.isNotEmpty()) {
             box.addView(sectionLabel("Embedded image subtitles"))
@@ -1799,7 +1743,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun scheduleHide() {
         handler.removeCallbacks(autoHide)
-        if (isPlaybackPlaying() && !preRollInProgress) handler.postDelayed(autoHide, 4000)
+        if (isPlaybackPlaying()) handler.postDelayed(autoHide, 4000)
     }
 
     private fun updateChapterDotColors(positionMs: Long) {
@@ -1898,411 +1842,11 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun waitForCaptionEngineModel(requestedItemId: String, language: String) {
-        aiModelWaitRunnable?.let(handler::removeCallbacks)
-        val check = object : Runnable {
-            override fun run() {
-                if (isFinishing || isDestroyed || itemId != requestedItemId) return
-                val pollingRunnable = this
-                lifecycleScope.launch {
-                    val english = language == "en"
-                    val installed = withContext(Dispatchers.IO) {
-                        if (english) SherpaStreamingModelStore.isInstalled(this@PlayerActivity)
-                        else VoskFilipinoModelStore.extractIfDownloaded(this@PlayerActivity)
-                    }
-                    if (installed) {
-                        aiModelWaitRunnable = null
-                        startLiveAiSubtitles()
-                    } else {
-                        withContext(Dispatchers.IO) {
-                            if (english) SherpaStreamingModelStore.ensureDownloaded(this@PlayerActivity)
-                            else VoskFilipinoModelStore.ensureDownloaded(this@PlayerActivity)
-                        }
-                        if (!isFinishing && !isDestroyed && itemId == requestedItemId) {
-                            handler.postDelayed(pollingRunnable, 3_000L)
-                        }
-                    }
-                }
-            }
-        }
-        aiModelWaitRunnable = check
-        handler.post(check)
-    }
-
-    private fun maybeStartAutomaticAiSubtitles() {
-        val currentId = itemId
-        if (currentId.isBlank() || sourceId.isBlank() || offlinePath != null) return
-        if (autoSubtitleAttemptedItemId == currentId || liveSubtitleActive) return
-        val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getBoolean("auto_generate", true)
-        if (!enabled) return
-        autoSubtitleAttemptedItemId = currentId
-        startLiveAiSubtitles()
-    }
-
-    /**
-     * English uses Sherpa's incremental Zipformer model. Auto/Filipino uses the
-     * Filipino Vosk model so Tagalog audio is never sent into an English-only model.
-     * Only one recognizer is loaded at a time to protect CPU, RAM and battery.
-     */
-    private fun startLiveAiSubtitles() {
-        if (offlinePath != null || liveSubtitleActive || !::player.isInitialized) return
-        val requestedItemId = itemId
-        val language = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getString("language", "auto") ?: "auto"
-        val english = language == "en"
-        val installed = if (english) {
-            SherpaStreamingModelStore.isInstalled(this)
-        } else {
-            VoskFilipinoModelStore.isInstalled(this)
-        }
-        if (!installed) {
-            if (english) SherpaStreamingModelStore.ensureDownloaded(this)
-            else VoskFilipinoModelStore.ensureDownloaded(this)
-            waitForCaptionEngineModel(requestedItemId, language)
-            return
-        }
-
-        autoSubtitleAttemptedItemId = requestedItemId
-        liveCaptionEngine?.close()
-        liveCaptionEngine = null
-        val engine: LiveCaptionEngine = if (english) {
-            SherpaStreamingCaptionEngine(SherpaStreamingModelStore.directory(this), threadCount = 2)
-        } else {
-            VoskStreamingCaptionEngine(VoskFilipinoModelStore.directory(this))
-        }
-        liveCaptionEngine = engine
-        liveSubtitleActive = true
-        livePartialCueStartMs = null
-        liveSubtitleFirstCue = true
-        liveAudioProcessor?.clearCapture()
-        DiagnosticLog.record(
-            this,
-            "LIVE_CAPTIONS_START item=$requestedItemId engine=${engine.engineId} language=${if (english) "en" else "filipino-first"}"
-        )
-
-        lifecycleScope.launch {
-            try {
-                withContext(Dispatchers.IO) {
-                    engine.start(
-                        sampleRate = 16_000,
-                        language = if (english) "en" else "tl",
-                        onEvent = { event -> onLiveCaptionEvent(requestedItemId, event) },
-                        onError = { error ->
-                            handler.post {
-                                if (liveCaptionEngine === engine && !isFinishing && !isDestroyed) {
-                                    DiagnosticLog.record(this@PlayerActivity, "LIVE_CAPTION_ENGINE_ERROR ${engine.engineId}: ${error.message}", error)
-                                }
-                            }
-                        }
-                    )
-                }
-                DiagnosticLog.record(this@PlayerActivity, "LIVE_CAPTIONS_READY engine=${engine.engineId}")
-            } catch (error: Exception) {
-                DiagnosticLog.record(this@PlayerActivity, "LIVE_CAPTIONS_INIT_FAILED engine=${engine.engineId}: ${error.message}", error)
-                if (liveCaptionEngine === engine) {
-                    liveSubtitleActive = false
-                    liveCaptionEngine = null
-                    autoSubtitleAttemptedItemId = null
-                    engine.close()
-                }
-            }
-        }
-    }
-
-    /**
-     * The original ExoPlayer session runs silently behind the intro. Its existing audio
-     * processor feeds incremental audio chunks; the first caption releases the intro overlay.
-     */
-    private fun startSubtitlePreRoll() {
-        val enabled = getSharedPreferences("ai_subtitle_settings", MODE_PRIVATE)
-            .getBoolean("intro_preroll", true)
-        if (!enabled || preRollInProgress || offlinePath != null ||
-            playbackEngineManager.activeEngine.id != PlaybackEngineId.EXOPLAYER) return
-        val requestedStart = intent.getLongExtra("start_position_ms", 0L)
-        if (requestedStart > 5_000L) {
-            DiagnosticLog.record(this, "AI_PREROLL skipped reason=resume_position positionMs=$requestedStart")
-            return
-        }
-        preRollInProgress = true
-        preRollVideoEnded = false
-        preRollFirstWindowFinished = false
-        preRollStartedAt = SystemClock.elapsedRealtime()
-        preRollPreviousVolume = player.volume
-        player.volume = 0f
-        handler.removeCallbacks(autoHide)
-        if (::controls.isInitialized) controls.visibility = View.VISIBLE
-        player.seekTo(0L)
-        player.playWhenReady = true
-        liveAudioProcessor?.clearCapture()
-        showPreRollOverlay()
-        preRollTimeout = Runnable {
-            if (preRollInProgress) {
-                DiagnosticLog.record(this, "AI_PREROLL timeout firstWindowFinished=$preRollFirstWindowFinished")
-                finishSubtitlePreRoll()
-            }
-        }.also { handler.postDelayed(it, 12_000L) }
-        DiagnosticLog.record(this, "AI_PREROLL started item=$itemId engine=${liveCaptionEngine?.engineId ?: "loading"} maxWaitMs=12000")
-    }
-
-    private fun showPreRollOverlay() {
-        if (!::root.isInitialized || preRollOverlay != null) return
-        val overlay = FrameLayout(this).apply {
-            setBackgroundColor(Color.BLACK)
-            // Keep this layer non-interactive: player gestures and controls remain above it.
-            isClickable = false
-            isFocusable = false
-        }
-        val rawId = resources.getIdentifier("allervue_intro", "raw", packageName)
-        if (rawId != 0) {
-            val texture = TextureView(this).apply {
-                isOpaque = false
-                surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                    override fun onSurfaceTextureAvailable(surfaceTexture: android.graphics.SurfaceTexture, width: Int, height: Int) {
-                        runCatching {
-                            val output = Surface(surfaceTexture)
-                            preRollSurface = output
-                            val media = MediaPlayer()
-                            preRollMediaPlayer = media
-                            media.setSurface(output)
-                            media.setDataSource(this@PlayerActivity, Uri.parse("android.resource://$packageName/$rawId"))
-                            media.setOnPreparedListener {
-                                it.setVolume(0f, 0f)
-                                it.isLooping = false
-                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_prepared durationMs=${it.duration} size=${width}x${height}")
-                                it.start()
-                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_start requested")
-                            }
-                            media.setOnInfoListener { _, what, _ ->
-                                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START) {
-                                    DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_first_frame_rendered")
-                                }
-                                false
-                            }
-                            media.setOnCompletionListener {
-                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_completed")
-                                preRollVideoEnded = true
-                                maybeFinishSubtitlePreRoll()
-                            }
-                            media.setOnErrorListener { _, what, extra ->
-                                DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_error what=$what extra=$extra")
-                                preRollVideoEnded = true
-                                maybeFinishSubtitlePreRoll()
-                                true
-                            }
-                            media.prepareAsync()
-                        }.onFailure { error ->
-                            DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_setup_error: ${error.message}", error)
-                            preRollVideoEnded = true
-                            maybeFinishSubtitlePreRoll()
-                        }
-                    }
-
-                    override fun onSurfaceTextureSizeChanged(surface: android.graphics.SurfaceTexture, width: Int, height: Int) = Unit
-                    override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {
-                        if (!preRollFirstTextureFrameLogged) {
-                            preRollFirstTextureFrameLogged = true
-                            DiagnosticLog.record(this@PlayerActivity, "AI_PREROLL texture_frame_updated")
-                        }
-                    }
-                    override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
-                        releasePreRollMediaPlayer()
-                        return true
-                    }
-                }
-            }
-            overlay.addView(texture, FrameLayout.LayoutParams(-1, -1))
-            preRollTexture = texture
-        } else {
-            val brand = TextView(this).apply {
-                text = "ALLERVUE"
-                gravity = Gravity.CENTER
-                textSize = 30f
-                letterSpacing = 0.24f
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                setTextColor(0xFF65D6D0.toInt())
-            }
-            overlay.addView(brand, FrameLayout.LayoutParams(-1, -1))
-            handler.postDelayed({
-                if (preRollInProgress) {
-                    preRollVideoEnded = true
-                    maybeFinishSubtitlePreRoll()
-                }
-            }, 5_000L)
-        }
-        preRollOverlay = overlay
-        // Place the intro above the main video surface but below gesture and control layers.
-        root.addView(overlay, 1, FrameLayout.LayoutParams(-1, -1))
-        overlay.invalidate()
-        DiagnosticLog.record(this, "AI_PREROLL overlay=${if (rawId != 0) "texture_video_asset" else "brand_fallback"}")
-    }
-
-    private fun releasePreRollMediaPlayer() {
-        preRollMediaPlayer?.let { media ->
-            runCatching { media.setOnCompletionListener(null) }
-            runCatching { media.setOnErrorListener(null) }
-            runCatching { media.setOnInfoListener(null) }
-            runCatching { media.stop() }
-            runCatching { media.release() }
-        }
-        preRollMediaPlayer = null
-        runCatching { preRollSurface?.release() }
-        preRollSurface = null
-        preRollTexture = null
-    }
-
-    private fun maybeFinishSubtitlePreRoll() {
-        // The ident is a visual pre-roll, not a gate for model initialization. Never leave
-        // playback hidden while a model is downloading or initializing.
-        if (!preRollInProgress || !preRollVideoEnded) return
-        finishSubtitlePreRoll()
-    }
-
-    private fun finishSubtitlePreRoll() {
-        if (!preRollInProgress) return
-        preRollInProgress = false
-        preRollTimeout?.let(handler::removeCallbacks)
-        preRollTimeout = null
-        releasePreRollMediaPlayer()
-        preRollOverlay?.let { root.removeView(it) }
-        preRollOverlay = null
-        if (::player.isInitialized) {
-            player.volume = preRollPreviousVolume
-            player.seekTo(0L)
-            player.playWhenReady = true
-        }
-        liveAudioProcessor?.clearCapture()
-        DiagnosticLog.record(this, "AI_PREROLL finished elapsedMs=${SystemClock.elapsedRealtime() - preRollStartedAt} firstWindowFinished=$preRollFirstWindowFinished")
-        scheduleHide()
-    }
-
-    private fun cancelSubtitlePreRoll() {
-        if (!preRollInProgress) return
-        preRollInProgress = false
-        preRollTimeout?.let(handler::removeCallbacks)
-        preRollTimeout = null
-        releasePreRollMediaPlayer()
-        preRollOverlay?.let { if (::root.isInitialized) root.removeView(it) }
-        preRollOverlay = null
-        if (::player.isInitialized) player.volume = preRollPreviousVolume
-    }
-
-    private fun onLiveAudioChunk(chunk: LiveSubtitleAudioChunk) {
-        if (!liveSubtitleActive || isFinishing || isDestroyed) return
-        val engine = liveCaptionEngine ?: return
-        if (!engine.isReady) return
-        val deliveryPositionMs = playbackPositionMs()
-        val deliveryElapsedMs = SystemClock.elapsedRealtime()
-        val callbackDelayMs = (deliveryElapsedMs - chunk.capturedAtElapsedRealtimeMs).coerceAtLeast(0L)
-        val mediaEndMs = (deliveryPositionMs - (callbackDelayMs * speed).toLong()).coerceAtLeast(0L)
-        val chunkDurationMs = chunk.samples.size * 1_000L / 16_000L
-        val mediaStartMs = (mediaEndMs - (chunkDurationMs * speed).toLong()).coerceAtLeast(0L)
-        val floats = FloatArray(chunk.samples.size) { index -> chunk.samples[index] / 32768.0f }
-        engine.acceptAudio(floats, mediaStartMs, chunk.capturedAtElapsedRealtimeMs)
-    }
-
-    private fun formatLiveCaptionText(raw: String, isFinal: Boolean): String {
-        val trimmed = raw.trim().replace(Regex("\\s+"), " ")
-        if (trimmed.isBlank()) return ""
-        val letters = trimmed.filter { it.isLetter() }
-        val looksAllCaps = letters.length > 1 &&
-            letters.count { it.isUpperCase() }.toFloat() / letters.length >= 0.85f
-        val sentence = if (looksAllCaps) {
-            trimmed.lowercase(Locale.ROOT).replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
-        } else {
-            trimmed.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
-        }
-        val punctuated = if (isFinal && sentence.lastOrNull()?.let { it in ".!?…" } == false) "$sentence."
-            else sentence
-
-        // Keep the recognizer's full hypothesis internally, but show a compact live
-        // caption window. Prefer the newest complete clause; otherwise trim at a word
-        // boundary so a streaming partial never becomes a wall of text.
-        if (punctuated.length <= LIVE_SUBTITLE_MAX_CHARS) return punctuated
-        val clauseBreak = punctuated.lastIndexOfAny(charArrayOf(',', ';', ':', '—'))
-        val lastClause = if (clauseBreak >= 0) punctuated.substring(clauseBreak + 1).trim() else ""
-        if (lastClause.length in 20..LIVE_SUBTITLE_MAX_CHARS) return lastClause
-        val tail = punctuated.takeLast(LIVE_SUBTITLE_MAX_CHARS)
-        val firstWordBoundary = tail.indexOf(' ')
-        return (if (firstWordBoundary >= 0) tail.substring(firstWordBoundary + 1) else tail)
-            .trimStart().let { "…$it" }
-    }
-
-    private fun onLiveCaptionEvent(requestedItemId: String, event: LiveCaptionEvent) {
-        handler.post {
-            if (!liveSubtitleActive || itemId != requestedItemId || isFinishing || isDestroyed) return@post
-            val text = formatLiveCaptionText(event.text, event is LiveCaptionEvent.Final)
-            if (text.isBlank()) return@post
-            val previousPartialStart = livePartialCueStartMs
-            if (previousPartialStart != null) {
-                cues = cues.filterNot { it.startMs == previousPartialStart }
-            }
-            val cueStartMs = event.mediaStartMs.coerceAtLeast(0L)
-            // Streaming hypotheses often arrive after the corresponding media timestamp.
-            // Keep the mutable partial alive slightly ahead of the playhead so the overlay
-            // does not blink off between 100 ms recognizer updates. Final cues retain their
-            // model-derived end time and normal minimum display duration.
-            val cueEndMs = if (event is LiveCaptionEvent.Partial) {
-                maxOf(
-                    event.mediaEndMs,
-                    cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS,
-                    playbackPositionMs() + LIVE_SUBTITLE_PARTIAL_HOLD_MS
-                )
-            } else {
-                maxOf(event.mediaEndMs, cueStartMs + LIVE_SUBTITLE_MIN_DISPLAY_MS)
-            }
-            val candidate = SubCue(cueStartMs, cueEndMs, text)
-            cues = normalizeLiveCueTimeline(cues + candidate)
-            livePartialCueStartMs = if (event is LiveCaptionEvent.Partial) cueStartMs else null
-            subOn = true
-            activeSub = -2
-            shownText = "~"
-            updateSubtitle()
-
-            DiagnosticLog.record(
-                this,
-                "LIVE_CAPTION engine=${liveCaptionEngine?.engineId ?: "unknown"} type=${if (event is LiveCaptionEvent.Partial) "partial" else "final"} startMs=$cueStartMs endMs=$cueEndMs chars=${text.length}"
-            )
-            if (liveSubtitleFirstCue) {
-                liveSubtitleFirstCue = false
-                if (preRollInProgress) {
-                    preRollFirstWindowFinished = true
-                    maybeFinishSubtitlePreRoll()
-                }
-            }
-        }
-    }
-
-    // Rolling six-second snapshots are intentionally ignored. Live captions consume
-    // 100 ms decoded-PCM chunks through Sherpa or Vosk only.
-    private fun onLiveAudioWindow(window: LiveSubtitleAudioWindow) = Unit
-
-    private companion object {
-        const val LIVE_SUBTITLE_MIN_DISPLAY_MS = 1_800L
-        const val LIVE_SUBTITLE_PARTIAL_HOLD_MS = 2_400L
-        const val LIVE_SUBTITLE_MAX_CHARS = 72
-    }
-
-    private fun normalizeLiveCueTimeline(input: List<SubCue>): List<SubCue> {
-        val sorted = input.asSequence()
-            .filter { it.text.isNotBlank() && it.endMs > it.startMs }
-            .sortedWith(compareBy<SubCue> { it.startMs }.thenBy { it.endMs })
-            .toList()
-        val output = ArrayList<SubCue>(sorted.size)
-        sorted.forEachIndexed { index, cue ->
-            val next = sorted.getOrNull(index + 1)
-            val clippedEnd = if (next != null && next.startMs < cue.endMs) next.startMs else cue.endMs
-            if (clippedEnd - cue.startMs >= 250L) output += cue.copy(endMs = clippedEnd)
-        }
-        return output
-    }
-
     private fun applyDefaultSubtitle() {
         if (defaultSubtitleApplied) return
         if (subStreams.isEmpty()) {
             if (sourceId.isBlank()) return
             defaultSubtitleApplied = true
-            maybeStartAutomaticAiSubtitles()
             return
         }
         val englishText = subStreams.indexOfFirst {
@@ -2684,13 +2228,6 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun switchTo(newId: String) {
-        cancelSubtitlePreRoll()
-        liveSubtitleActive = false
-        liveCaptionEngine?.close()
-        liveCaptionEngine = null
-        livePartialCueStartMs = null
-        liveAudioProcessor?.clearCapture()
-        aiModelWaitRunnable?.let(handler::removeCallbacks); aiModelWaitRunnable = null
         report("stop")
         handler.removeCallbacks(progressTick)
         sourceId = ""; itemId = newId; introSegments = emptyList()
@@ -2698,7 +2235,6 @@ class PlayerActivity : ComponentActivity() {
         if (::episodesAction.isInitialized) episodesAction.visibility = View.GONE
         if (::nextEpisodeAction.isInitialized) nextEpisodeAction.visibility = View.GONE
         defaultAudioApplied = false; defaultSubtitleApplied = false
-        autoSubtitleAttemptedItemId = null
         selectedAudioStreamIndex = null; selectedImageSubtitleStreamIndex = null
         playbackOrchestrator.resetForNewItem()
         updateIntroSkip()
@@ -2945,16 +2481,13 @@ class PlayerActivity : ComponentActivity() {
 
     private fun seekPlaybackTo(positionMs: Long) {
         if (!::player.isInitialized) return
-        liveAudioProcessor?.clearCapture()
         val target = positionMs.coerceAtLeast(0L)
-        liveCaptionEngine?.reset(target)
         if (::playbackEngineManager.isInitialized) playbackEngineManager.seekTo(target)
         else player.seekTo(target)
     }
 
     private fun pausePlayback() {
         if (!::player.isInitialized) return
-        liveCaptionEngine?.flush()
         if (::playbackEngineManager.isInitialized) playbackEngineManager.pause() else player.pause()
     }
 
@@ -3127,12 +2660,6 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        cancelSubtitlePreRoll()
-        liveSubtitleActive = false
-        liveCaptionEngine?.close()
-        liveCaptionEngine = null
-        livePartialCueStartMs = null
-        liveAudioProcessor?.clearCapture()
         handler.removeCallbacksAndMessages(null)
         if (!::player.isInitialized) { super.onDestroy(); return }
         if (offlinePath != null) {

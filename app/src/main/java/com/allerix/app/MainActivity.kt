@@ -57,7 +57,6 @@ sealed class Nav {
     object Settings : Nav()
     object Profile : Nav()
     object Appearance : Nav()
-    object AiSubtitles : Nav()
     object RequestShow : Nav()
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
@@ -360,7 +359,6 @@ fun MainShell(onLogout: () -> Unit) {
                     onSignOut = signOut
                 )
                 Nav.Appearance -> AppearanceSettingsScreen(back)
-                Nav.AiSubtitles -> AiSubtitleSettingsScreen(back)
                 Nav.RequestShow -> RequestShowScreen(back)
                 Nav.ClientSettings -> ClientSettingsScreen(
                     back, onServerChanged = signOut, loggedIn = true,
