@@ -2219,7 +2219,8 @@ class PlayerActivity : ComponentActivity() {
         // caption window. Prefer the newest complete clause; otherwise trim at a word
         // boundary so a streaming partial never becomes a wall of text.
         if (punctuated.length <= LIVE_SUBTITLE_MAX_CHARS) return punctuated
-        val lastClause = punctuated.substringAfterLast(Regex("[,;:—]")).trim()
+        val clauseBreak = punctuated.lastIndexOfAny(charArrayOf(',', ';', ':', '—'))
+        val lastClause = if (clauseBreak >= 0) punctuated.substring(clauseBreak + 1).trim() else ""
         if (lastClause.length in 20..LIVE_SUBTITLE_MAX_CHARS) return lastClause
         val tail = punctuated.takeLast(LIVE_SUBTITLE_MAX_CHARS)
         val firstWordBoundary = tail.indexOf(' ')
