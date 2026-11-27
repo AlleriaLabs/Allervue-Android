@@ -385,48 +385,61 @@ private fun appFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = Color.White, unfocusedTextColor = Color.White
 )
 
+private val DriftCoral = Color(0xFFFF6B72)
+private val DriftPink = Color(0xFFFF3F83)
+private val DriftPanel = Color(0xD91A1530)
+private val DriftText = Color(0xFFF5F0FA)
+private val DriftMuted = Color(0xFFB8B0C6)
+private val DriftBorder = Color(0x554F4564)
+
+@Composable
+private fun SettingsBackdrop(modifier: Modifier = Modifier) {
+    Box(modifier.background(Brush.linearGradient(
+        colorStops = arrayOf(
+            0f to Color(0xFF351719),
+            .38f to Color(0xFF21142D),
+            .68f to Color(0xFF24145A),
+            1f to Color(0xFF061B20)
+        )
+    )))
+}
+
 @Composable
 private fun ScreenHeader(title: String, back: () -> Unit) {
-    Column(Modifier.fillMaxWidth().background(BrandInk)) {
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
-                    .background(BrandSurface).border(1.dp, BrandGold.copy(alpha = .22f), RoundedCornerShape(14.dp))
-                    .clickable(onClick = back),
-                contentAlignment = Alignment.Center
-            ) { Text("‹", color = BrandGoldBright, fontSize = 30.sp) }
-            Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                Text(title, color = BrandIvory, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                Text("ALLERVUE SETTINGS", color = BrandGold.copy(alpha = .82f),
-                    fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.8.sp)
-            }
-        }
-        HorizontalDivider(color = BrandGold.copy(alpha = .14f))
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape)
+                .background(Color(0x5520182C)).border(1.dp, Color(0x66FFFFFF), CircleShape)
+                .clickable(onClick = back),
+            contentAlignment = Alignment.Center
+        ) { Text("‹", color = DriftText, fontSize = 30.sp) }
+        Text(title, Modifier.padding(start = 16.dp), color = DriftText,
+            fontSize = 27.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 private fun SettingsRow(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(17.dp)).background(BrandSurface)
-            .border(1.dp, BrandGold.copy(alpha = .12f), RoundedCornerShape(17.dp))
-            .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 15.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 3.dp)
+            .clip(RoundedCornerShape(18.dp)).background(DriftPanel)
+            .border(1.dp, DriftBorder, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick).padding(horizontal = 17.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            Modifier.size(40.dp).clip(RoundedCornerShape(12.dp))
-                .background(BrandGold.copy(alpha = .12f)),
+            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
+                .background(Brush.horizontalGradient(listOf(DriftCoral, DriftPink))),
             contentAlignment = Alignment.Center
-        ) { Text(icon, color = BrandGoldBright, fontSize = 19.sp) }
+        ) { Text(icon, color = Color.White, fontSize = 17.sp) }
         Column(Modifier.weight(1f).padding(start = 13.dp)) {
-            Text(title, color = BrandIvory, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-            if (subtitle.isNotEmpty()) Text(subtitle, color = Grey, fontSize = 12.sp)
+            Text(title, color = DriftText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (subtitle.isNotEmpty()) Text(subtitle, color = DriftMuted, fontSize = 12.sp)
         }
-        Text("›", color = BrandGold, fontSize = 25.sp)
+        Text("›", color = DriftMuted, fontSize = 25.sp)
     }
 }
 
@@ -1109,9 +1122,9 @@ fun AppearanceSettingsScreen(back: () -> Unit) {
     val prefs = remember { ctx.getSharedPreferences("allervue_appearance", Context.MODE_PRIVATE) }
     var mode by remember { mutableStateOf(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM") }
     val options = listOf("SYSTEM" to "Follow device", "DARK" to "Dark", "LIGHT" to "Light")
-    Column(Modifier.fillMaxSize().background(BrandInk).verticalScroll(rememberScrollState())) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20)))).verticalScroll(rememberScrollState())) {
         ScreenHeader("Appearance", back)
-        Text("THEME", color = BrandGold, fontSize = 12.sp,
+        Text("THEME", color = DriftMuted, fontSize = 12.sp,
             fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
             modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp))
         options.forEach { (value, label) ->
@@ -1124,7 +1137,7 @@ fun AppearanceSettingsScreen(back: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(label, color = BrandIvory, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(label, color = DriftText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     Text(when (value) {
                         "DARK" -> "Always use the dark Allervue interface"
                         "LIGHT" -> "Always use the light Allervue interface"
@@ -1135,7 +1148,7 @@ fun AppearanceSettingsScreen(back: () -> Unit) {
                     mode = value
                     prefs.edit().putString("theme_mode", value).apply()
                     (ctx as? android.app.Activity)?.recreate()
-                }, colors = RadioButtonDefaults.colors(selectedColor = BrandGoldBright, unselectedColor = Grey))
+                }, colors = RadioButtonDefaults.colors(selectedColor = DriftCoral, unselectedColor = DriftMuted))
             }
             Spacer(Modifier.height(5.dp))
         }
