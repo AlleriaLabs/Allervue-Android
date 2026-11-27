@@ -1203,12 +1203,12 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
 fun DiagnosticScreen(back: () -> Unit) {
     val ctx = LocalContext.current
     var log by remember { mutableStateOf(DiagnosticLog.read(ctx)) }
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))))) {
         ScreenHeader("Diagnostics", back)
         Text("If Allervue closes when you tap a video, reproduce the issue and return here. The log records player startup and crash details without your Jellyfin password or access token.",
-            color = Grey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+            color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = { log = DiagnosticLog.read(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF29272A))) {
+            Button(onClick = { log = DiagnosticLog.read(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = DriftPanel)) {
                 Text("Refresh log", color = Color.White)
             }
             Button(onClick = {
@@ -1223,10 +1223,10 @@ fun DiagnosticScreen(back: () -> Unit) {
                     putExtra(Intent.EXTRA_TEXT, log.ifBlank { "No diagnostic log yet." })
                 }
                 ctx.startActivity(Intent.createChooser(send, "Share diagnostic log"))
-            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD8B77E))) { Text("Share", color = Color(0xFF171515)) }
+            }, colors = ButtonDefaults.buttonColors(containerColor = DriftCoral)) { Text("Share", color = DriftText) }
         }
         Text(if (log.isBlank()) "No diagnostic entries yet. Play a video, then return and tap Refresh log." else log,
-            color = Color(0xFFD5D1CA), fontSize = 11.sp, lineHeight = 15.sp,
+            color = DriftText, fontSize = 11.sp, lineHeight = 15.sp,
             modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()))
     }
 }
