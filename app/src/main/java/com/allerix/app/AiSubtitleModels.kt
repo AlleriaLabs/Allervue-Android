@@ -124,10 +124,12 @@ object AiSubtitleModelDownloads {
         var queued = 0
         AiSubtitleModels.all.forEach { model ->
             if (AiSubtitleModelStore.isInstalled(context, model)) return@forEach
-            val state = state(context, model)
+            val state = runCatching { state(context, model) }.getOrNull()
             if (state?.isActive == true) return@forEach
-            enqueue(context, model)
-            queued++
+            // A model download failure must never crash the settings screen.
+            if (runCatching { enqueue(context, model) }.getOrDefault(-1L) >= 0L) {
+                queued++
+            }
         }
         return queued
     }
@@ -138,15 +140,40 @@ object AiSubtitleModelDownloads {
         val request = DownloadManager.Request(Uri.parse(model.downloadUrl))
             .setTitle("Allervue · ${model.title}")
             .setDescription("Downloading offline AI subtitle model")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
+            // VISIBILITY_HIDDEN requires the privileged DOWNLOAD_WITHOUT_NOTIFICATION
+            // permission on Android. Third-party apps (including OEM Android builds)
+            // may reject it with SecurityException. Notify only when the download
+            // completes; no AI status is shown over the video player.
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setAllowedOverRoaming(false)
             .setDestinationInExternalFilesDir(
                 context,
                 Environment.DIRECTORY_DOWNLOADS,
                 "allervue_ai_models/${model.fileName}"
             )
-        val id = (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager)
-            .enqueue(request)
+        val id = try {
+            (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager)
+                .enqueue(request)
+        } catch (security: SecurityException) {
+            // Some vendor DownloadProviders reject request options. Retry with the
+            // least restrictive supported visibility rather than crashing the UI.
+            val fallback = DownloadManager.Request(Uri.parse(model.downloadUrl))
+                .setTitle("Allervue · ${model.title}")
+                .setDescription("Downloading offline AI subtitle model")
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+                .setAllowedOverRoaming(false)
+                .setDestinationInExternalFilesDir(
+                    context,
+                    Environment.DIRECTORY_DOWNLOADS,
+                    "allervue_ai_models/${model.fileName}"
+                )
+            runCatching {
+                (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager)
+                    .enqueue(fallback)
+            }.getOrElse { return -1L }
+        } catch (_: RuntimeException) {
+            return -1L
+        }
         AiSubtitleModelStore.saveDownloadId(context, model.id, id)
         return id
     }
