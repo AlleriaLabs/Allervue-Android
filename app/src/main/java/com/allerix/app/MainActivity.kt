@@ -60,6 +60,7 @@ sealed class Nav {
     object ClientSettings : Nav()
     object PlaybackSettings : Nav()
     object Diagnostics : Nav()
+    object About : Nav()
     data class Web(val url: String, val title: String) : Nav()
 }
 
