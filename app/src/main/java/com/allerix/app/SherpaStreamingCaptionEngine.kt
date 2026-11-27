@@ -77,15 +77,17 @@ object SherpaStreamingModelStore {
             val request = DownloadManager.Request(Uri.parse(modelFile.url))
                 .setTitle("Allervue · Live captions")
                 .setDescription("Downloading English streaming speech model · ${modelFile.name}")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_HIDDEN)
+                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setAllowedOverRoaming(false)
                 .setDestinationInExternalFilesDir(
                     context, Environment.DIRECTORY_DOWNLOADS,
                     "allervue_ai_models/$MODEL_ID/${modelFile.name}"
                 )
-            val id = manager.enqueue(request)
-            prefs.edit().putLong(key, id).apply()
-            queued++
+            val id = runCatching { manager.enqueue(request) }.getOrDefault(-1L)
+            if (id >= 0L) {
+                prefs.edit().putLong(key, id).apply()
+                queued++
+            }
         }
         return queued
     }
@@ -125,7 +127,7 @@ class SherpaStreamingCaptionEngine(
         check(!closed.get()) { "Streaming caption engine is closed." }
         require(sampleRate == 16_000) { "sherpa streaming model requires 16 kHz mono audio." }
         require(language.isBlank() || language == "auto" || language == "en" || language == "eng") {
-            "The installed sherpa streaming model currently supports English. Select English or Auto, or use Whisper for other languages."
+            "The installed Sherpa streaming model supports English only. Select English or use the Filipino Vosk engine."
         }
         eventCallback = onEvent
         errorCallback = onError
