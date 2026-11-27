@@ -18,6 +18,8 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -417,7 +419,7 @@ internal fun AllervueHome(
     val related = allItems.filter { it.id != centerItem?.id }.take(3)
 
     Column(
-        Modifier.fillMaxSize().drawBehind {
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).drawBehind {
             // Day and night use deliberately distinct full-screen palettes.
             // Daylight is bright and airy rather than a slightly warmer version of night.
             drawRect(
@@ -626,7 +628,7 @@ internal fun AllervueHome(
             )
         }
     ) {
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().height(430.dp)) {
             Canvas(Modifier.fillMaxSize()) {
                 val cx = size.width * .5f
                 val cy = size.height * .55f
@@ -1016,6 +1018,117 @@ internal fun AllervueHome(
                         Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF302A48)).padding(horizontal = 9.dp, vertical = 5.dp)) {
                             Text(genre, color = Color(0xFFE1DCEC), fontSize = 10.sp, maxLines = 1)
                         }
+                    }
+                }
+            }
+        }
+        ContinueWatchingShelf(
+            entries = resume,
+            onPlay = onPlay,
+            onHide = { item ->
+                ContinueWatching.hide(context, item.id)
+                resume = resume.filterNot { it.id == item.id }
+            }
+        )
+    }
+}
+
+@Composable
+private fun ContinueWatchingShelf(
+    entries: List<Item>,
+    onPlay: (Item) -> Unit,
+    onHide: (Item) -> Unit
+) {
+    if (entries.isEmpty()) return
+    Column(
+        Modifier.fillMaxWidth()
+            .padding(top = 20.dp, bottom = 22.dp)
+    ) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("◷", color = AHot, fontSize = 23.sp, modifier = Modifier.padding(end = 9.dp))
+            Text(
+                "Continue Watching",
+                Modifier.weight(1f),
+                color = Color(0xFFF7F3FF),
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text("SEE ALL", color = Color(0xFF8CE0E2), fontSize = 10.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        }
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            items(entries, key = { it.id }) { item ->
+                val runtime = item.runTimeTicks ?: 0L
+                val position = item.userData?.positionTicks ?: 0L
+                val progress = (item.userData?.playedPercentage?.toFloat()
+                    ?: if (runtime > 0L) position.toFloat() / runtime.toFloat() * 100f else 0f)
+                    .coerceIn(0f, 100f)
+                val remainingMinutes = if (runtime > 0L) {
+                    (((runtime - position).coerceAtLeast(0L) / 10_000_000L) / 60L).toInt()
+                } else null
+                Column(
+                    Modifier.width(214.dp).clip(RoundedCornerShape(14.dp))
+                        .background(Color(0x66100E20))
+                        .clickable { onPlay(item) }
+                ) {
+                    Box(Modifier.fillMaxWidth().height(112.dp)) {
+                        AsyncImage(
+                            model = Api.landscape(item),
+                            contentDescription = item.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Box(Modifier.fillMaxSize().background(
+                            Brush.verticalGradient(listOf(Color.Transparent, Color(0xCC100E20)))
+                        ))
+                        Box(
+                            Modifier.align(Alignment.TopEnd).padding(7.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xCC17152C))
+                                .padding(horizontal = 7.dp, vertical = 4.dp)
+                        ) {
+                            val episode = if (item.index != null && item.parentIndex != null)
+                                "S${item.parentIndex} · E${item.index}" else item.type
+                            Text(episode, color = Color.White, fontSize = 9.sp,
+                                fontWeight = FontWeight.SemiBold)
+                        }
+                        Box(
+                            Modifier.align(Alignment.Center).size(34.dp).clip(CircleShape)
+                                .background(Color(0xCC17152C)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("▶", color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+                    Text(
+                        item.seriesName?.takeIf { it.isNotBlank() }?.let { "$it · ${item.name}" } ?: item.name,
+                        Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp),
+                        color = Color(0xFFF7F3FF), fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        LinearProgressIndicator(
+                            progress = { progress / 100f },
+                            modifier = Modifier.weight(1f).height(4.dp).clip(CircleShape),
+                            color = AHot,
+                            trackColor = Color(0x665F596C)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            remainingMinutes?.let { "${it}m left" } ?: "${progress.toInt()}%",
+                            color = Color(0xFFD0CBDA), fontSize = 10.sp,
+                            maxLines = 1
+                        )
                     }
                 }
             }
