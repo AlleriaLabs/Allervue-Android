@@ -1068,7 +1068,7 @@ internal fun AllervueHome(
                                 val mood = shownCenterItem?.genres.orEmpty()
                                 val next = allItems.firstOrNull { candidate ->
                                     candidate.id != shownCenterItem?.id &&
-                                        (mood.isEmpty() || candidate.genres.any { g ->
+                                        (mood.isEmpty() || candidate.genres.orEmpty().any { g ->
                                             mood.any { it.equals(g, ignoreCase = true) }
                                         })
                                 } ?: allItems.firstOrNull { it.id != shownCenterItem?.id }
@@ -1088,7 +1088,7 @@ internal fun AllervueHome(
                                 .clickable {
                                     val next = allItems.firstOrNull { candidate ->
                                         candidate.id != shownCenterItem?.id &&
-                                            candidate.genres.any { it.equals(genre, ignoreCase = true) }
+                                            candidate.genres.orEmpty().any { it.equals(genre, ignoreCase = true) }
                                     }
                                     if (next != null) {
                                         selected = next
