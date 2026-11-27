@@ -93,9 +93,10 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                 Nav.Search -> RebuildSearch(onOpen, back)
                 Nav.Settings -> RebuildSettingsScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) },
-                    onClient = { stack.add(Nav.ClientSettings) },
+                    onClient = { stack.add(Nav.Profile) },
                     onPlayback = { stack.add(Nav.PlaybackSettings) },
                     onDiagnostics = { stack.add(Nav.Diagnostics) },
+                    onAbout = { stack.add(Nav.About) },
                     onProfile = { stack.add(Nav.Profile) },
                     onAppearance = { stack.add(Nav.Appearance) },
                     onSignOut = signOut,
@@ -115,6 +116,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                 )
                 Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
                 Nav.Diagnostics -> DiagnosticScreen(back)
+                Nav.About -> AllervueAboutScreen(back)
                 is Nav.Web -> WebScreen(top.url, top.title, back)
             }
         }
@@ -1187,7 +1189,7 @@ private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -
 @Composable
 private fun RebuildSettingsScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit,
-    onPlayback: () -> Unit, onDiagnostics: () -> Unit,
+    onPlayback: () -> Unit, onDiagnostics: () -> Unit, onAbout: () -> Unit,
     onProfile: () -> Unit, onAppearance: () -> Unit,
     onSignOut: () -> Unit, onWeb: (String, String) -> Unit
 ) {
@@ -1314,7 +1316,7 @@ private fun RebuildSettingsScreen(
                 RebuildSettingsGroup {
                     RebuildSettingsActionRow("Manage profiles", null, onClient)
                     RebuildSettingsDivider()
-                    RebuildSettingsActionRow("Notifications", null, onDiagnostics)
+                    RebuildSettingsActionRow("About", null, onAbout)
                     RebuildSettingsDivider()
                     RebuildSettingsActionRow("Request a title", null, onRequest)
                     RebuildSettingsDivider()
