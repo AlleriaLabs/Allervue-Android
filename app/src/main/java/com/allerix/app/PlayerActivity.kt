@@ -2004,6 +2004,7 @@ class PlayerActivity : ComponentActivity() {
         val check = object : Runnable {
             override fun run() {
                 if (isFinishing || isDestroyed || itemId != requestedItemId) return
+                val pollingRunnable = this
                 lifecycleScope.launch {
                     val english = language == "en"
                     val installed = withContext(Dispatchers.IO) {
@@ -2019,7 +2020,7 @@ class PlayerActivity : ComponentActivity() {
                             else VoskFilipinoModelStore.ensureDownloaded(this@PlayerActivity)
                         }
                         if (!isFinishing && !isDestroyed && itemId == requestedItemId) {
-                            handler.postDelayed(this, 3_000L)
+                            handler.postDelayed(pollingRunnable, 3_000L)
                         }
                     }
                 }
