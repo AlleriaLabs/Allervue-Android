@@ -1212,7 +1212,7 @@ private fun ContinueWatchingShelf(
             .padding(top = 20.dp, bottom = 22.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp, bottom = 2.dp),
+            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.size(width = 22.dp, height = 3.dp).clip(CircleShape)
