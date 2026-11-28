@@ -523,16 +523,8 @@ fun ClientSettingsScreen(
     var new2 by remember { mutableStateOf("") }
     var pwStatus by remember { mutableStateOf("") }
     var pwBusy by remember { mutableStateOf(false) }
-    var bioUser by remember { mutableStateOf("") }
-    var bioPassword by remember { mutableStateOf("") }
-    var bioStatus by remember { mutableStateOf("") }
-    var bioBusy by remember { mutableStateOf(false) }
-    val activity = ctx as? FragmentActivity
-    val biometricAvailable = remember(ctx) {
-        BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
-            BiometricManager.BIOMETRIC_SUCCESS
-    }
-    var biometricEnabled by remember { mutableStateOf(BiometricLogin.hasSavedCredentials(ctx)) }
+    val clientPrefs = remember(ctx) { ctx.getSharedPreferences("allervue_client_settings", Context.MODE_PRIVATE) }
+    var biometricEnabled by remember { mutableStateOf(clientPrefs.getBoolean("biometric_enabled", false)) }
     val colors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = DriftCoral, unfocusedBorderColor = DriftBorder,
         cursorColor = DriftCoral, focusedLabelColor = DriftCoral, unfocusedLabelColor = DriftMuted,
@@ -541,58 +533,6 @@ fun ClientSettingsScreen(
         unfocusedContainerColor = Color(0x661A1530)
     )
 
-    fun enableBiometricLogin() {
-        val host = activity
-        if (host == null) {
-            bioStatus = "Biometric sign-in isn't available on this screen."
-            return
-        }
-        if (bioUser.isBlank() || bioPassword.isBlank()) {
-            bioStatus = "Enter your Jellyfin username and password first."
-            return
-        }
-        try {
-            val cipher = BiometricLogin.newEncryptCipher()
-            val prompt = BiometricPrompt(
-                host, host.mainExecutor,
-                object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                        val unlockedCipher = result.cryptoObject?.cipher
-                        if (unlockedCipher == null) {
-                            bioStatus = "Secure biometric setup failed."
-                            return
-                        }
-                        runCatching {
-                            BiometricLogin.save(ctx, unlockedCipher, bioUser.trim(), bioPassword)
-                        }.onSuccess {
-                            biometricEnabled = true
-                            bioPassword = ""
-                            bioStatus = "Biometric sign-in enabled on this device."
-                        }.onFailure {
-                            bioStatus = "Couldn't enable biometric sign-in."
-                        }
-                    }
-
-                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                        bioStatus = "Biometric setup cancelled. You can try again anytime."
-                    }
-
-                    override fun onAuthenticationFailed() {
-                        bioStatus = "Biometric not recognized. Try again."
-                    }
-                }
-            )
-            val info = BiometricPrompt.PromptInfo.Builder()
-                .setTitle("Enable Allervue biometric sign-in")
-                .setSubtitle("Use your enrolled fingerprint or supported face authentication")
-                .setNegativeButtonText("Cancel")
-                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-                .build()
-            prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
-        } catch (e: Exception) {
-            bioStatus = "Biometric sign-in isn't available. Use your password."
-        }
-    }
 
     Column(Modifier.fillMaxSize().background(Brush.linearGradient(
         listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))
@@ -685,72 +625,21 @@ fun ClientSettingsScreen(
                 Spacer(Modifier.height(20.dp))
                 HorizontalDivider(color = DriftBorder)
                 Spacer(Modifier.height(16.dp))
-                Text("BIOMETRIC SIGN-IN", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    if (biometricEnabled) "Biometric sign-in is enabled on this device."
-                    else "Optional. Enable fingerprint or supported face authentication for quicker sign-in next time.",
-                    color = DriftMuted, fontSize = 13.sp
-                )
-                if (biometricEnabled) {
-                    Spacer(Modifier.height(10.dp))
-                    OutlinedButton(
-                        onClick = {
-                            BiometricLogin.clear(ctx)
-                            biometricEnabled = false
-                            bioPassword = ""
-                            bioStatus = "Biometric sign-in disabled on this device."
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Disable biometric sign-in", color = DriftText) }
-                } else {
-                    if (!biometricAvailable) {
-                        Text("No supported strong biometric is enrolled on this device.",
-                            color = DriftMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-                    } else {
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
-                            bioUser, { bioUser = it; bioStatus = "" },
-                            label = { Text("Jellyfin username") }, singleLine = true,
-                            colors = colors, modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            bioPassword, { bioPassword = it; bioStatus = "" },
-                            label = { Text("Jellyfin password") }, singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            colors = colors, modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Button(
-                            enabled = !bioBusy && bioUser.isNotBlank() && bioPassword.isNotBlank(),
-                            onClick = {
-                                bioBusy = true
-                                bioStatus = "Verifying account…"
-                                scope.launch {
-                                    try {
-                                        Api.login(ctx, bioUser.trim(), bioPassword)
-                                        bioStatus = "Confirm with your fingerprint or face."
-                                        enableBiometricLogin()
-                                    } catch (e: Exception) {
-                                        bioStatus = "Couldn't verify that username and password."
-                                    }
-                                    bioBusy = false
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = DriftCoral, contentColor = DriftText)
-                        ) { Text("Enable biometric sign-in", fontWeight = FontWeight.Bold) }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("BIOMETRIC AUTHENTICATION", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Enable biometric protection for this device.", color = DriftMuted, fontSize = 13.sp)
                     }
-                }
-                if (bioStatus.isNotEmpty()) {
-                    Text(bioStatus, color = DriftMuted, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = { enabled ->
+                            biometricEnabled = enabled
+                            clientPrefs.edit().putBoolean("biometric_enabled", enabled).apply()
+                        }
+                    )
                 }
             }
 
-            if (loggedIn && Api.JFA_URL.isNotEmpty()) {
-                TextButton(onClick = { onWeb(Api.ACCOUNT_URL, "My account") }) { Text("Manage account on the web (email, Telegram, Discord)", color = DriftCoral) }
-            }
             Spacer(Modifier.height(20.dp))
             HorizontalDivider(color = DriftBorder)
             Spacer(Modifier.height(16.dp))
