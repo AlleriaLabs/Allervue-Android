@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    name: Build debug APK
+    name: Test and build debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -49,6 +49,9 @@ jobs:
           test -x "$ANDROID_HOME/cmake/3.22.1/bin/cmake"
           "$ANDROID_HOME/cmake/3.22.1/bin/cmake" --version
           "$ANDROID_HOME/ndk/27.2.12479018/ndk-build" --version
+
+      - name: Run JVM regression tests
+        run: gradle --no-daemon --stacktrace testDebugUnitTest
 
       - name: Build Allervue debug APK
         env:
