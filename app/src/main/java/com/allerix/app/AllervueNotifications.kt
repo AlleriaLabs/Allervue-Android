@@ -183,7 +183,7 @@ internal object AllervueNotificationStore {
 @Composable
 internal fun AllervueNotificationBell(
     entries: List<AllervueNotification>,
-    onRefresh: () -> Unit,
+    onRefresh: suspend () -> Unit,
     onOpenContent: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -193,25 +193,27 @@ internal fun AllervueNotificationBell(
     val unread = entries.count { !it.read }
 
     Box {
-        Box(
-            Modifier.size(44.dp).clip(CircleShape)
-                .clickable {
+        Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.fillMaxSize().clickable {
                     expanded = true
-                    onRefresh()
+                    scope.launch { onRefresh() }
                 },
-            contentAlignment = Alignment.Center
-        ) {
-            CanvasBell(Modifier.size(22.dp))
+                contentAlignment = Alignment.Center
+            ) {
+                CanvasBell(Modifier.size(22.dp))
+            }
             if (unread > 0) {
                 Box(
-                    Modifier.align(Alignment.TopEnd).offset(x = 1.dp, y = (-1).dp)
-                        .defaultMinSize(minWidth = 17.dp, minHeight = 17.dp)
+                    Modifier.align(Alignment.TopEnd).offset(x = 5.dp, y = (-3).dp)
+                        .defaultMinSize(minWidth = 21.dp, minHeight = 21.dp)
                         .clip(CircleShape).background(Color(0xFFFF527F))
-                        .padding(horizontal = 4.dp),
+                        .padding(horizontal = 5.dp, vertical = 2.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(if (unread > 99) "99+" else unread.toString(),
-                        color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold,
+                        maxLines = 1)
                 }
             }
         }
@@ -235,7 +237,7 @@ internal fun AllervueNotificationBell(
                     }
                     TextButton(onClick = {
                         AllervueNotificationStore.markAllRead(context)
-                        onRefresh()
+                        scope.launch { onRefresh() }
                     }, enabled = unread > 0) { Text("Read all", color = Color(0xFFFF91AA)) }
                 }
                 HorizontalDivider(color = Color(0x22FFFFFF))
@@ -252,7 +254,7 @@ internal fun AllervueNotificationBell(
                     }
                 } else {
                     Column(
-                        Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+                        Modifier.fillMaxWidth().heightIn(max = 320.dp).verticalScroll(rememberScrollState())
                     ) {
                         entries.forEach { entry ->
                             Row(
@@ -273,7 +275,7 @@ internal fun AllervueNotificationBell(
                                         } else {
                                             entry.itemId?.let(onOpenContent)
                                         }
-                                        onRefresh()
+                                        scope.launch { onRefresh() }
                                     }
                                     .padding(horizontal = 15.dp, vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -319,7 +321,7 @@ internal fun AllervueNotificationBell(
                         onClick = {
                             AllervueNotificationStore.clear(context)
                             expanded = false
-                            onRefresh()
+                            scope.launch { onRefresh() }
                         },
                         modifier = Modifier.align(Alignment.End).padding(end = 8.dp)
                     ) { Text("Clear all", color = Color(0xFFBBAACB), fontSize = 11.sp) }
