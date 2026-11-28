@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusable
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -154,7 +155,7 @@ private fun RebuildNavigationRail(selected: RebuildTab, isTv: Boolean, onSelect:
             val active = destination == selected
             var focused by remember(destination) { mutableStateOf(false) }
             Column(
-                Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+                Modifier.fillMaxWidth().focusable().onFocusChanged { focused = it.isFocused }
                     .clip(RoundedCornerShape(17.dp))
                     .background(if (active) Brush.horizontalGradient(listOf(Color(0x55FF794E), Color(0x55FF397C))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
                     .then(if (focused) Modifier.border(if (isTv) 3.dp else 1.dp, Color(0xFFFFB18F), RoundedCornerShape(17.dp)) else Modifier)
