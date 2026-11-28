@@ -2,6 +2,7 @@ package com.allerix.app
 
 import kotlin.math.ln
 import kotlin.math.sqrt
+import java.util.Calendar
 
 /**
  * A lightweight, private recommendation ranker for Jellyfin libraries.
@@ -14,7 +15,8 @@ object RecommendationEngine {
         history: List<Item>,
         favorites: List<Item>,
         excludeIds: Set<String>,
-        limit: Int = 12
+        limit: Int = 12,
+        currentYear: Int = Calendar.getInstance().get(Calendar.YEAR)
     ): List<Item> {
         val watchedIds = history.mapTo(HashSet()) { it.id }
         val favoriteIds = favorites.mapTo(HashSet()) { it.id }
@@ -41,7 +43,7 @@ object RecommendationEngine {
 
         val seen = HashSet<String>()
         val eligible = candidates.filter { item ->
-            item.id !in excludeIds && item.id !in watchedIds &&
+            item.id !in excludeIds && item.id !in watchedIds && item.id !in favoriteIds &&
                 item.userData?.isPlayed != true && item.type in setOf("Movie", "Series") &&
                 seen.add(item.id)
         }
@@ -55,14 +57,14 @@ object RecommendationEngine {
             // A modest quality prior helps break ties without overpowering personal taste.
             score += ((item.rating ?: 0.0).coerceIn(0.0, 10.0) / 10.0) * 0.35
             if (item.year != null) {
-                val age = (2026 - item.year).coerceAtLeast(0)
+                val age = (currentYear - item.year).coerceAtLeast(0)
                 score += (1.0 / (1.0 + age / 18.0)) * 0.08
             }
             // With no history, return a useful starter shelf based on library quality.
             if (!hasTasteSignal) score += (item.rating ?: 0.0).coerceIn(0.0, 10.0)
             item to (score / sqrt(features.size.coerceAtLeast(1).toDouble()))
         }.sortedWith(compareByDescending<Pair<Item, Double>> { it.second }.thenBy { it.first.name })
-            .take(limit).map { it.first }
+            .take(limit.coerceAtLeast(0)).map { it.first }
     }
 
     private fun features(item: Item): Set<String> = buildSet {
