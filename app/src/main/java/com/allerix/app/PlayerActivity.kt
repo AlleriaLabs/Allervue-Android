@@ -1,5 +1,6 @@
 package com.allerix.app
 
+import android.app.ActivityManager
 import android.app.Dialog
 import android.app.PictureInPictureParams
 import android.content.ContentValues
@@ -101,6 +102,9 @@ import kotlin.math.log10
 @OptIn(UnstableApi::class)
 class PlayerActivity : ComponentActivity() {
     private val accent = 0xFFFF4F78.toInt()
+    private val isTvPlayback: Boolean
+        get() = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_TYPE_MASK) ==
+            android.content.res.Configuration.UI_MODE_TYPE_TELEVISION
 
     private lateinit var player: ExoPlayer
     private lateinit var playerView: PlayerView
@@ -330,10 +334,21 @@ class PlayerActivity : ComponentActivity() {
             .setEnableDecoderFallback(true)
         if (decoder == DecoderMode.HW_PLUS) factory.forceEnableMediaCodecAsynchronousQueueing()
 
+        // Keep the playback buffer proportional to the device's memory budget.
+        // This avoids reserving a 90-second buffer on low-memory phones/tablets,
+        // while TVs and normal-memory devices retain a comfortable rebuffer margin.
+        val activityManager = getSystemService(ACTIVITY_SERVICE) as ActivityManager
+        val lowMemoryDevice = activityManager.isLowRamDevice || activityManager.memoryClass < 192
+        val minBufferMs = if (lowMemoryDevice) 12_000 else if (isTvPlayback) 25_000 else 20_000
+        val maxBufferMs = if (lowMemoryDevice) 45_000 else 75_000
         val loadControl = DefaultLoadControl.Builder()
-            .setBufferDurationsMs(25_000, 90_000, 3_000, 7_000)
+            .setBufferDurationsMs(minBufferMs, maxBufferMs, 2_500, 5_000)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
+        DiagnosticLog.record(
+            applicationContext,
+            "PLAYER_BUFFER min=${minBufferMs}ms max=${maxBufferMs}ms lowMemory=${lowMemoryDevice} tv=${isTvPlayback} memoryClass=${activityManager.memoryClass}MB"
+        )
 
         val p = ExoPlayer.Builder(this, factory)
             .setLoadControl(loadControl)
@@ -2597,6 +2612,24 @@ class PlayerActivity : ComponentActivity() {
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         if (::player.isInitialized) {
             when (keyCode) {
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    if (isTvPlayback) {
+                        if (locked) showLockOverlay() else togglePlayback()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_UP -> {
+                    if (isTvPlayback) {
+                        if (locked) showLockOverlay() else showControls()
+                        return true
+                    }
+                }
+                KeyEvent.KEYCODE_DPAD_DOWN -> {
+                    if (isTvPlayback) {
+                        if (locked) showLockOverlay() else if (controlsVisible) hideControls() else showControls()
+                        return true
+                    }
+                }
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK, KeyEvent.KEYCODE_SPACE -> {
                     togglePlayback()
                     return true
