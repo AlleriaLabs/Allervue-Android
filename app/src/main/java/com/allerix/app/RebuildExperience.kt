@@ -75,55 +75,99 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     BackHandler(enabled = stack.isEmpty() && tab != RebuildTab.HOME) { tab = RebuildTab.HOME }
 
     val top = stack.lastOrNull()
+    val device = LocalAllervueDeviceProfile.current
     val showNav = (top == null && tab !in setOf(RebuildTab.MOVIES, RebuildTab.SHOWS, RebuildTab.ANIME)) || top is Nav.Detail || top is Nav.Grid
+    val tabletMode = device.isTablet
+    val selectTab: (RebuildTab) -> Unit = { selected -> stack.clear(); tab = selected }
     Box(Modifier.fillMaxSize()) {
-        // RebuildHome owns the complete weather/time-driven sky for this route.
-        // Keep it as the only animated full-screen Canvas behind Home artwork.
-        Column(Modifier.fillMaxSize()) {
-        Box(Modifier.weight(1f)) {
-            when (top) {
-                null -> when (tab) {
-                    RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut) { entries -> stack.add(Nav.ContinueWatching(entries)) }
-                    RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
-                    RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
-                    RebuildTab.ANIME -> RebuildCatalog("Anime", "Anime", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
-                    RebuildTab.COLLECTION -> RebuildCollection(onOpen, onPlay)
+        // Keep the animated Home background inside the content pane; tablet
+        // navigation remains a stable rail alongside it.
+        Row(Modifier.fillMaxSize()) {
+            if (tabletMode) {
+                RebuildNavigationRail(tab, onSelect = selectTab)
+            }
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when (top) {
+                        null -> when (tab) {
+                            RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut) { entries -> stack.add(Nav.ContinueWatching(entries)) }
+                            RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
+                            RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
+                            RebuildTab.ANIME -> RebuildCatalog("Anime", "Anime", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
+                            RebuildTab.COLLECTION -> RebuildCollection(onOpen, onPlay)
+                        }
+                        is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
+                        is Nav.Detail -> RebuildDetail(top.item, onOpen, onPlay, back)
+                        is Nav.ContinueWatching -> ContinueWatchingAllScreen(top.entries, onPlay, onOpen, back)
+                        Nav.Search -> RebuildSearch(onOpen, back)
+                        Nav.Settings -> RebuildSettingsScreen(
+                            back, onRequest = { stack.add(Nav.RequestShow) },
+                            onClient = { stack.add(Nav.Profile) },
+                            onPlayback = { stack.add(Nav.PlaybackSettings) },
+                            onDiagnostics = { stack.add(Nav.Diagnostics) },
+                            onAbout = { stack.add(Nav.About) },
+                            onProfile = { stack.add(Nav.Profile) },
+                            onAppearance = { stack.add(Nav.Appearance) },
+                            onSignOut = signOut,
+                            onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
+                        )
+                        Nav.Profile -> ProfileScreen(
+                            back = back,
+                            onServer = { stack.add(Nav.ClientSettings) },
+                            onPortal = { stack.add(Nav.Web(Api.ACCOUNT_URL, "My account")) },
+                            onSignOut = signOut
+                        )
+                        Nav.Appearance -> AppearanceSettingsScreen(back)
+                        Nav.RequestShow -> RequestShowScreen(back)
+                        Nav.ClientSettings -> ClientSettingsScreen(
+                            back, onServerChanged = signOut, loggedIn = true,
+                            onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
+                        )
+                        Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
+                        Nav.Diagnostics -> DiagnosticScreen(back)
+                        Nav.About -> AllervueAboutScreen(back)
+                        is Nav.Web -> WebScreen(top.url, top.title, back)
+                    }
                 }
-                is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
-                is Nav.Detail -> RebuildDetail(top.item, onOpen, onPlay, back)
-                is Nav.ContinueWatching -> ContinueWatchingAllScreen(top.entries, onPlay, onOpen, back)
-                Nav.Search -> RebuildSearch(onOpen, back)
-                Nav.Settings -> RebuildSettingsScreen(
-                    back, onRequest = { stack.add(Nav.RequestShow) },
-                    onClient = { stack.add(Nav.Profile) },
-                    onPlayback = { stack.add(Nav.PlaybackSettings) },
-                    onDiagnostics = { stack.add(Nav.Diagnostics) },
-                    onAbout = { stack.add(Nav.About) },
-                    onProfile = { stack.add(Nav.Profile) },
-                    onAppearance = { stack.add(Nav.Appearance) },
-                    onSignOut = signOut,
-                    onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
-                )
-                Nav.Profile -> ProfileScreen(
-                    back = back,
-                    onServer = { stack.add(Nav.ClientSettings) },
-                    onPortal = { stack.add(Nav.Web(Api.ACCOUNT_URL, "My account")) },
-                    onSignOut = signOut
-                )
-                Nav.Appearance -> AppearanceSettingsScreen(back)
-                Nav.RequestShow -> RequestShowScreen(back)
-                Nav.ClientSettings -> ClientSettingsScreen(
-                    back, onServerChanged = signOut, loggedIn = true,
-                    onWeb = { u, t -> stack.add(Nav.Web(u, t)) }
-                )
-                Nav.PlaybackSettings -> PlaybackSettingsScreen(back)
-                Nav.Diagnostics -> DiagnosticScreen(back)
-                Nav.About -> AllervueAboutScreen(back)
-                is Nav.Web -> WebScreen(top.url, top.title, back)
+                if (!tabletMode && showNav) RebuildBottomNav(tab, onSelect = selectTab)
             }
         }
-        if (showNav) RebuildBottomNav(tab) { selected -> stack.clear(); tab = selected }
+    }
+}
+
+@Composable
+private fun RebuildNavigationRail(selected: RebuildTab, onSelect: (RebuildTab) -> Unit) {
+    Column(
+        Modifier.width(92.dp).fillMaxHeight()
+            .background(Color(0xF20D0B14))
+            .padding(horizontal = 9.dp, vertical = 18.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Box(Modifier.padding(bottom = 14.dp).size(48.dp).clip(RoundedCornerShape(16.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFFFF794E), Color(0xFFFF397C)))),
+            contentAlignment = Alignment.Center) {
+            Text("A", color = Color(0xFF170C16), fontSize = 25.sp, fontWeight = FontWeight.Black)
         }
+        RebuildTab.values().forEach { destination ->
+            val active = destination == selected
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
+                    .background(if (active) Brush.horizontalGradient(listOf(Color(0x44FF794E), Color(0x44FF397C))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .clickable { onSelect(destination) }
+                    .padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                SmallIcon(destination.icon, if (active) Color(0xFFFF9A83) else Color(0xFFBEB5C9), 22)
+                Text(destination.label, color = if (active) Color.White else Color(0xFFBEB5C9),
+                    fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1)
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        Text("ALLERVUE", color = Color(0xFF887D96), fontSize = 8.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
     }
 }
 
@@ -478,7 +522,7 @@ private fun RebuildCatalog(
                         modifier = Modifier.align(Alignment.Center))
                 } else if (view == "Grid") {
                     LazyVerticalGrid(
-                        state = gridState, columns = GridCells.Fixed(3),
+                        state = gridState, columns = GridCells.Adaptive(minSize = if (LocalAllervueDeviceProfile.current.isTablet) 168.dp else 112.dp),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 16.dp, end = 48.dp, top = 8.dp, bottom = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -735,7 +779,7 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHea
                     color=Color.White,fontSize=14.sp,fontWeight=FontWeight.SemiBold)
                 Text("Save titles from their details page to keep them here.",color=Color(0xFFBEB2C8),fontSize=11.sp,modifier=Modifier.padding(top=5.dp))
             }
-        } else LazyVerticalGrid(GridCells.Fixed(2),Modifier.fillMaxSize(),
+        } else LazyVerticalGrid(GridCells.Adaptive(minSize = if (LocalAllervueDeviceProfile.current.isTablet) 190.dp else 150.dp),Modifier.fillMaxSize(),
             contentPadding=PaddingValues(start=16.dp,end=16.dp,top=8.dp,bottom=24.dp),
             horizontalArrangement=Arrangement.spacedBy(13.dp),verticalArrangement=Arrangement.spacedBy(17.dp)) {
             items(visible.size,key={visible[it].id}) { index ->
