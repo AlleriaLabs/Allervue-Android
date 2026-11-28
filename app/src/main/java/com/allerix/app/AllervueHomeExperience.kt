@@ -1008,7 +1008,7 @@ internal fun AllervueHome(
                 }
             }
             Row(
-                Modifier.fillMaxWidth().height(82.dp),
+                Modifier.fillMaxWidth().heightIn(min = 116.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
