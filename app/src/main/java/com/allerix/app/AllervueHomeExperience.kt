@@ -795,7 +795,9 @@ internal fun AllervueHome(
                 // Planet diameters vary like a miniature solar system; each slot
                 // keeps its own size when artwork is shuffled every eight seconds.
                 val planetSizes = listOf(42.dp, 58.dp, 36.dp, 64.dp, 48.dp, 32.dp)
-                val centerSize = (w * .42f).coerceIn(156.dp, 184.dp)
+                // Size the center artwork from the smaller available dimension.
+                // On compact/tablet layouts the orbit can be much shorter than it is wide.
+                val centerSize = (minOf(w, h) * .42f).coerceIn(120.dp, 184.dp)
                 val orbitCenterX = w * .5f
                 val orbitCenterY = h * .50f
                 // Every artwork node follows the same fixed elliptical orbit.
@@ -815,14 +817,20 @@ internal fun AllervueHome(
                         // Keep poster artwork outside the featured artwork with a
                         // consistent visual gap; glow padding is not part of the
                         // poster's actual collision diameter.
-                        val minimumHorizontalRadius = centerSize / 2 + planetSize / 2 + 12.dp
-                        val maximumHorizontalRadius = (w - planetSize) / 2 - 12.dp
-                        val radiusX = (w * (.34f + kotlin.random.Random.nextFloat() * .06f))
-                            .coerceIn(minimumHorizontalRadius, maximumHorizontalRadius)
-                        val minimumVerticalRadius = centerSize / 2 + planetSize / 2 + 12.dp
-                        val maximumVerticalRadius = (h - planetSize) / 2 - 12.dp
-                        val radiusY = (h * (.34f + kotlin.random.Random.nextFloat() * .06f))
-                            .coerceIn(minimumVerticalRadius, maximumVerticalRadius)
+                        val desiredHorizontalRadius = w * (.34f + kotlin.random.Random.nextFloat() * .06f)
+                        val maximumHorizontalRadius = ((w - planetSize) / 2 - 12.dp).coerceAtLeast(0.dp)
+                        val minimumHorizontalRadius =
+                            (centerSize / 2 + planetSize / 2 + 12.dp).coerceAtMost(maximumHorizontalRadius)
+                        val radiusX = desiredHorizontalRadius.coerceIn(
+                            minimumHorizontalRadius, maximumHorizontalRadius
+                        )
+                        val desiredVerticalRadius = h * (.34f + kotlin.random.Random.nextFloat() * .06f)
+                        val maximumVerticalRadius = ((h - planetSize) / 2 - 12.dp).coerceAtLeast(0.dp)
+                        val minimumVerticalRadius =
+                            (centerSize / 2 + planetSize / 2 + 12.dp).coerceAtMost(maximumVerticalRadius)
+                        val radiusY = desiredVerticalRadius.coerceIn(
+                            minimumVerticalRadius, maximumVerticalRadius
+                        )
                         val speed = .65f + kotlin.random.Random.nextFloat() * .7f
                         Triple(baseAngle + phaseJitter, androidx.compose.ui.geometry.Offset(radiusX.value, radiusY.value), speed)
                     }
