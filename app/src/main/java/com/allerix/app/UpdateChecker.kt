@@ -164,7 +164,7 @@ object UpdateChecker {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
         }.getOrDefault("1.0")
 
-}}
+}
 
 @Composable
 fun UpdateAvailableDialog(update: UpdateInfo, onDismiss: () -> Unit) {
