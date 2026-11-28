@@ -1375,7 +1375,7 @@ class PlayerActivity : ComponentActivity() {
         subText.setLineSpacing(dp(1).toFloat(), 1.0f)
         subText.setPadding(dp(6), dp(2), dp(6), dp(2))
         subText.background = null
-        subText.setShadowLayer(dp(1.5f).toFloat(), 0f, dp(1).toFloat(), Color.BLACK)
+        subText.setShadowLayer(dp(2).toFloat(), 0f, dp(1).toFloat(), Color.BLACK)
     }
 
     private fun layoutSubtitle() {
