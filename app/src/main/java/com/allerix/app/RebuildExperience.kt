@@ -26,6 +26,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -77,14 +78,14 @@ fun RebuildMainShell(onLogout: () -> Unit) {
     val top = stack.lastOrNull()
     val device = LocalAllervueDeviceProfile.current
     val showNav = (top == null && tab !in setOf(RebuildTab.MOVIES, RebuildTab.SHOWS, RebuildTab.ANIME)) || top is Nav.Detail || top is Nav.Grid
-    val tabletMode = device.isTablet
+    val railMode = device.isTablet || device.isTv
     val selectTab: (RebuildTab) -> Unit = { selected -> stack.clear(); tab = selected }
     Box(Modifier.fillMaxSize()) {
         // Keep the animated Home background inside the content pane; tablet
         // navigation remains a stable rail alongside it.
         Row(Modifier.fillMaxSize()) {
-            if (tabletMode) {
-                RebuildNavigationRail(tab, onSelect = selectTab)
+            if (railMode) {
+                RebuildNavigationRail(tab, isTv = device.isTv, onSelect = selectTab)
             }
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -129,18 +130,18 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                         is Nav.Web -> WebScreen(top.url, top.title, back)
                     }
                 }
-                if (!tabletMode && showNav) RebuildBottomNav(tab, onSelect = selectTab)
+                if (!railMode && showNav) RebuildBottomNav(tab, onSelect = selectTab)
             }
         }
     }
 }
 
 @Composable
-private fun RebuildNavigationRail(selected: RebuildTab, onSelect: (RebuildTab) -> Unit) {
+private fun RebuildNavigationRail(selected: RebuildTab, isTv: Boolean, onSelect: (RebuildTab) -> Unit) {
     Column(
-        Modifier.width(92.dp).fillMaxHeight()
+        Modifier.width(if (isTv) 112.dp else 92.dp).fillMaxHeight()
             .background(Color(0xF20D0B14))
-            .padding(horizontal = 9.dp, vertical = 18.dp),
+            .padding(horizontal = if (isTv) 12.dp else 9.dp, vertical = if (isTv) 30.dp else 18.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(13.dp)
     ) {
@@ -151,17 +152,20 @@ private fun RebuildNavigationRail(selected: RebuildTab, onSelect: (RebuildTab) -
         }
         RebuildTab.values().forEach { destination ->
             val active = destination == selected
+            var focused by remember(destination) { mutableStateOf(false) }
             Column(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(17.dp))
-                    .background(if (active) Brush.horizontalGradient(listOf(Color(0x44FF794E), Color(0x44FF397C))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(if (active) Brush.horizontalGradient(listOf(Color(0x55FF794E), Color(0x55FF397C))) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .then(if (focused) Modifier.border(if (isTv) 3.dp else 1.dp, Color(0xFFFFB18F), RoundedCornerShape(17.dp)) else Modifier)
                     .clickable { onSelect(destination) }
-                    .padding(vertical = 12.dp),
+                    .padding(vertical = if (isTv) 17.dp else 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                SmallIcon(destination.icon, if (active) Color(0xFFFF9A83) else Color(0xFFBEB5C9), 22)
-                Text(destination.label, color = if (active) Color.White else Color(0xFFBEB5C9),
-                    fontSize = 10.sp, fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                SmallIcon(destination.icon, if (active || focused) Color(0xFFFF9A83) else Color(0xFFBEB5C9), if (isTv) 27 else 22)
+                Text(destination.label, color = if (active || focused) Color.White else Color(0xFFBEB5C9),
+                    fontSize = if (isTv) 13.sp else 10.sp, fontWeight = if (active || focused) FontWeight.Bold else FontWeight.Medium,
                     maxLines = 1)
             }
         }
@@ -278,7 +282,7 @@ private fun RebuildShelf(title: String, entries: List<Item>, onItem: (Item) -> U
 
 @Composable
 private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val posterWidth = if (LocalAllervueDeviceProfile.current.isTablet) 142.dp else 116.dp
+    val posterWidth = when { LocalAllervueDeviceProfile.current.isTv -> 160.dp; LocalAllervueDeviceProfile.current.isTablet -> 142.dp; else -> 116.dp }
     Column(modifier.width(posterWidth).clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.68f).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             AsyncImage(Api.poster(item), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
@@ -523,7 +527,7 @@ private fun RebuildCatalog(
                         modifier = Modifier.align(Alignment.Center))
                 } else if (view == "Grid") {
                     LazyVerticalGrid(
-                        state = gridState, columns = GridCells.Adaptive(minSize = if (LocalAllervueDeviceProfile.current.isTablet) 168.dp else 112.dp),
+                        state = gridState, columns = GridCells.Adaptive(minSize = when { LocalAllervueDeviceProfile.current.isTv -> 220.dp; LocalAllervueDeviceProfile.current.isTablet -> 168.dp; else -> 112.dp }),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 16.dp, end = 48.dp, top = 8.dp, bottom = 14.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -1224,7 +1228,7 @@ private fun RebuildFolderScreen(folder: Item, onOpen: (Item) -> Unit, back: () -
             }
         }
         if (loading) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = VCyan) }
-        else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
+        else LazyVerticalGrid(GridCells.Adaptive(minSize = when { LocalAllervueDeviceProfile.current.isTv -> 220.dp; LocalAllervueDeviceProfile.current.isTablet -> 190.dp; else -> 150.dp }), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(children.size, key = { children[it].id }) { index ->
