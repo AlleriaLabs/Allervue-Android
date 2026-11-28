@@ -1327,11 +1327,44 @@ private fun ContinueWatchingShelf(
                             }
                         }
                         Box(
-                            Modifier.align(Alignment.Center).size(34.dp).clip(CircleShape)
-                                .background(Color(0xCC17152C)),
+                            Modifier.align(Alignment.Center).size(82.dp).drawBehind {
+                                val glowCenter = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
+                                val glowRadius = size.minDimension * .50f
+                                drawCircle(
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            AHot.copy(alpha = .52f),
+                                            AHot.copy(alpha = .78f),
+                                            AHot.copy(alpha = .26f),
+                                            AHot.copy(alpha = .10f),
+                                            Color.Transparent
+                                        ),
+                                        center = glowCenter,
+                                        radius = glowRadius
+                                    ),
+                                    radius = glowRadius,
+                                    center = glowCenter
+                                )
+                            },
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("▶", color = Color.White, fontSize = 14.sp)
+                            Box(
+                                Modifier.size(58.dp).clip(CircleShape)
+                                    .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
+                                    .border(1.dp, Color(0xFFFFC0D0).copy(alpha = .72f), CircleShape)
+                                    .clickable { onPlay(item) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Canvas(Modifier.size(23.dp)) {
+                                    val play = androidx.compose.ui.graphics.Path().apply {
+                                        moveTo(size.width * .29f, size.height * .12f)
+                                        lineTo(size.width * .92f, size.height * .50f)
+                                        lineTo(size.width * .29f, size.height * .88f)
+                                        close()
+                                    }
+                                    drawPath(play, Color(0xFF170D1B))
+                                }
+                            }
                         }
                     }
                     Text(
