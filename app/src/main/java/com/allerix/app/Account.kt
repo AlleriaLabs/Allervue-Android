@@ -852,26 +852,48 @@ private fun <T> ChoiceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF181818),
-        title = { Text(title, color = Color.White) },
+        shape = RoundedCornerShape(26.dp),
+        containerColor = Color(0xFF21172F),
+        tonalElevation = 12.dp,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("PLAYBACK PREFERENCE", color = DriftCoral, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text(title, color = DriftText, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 options.forEach { (label, value) ->
+                    val isSelected = value == selected
                     Row(
-                        Modifier.fillMaxWidth().clickable { onPick(value); onDismiss() }.padding(vertical = 4.dp),
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) DriftCoral.copy(alpha = .13f) else Color(0xFF191426))
+                            .border(1.dp, if (isSelected) DriftCoral.copy(alpha = .8f) else DriftBorder, RoundedCornerShape(14.dp))
+                            .clickable { onPick(value); onDismiss() }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = value == selected, onClick = { onPick(value); onDismiss() },
-                            colors = RadioButtonDefaults.colors(selectedColor = Red, unselectedColor = Grey)
+                            selected = isSelected, onClick = { onPick(value); onDismiss() },
+                            colors = RadioButtonDefaults.colors(selectedColor = DriftCoral, unselectedColor = DriftMuted)
                         )
-                        Text(label, color = Color.White, fontSize = 15.sp)
+                        Text(label, color = if (isSelected) DriftText else DriftMuted,
+                            fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
+                        Spacer(Modifier.weight(1f))
+                        if (isSelected) Text("SELECTED", color = DriftCoral, fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = Grey) } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CLOSE", color = DriftCoral, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+        }
     )
 }
 
@@ -913,8 +935,9 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
                     checked = saveData,
                     onCheckedChange = { saveData = it; prefs.edit().putBoolean("save_data", it).apply() },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White, checkedTrackColor = Red,
-                        uncheckedThumbColor = Grey, uncheckedTrackColor = Color(0xFF333333)
+                        checkedThumbColor = Color.White, checkedTrackColor = DriftCoral,
+                        checkedBorderColor = DriftCoral, uncheckedThumbColor = DriftMuted,
+                        uncheckedTrackColor = Color(0xFF342B43), uncheckedBorderColor = DriftBorder
                     )
                 )
             }
@@ -930,8 +953,9 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
                     checked = autoPlay,
                     onCheckedChange = { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White, checkedTrackColor = Red,
-                        uncheckedThumbColor = Grey, uncheckedTrackColor = Color(0xFF333333)
+                        checkedThumbColor = Color.White, checkedTrackColor = DriftCoral,
+                        checkedBorderColor = DriftCoral, uncheckedThumbColor = DriftMuted,
+                        uncheckedTrackColor = Color(0xFF342B43), uncheckedBorderColor = DriftBorder
                     )
                 )
             }
@@ -1006,7 +1030,6 @@ fun ProfileScreen(
                 fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
         }
         SettingsRow("⚙", "Server & security", "Server address, password and biometric sign-in", onServer)
-        SettingsRow("↗", "Account portal", "Manage your account details online", onPortal)
         SettingsRow("⎋", "Sign out", "Sign out of this Jellyfin account", onSignOut)
         Text("Your profile details are read from the active Jellyfin session. Passwords and access tokens are not displayed.",
             color = Color(0xFF7F8998), fontSize = 12.sp,
