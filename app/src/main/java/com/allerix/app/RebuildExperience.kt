@@ -61,8 +61,9 @@ private val VGold = AllervueDesign.Gold
 internal fun Modifier.remoteFocusable(): Modifier {
     var focused by remember { mutableStateOf(false) }
     return this
+        // clickable() supplies the focus target; observe it here instead of
+        // adding a second nested focus target that could swallow DPAD activation.
         .onFocusChanged { focused = it.isFocused }
-        .focusable()
         .then(
             if (focused) Modifier.border(
                 width = 2.dp,
