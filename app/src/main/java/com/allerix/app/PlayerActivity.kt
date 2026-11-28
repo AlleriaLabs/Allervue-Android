@@ -851,20 +851,10 @@ class PlayerActivity : ComponentActivity() {
             addView(rightRailWithFullscreen, FrameLayout.LayoutParams(dp(48), -2, Gravity.END or Gravity.CENTER_VERTICAL).apply { rightMargin = dp(22); topMargin = -dp(22) })
             addView(bottomPanel, FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM))
         }
-        subText = object : TextView(this) {
-            override fun onDraw(canvas: android.graphics.Canvas) {
-                val textPaint = paint
-                val originalColor = currentTextColor
-                textPaint.style = Paint.Style.STROKE
-                textPaint.strokeJoin = Paint.Join.ROUND
-                textPaint.strokeWidth = dp(3).toFloat()
-                textPaint.color = Color.BLACK
-                super.onDraw(canvas)
-                textPaint.style = Paint.Style.FILL
-                textPaint.color = originalColor
-                super.onDraw(canvas)
-            }
-        }.apply { gravity = Gravity.CENTER; visibility = View.GONE }
+        subText = TextView(this).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
         hud = TextView(this).apply {
             setTextColor(Color.WHITE); textSize = 14f; setPadding(dp(18), dp(11), dp(18), dp(11))
             background = GradientDrawable().apply { setColor(0xFF1A2731.toInt()); cornerRadius = dp(12).toFloat() }
@@ -1375,18 +1365,17 @@ class PlayerActivity : ComponentActivity() {
 
     // ================================================================= subtitles
     private fun applySubStyle() {
-        // Reference-matched cinematic subtitles: bold white lettering with a crisp
-        // black outline and soft shadow, without a dark caption panel.
-        subText.textSize = if (isInPictureInPictureMode) 12f else 22f
+        // Simple player subtitles: white text, modest size, and a subtle black shadow.
+        subText.textSize = if (isInPictureInPictureMode) 10f else 16f
         subText.setTextColor(Color.WHITE)
-        subText.setTypeface(Typeface.create("sans-serif", Typeface.BOLD), Typeface.BOLD)
+        subText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL))
         subText.gravity = Gravity.CENTER
         subText.maxLines = 2
         subText.includeFontPadding = false
-        subText.setLineSpacing(dp(3).toFloat(), 1.0f)
-        subText.setPadding(dp(10), dp(4), dp(10), dp(4))
+        subText.setLineSpacing(dp(1).toFloat(), 1.0f)
+        subText.setPadding(dp(6), dp(2), dp(6), dp(2))
         subText.background = null
-        subText.setShadowLayer(dp(2).toFloat(), 0f, dp(2).toFloat(), Color.BLACK)
+        subText.setShadowLayer(dp(1.5f).toFloat(), 0f, dp(1).toFloat(), Color.BLACK)
     }
 
     private fun layoutSubtitle() {
@@ -1394,7 +1383,7 @@ class PlayerActivity : ComponentActivity() {
         val pip = isInPictureInPictureMode
         val h = if (root.height > 0) root.height else resources.displayMetrics.heightPixels
         val w = if (root.width > 0) root.width else resources.displayMetrics.widthPixels
-        subText.textSize = if (pip) 12f else 22f
+        subText.textSize = if (pip) 10f else 16f
         lp.bottomMargin = if (pip) dp(8) else (subPos * h).toInt() + (if (controlsVisible) dp(110) else 0)
         subText.maxWidth = (w * if (pip) 0.90f else 0.90f).toInt()
         subText.layoutParams = lp
