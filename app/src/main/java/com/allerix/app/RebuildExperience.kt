@@ -326,8 +326,32 @@ private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = 
 @Composable
 private fun RebuildDiscover(onOpen: (Item) -> Unit, onSearch: () -> Unit) {
     var type by remember { mutableStateOf("Movie") }
+    var personalized by remember(Api.userId) { mutableStateOf(emptyList<Item>()) }
+    var recommendationsLoading by remember(Api.userId) { mutableStateOf(true) }
+
+    LaunchedEffect(Api.userId) {
+        recommendationsLoading = true
+        personalized = runCatching { Api.personalizedPicks() }.getOrDefault(emptyList())
+        recommendationsLoading = false
+    }
+
     Column(Modifier.fillMaxSize()) {
         RebuildHeader("Discover", "Explore your Jellyfin library", onSearch, "Search")
+        if (personalized.isNotEmpty()) {
+            RebuildShelf(
+                "Picked for You",
+                personalized,
+                onOpen,
+                "BASED ON YOUR WATCH HISTORY & FAVORITES"
+            )
+        } else if (recommendationsLoading) {
+            Text(
+                "Finding something you'll love…",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
+            )
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("Movie" to "Films", "Series" to "TV Shows", "Anime" to "Anime").forEach { (value, label) ->
                 val active = type == value
