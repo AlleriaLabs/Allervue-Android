@@ -45,7 +45,7 @@ object UpdateChecker {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    suspend fun checkForUpdate(context: Context): UpdateInfo? = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(context: Context, includeDismissed: Boolean = false): UpdateInfo? = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url(RELEASE_API)
             .header("Accept", "application/vnd.github+json")
@@ -56,10 +56,10 @@ object UpdateChecker {
             val json = JSONObject(response.body?.string().orEmpty())
             val tag = json.optString("tag_name").trim()
             val version = tag.removePrefix("v").removePrefix("V")
-            if (tag.isBlank() || !isNewer(version, currentVersion(context))) return@withContext null
+            if (tag.isBlank() || !isNewerAllervueVersion(version, currentVersion(context))) return@withContext null
             val dismissed = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString("dismissed_tag", null)
-            if (dismissed == tag) return@withContext null
+            if (!includeDismissed && dismissed == tag) return@withContext null
 
             val assets = json.optJSONArray("assets") ?: return@withContext null
             var apkUrl: String? = null
@@ -164,20 +164,6 @@ object UpdateChecker {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
         }.getOrDefault("1.0")
 
-    private fun isNewer(candidate: String, installed: String): Boolean {
-        fun parts(value: String) = Regex("\\d+").findAll(value).mapNotNull {
-            it.value.toIntOrNull()
-        }.toList()
-        val a = parts(candidate)
-        val b = parts(installed)
-        if (a.isEmpty()) return false
-        for (i in 0 until maxOf(a.size, b.size)) {
-            val left = a.getOrElse(i) { 0 }
-            val right = b.getOrElse(i) { 0 }
-            if (left != right) return left > right
-        }
-        return false
-    }
 }
 
 @Composable

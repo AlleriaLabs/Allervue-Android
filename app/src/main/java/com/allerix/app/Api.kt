@@ -1,7 +1,10 @@
 package com.allerix.app
 
 import android.content.Context
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
@@ -38,6 +41,7 @@ object Api {
     const val RESET_PASSWORD_URL = "$JFA_URL/my/account/password/reset"
 
     private val http = OkHttpClient()
+    private val loginBackgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     fun load(ctx: Context) {
@@ -103,9 +107,11 @@ object Api {
         val r = json.decodeFromString<AuthResult>(call("POST", "/Users/AuthenticateByName", body))
         token = r.token; userId = r.user.id; username = user
         save(ctx)
-        // Reuse the credentials from the primary Jellyfin sign-in to establish
-        // the request-service session. A request-service outage must not block playback sign-in.
-        runCatching { SeerrApi.login(ctx, user, pw) }
+        // Request-service authentication is optional and must never delay the
+        // primary Jellyfin login or first Home render. Connect in the background.
+        loginBackgroundScope.launch {
+            runCatching { SeerrApi.login(ctx.applicationContext, user, pw) }
+        }
     }
 
     // ---- account ----
@@ -177,16 +183,41 @@ object Api {
     suspend fun views(): List<Item> =
         json.decodeFromString<ItemsResult>(call("GET", "/Users/$userId/Views")).items
 
+    /**
+     * Loads media only from the named Jellyfin libraries. Jellyfin's Views endpoint
+     * supplies the actual folder IDs, so the app never guesses by genre or media type.
+     * Library labels are normalized so names such as "Jellyfin Anime Library" and
+     * "Anime" resolve to the same exact library name without substring matching.
+     */
+    private fun normalizedLibraryName(value: String): String =
+        value.lowercase()
+            .replace("jellyfin", "")
+            .replace("library", "")
+            .replace(Regex("[^a-z0-9]"), "")
+
+    suspend fun libraryItems(libraryNames: List<String>, itemTypes: List<String>): List<Item> {
+        val wanted = libraryNames.map(::normalizedLibraryName).toSet()
+        val libraries = views().filter { normalizedLibraryName(it.name) in wanted }
+        if (libraries.isEmpty()) return emptyList()
+        return coroutineScope {
+            libraries.flatMap { library ->
+                itemTypes.map { itemType ->
+                    async { byType(itemType, parentId = library.id) }
+                }
+            }.flatMap { it.await() }.distinctBy { it.id }
+        }
+    }
+
     suspend fun resume(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview")).items
+        call("GET", "/Users/$userId/Items/Resume?limit=12&mediaTypes=Video&fields=Overview,ImageTags,BackdropImageTags,ParentBackdropItemId,RunTimeTicks,UserData,SeriesName,IndexNumber,ParentIndexNumber,ProductionYear")).items
 
     /** Random movies/series that have backdrops, for the home carousel. */
     suspend fun featured(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&imageTypes=Backdrop&sortBy=Random&limit=7&fields=Overview,Genres")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&imageTypes=Backdrop&sortBy=Random&limit=7&fields=Overview,Genres,ImageTags,BackdropImageTags,ParentBackdropItemId")
     ).items
 
     suspend fun trending(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=DateCreated&sortOrder=Descending&limit=20&fields=Overview,Genres")
+        call("GET", "/Items?userId=$userId&recursive=true&includeItemTypes=Movie,Series&sortBy=DateCreated&sortOrder=Descending&limit=20&fields=Overview,Genres,ImageTags,BackdropImageTags,ParentBackdropItemId")
     ).items
 
     suspend fun suggestions(): List<Item> = json.decodeFromString<ItemsResult>(
@@ -198,7 +229,7 @@ object Api {
      * All ranking runs locally in the app; no viewing history is sent to a third-party AI service.
      */
     suspend fun personalizedPicks(excludeIds: Set<String> = emptySet()): List<Item> {
-        val fields = "Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData"
+        val fields = "Overview,Genres,Tags,People,Studios,ProductionLocations,CommunityRating,UserData,ImageTags,BackdropImageTags,ParentBackdropItemId"
         return coroutineScope {
             val historyTask = async {
                 runCatching {
@@ -225,13 +256,15 @@ object Api {
 
     suspend fun byType(
         type: String, genre: String? = null, year: Int? = null,
-        minRating: Double? = null, resolution: String? = null, watched: String? = null
+        minRating: Double? = null, resolution: String? = null, watched: String? = null,
+        parentId: String? = null
     ): List<Item> {
         val params = mutableListOf(
             "userId=$userId", "recursive=true", "includeItemTypes=$type",
             "sortBy=SortName", "limit=500",
             "fields=Genres,Tags,Overview,ProductionLocations,CommunityRating,UserData"
         )
+        parentId?.takeIf { it.isNotBlank() }?.let { params += "ParentId=${URLEncoder.encode(it, "UTF-8")}" }
         genre?.takeIf { it.isNotBlank() }?.let { params += "genres=${URLEncoder.encode(it, "UTF-8")}" }
         year?.let { params += "years=$it" }
         minRating?.let { params += "minCommunityRating=$it" }
@@ -248,28 +281,68 @@ object Api {
         ).items
     }
 
-    /** Intro markers are supplied by Jellyfin Media Segments / intro-detection plugins. */
-    suspend fun introSegments(id: String): List<Pair<Long, Long>> = runCatching {
-        val root = json.parseToJsonElement(call("GET", "/MediaSegments/$id"))
-        val array = when {
-            root is kotlinx.serialization.json.JsonArray -> root
-            root is kotlinx.serialization.json.JsonObject ->
-                (root["MediaSegments"] ?: root["Items"]) as? kotlinx.serialization.json.JsonArray
-                    ?: kotlinx.serialization.json.JsonArray(emptyList())
-            else -> kotlinx.serialization.json.JsonArray(emptyList())
-        }
-        array.mapNotNull { element ->
+    /** Chapter start positions supplied by Jellyfin item metadata. */
+    suspend fun chapterPositions(id: String): List<Long> = runCatching {
+        val root = json.parseToJsonElement(call("GET", "/Users/$userId/Items/$id?Fields=Chapters"))
+        val chapters = (root as? kotlinx.serialization.json.JsonObject)?.get("Chapters")
+            as? kotlinx.serialization.json.JsonArray ?: return@runCatching emptyList()
+        chapters.mapNotNull { element ->
             val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
-            val type = obj["Type"]?.toString()?.trim('"').orEmpty()
-            if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
-            val start = obj["StartTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
-            val end = obj["EndTicks"]?.toString()?.toLongOrNull() ?: return@mapNotNull null
-            if (end <= start) null else (start / 10_000L) to (end / 10_000L)
-        }
+            val ticks = obj["StartPositionTicks"]?.toString()?.toLongOrNull()
+                ?: return@mapNotNull null
+            (ticks / 10_000L).takeIf { it > 0L }
+        }.distinct().sorted()
     }.getOrDefault(emptyList())
 
+    /**
+     * Reads Jellyfin's native Media Segments API (used by Intro Skipper on Jellyfin 12).
+     * Segment timestamps are 100-nanosecond ticks (10,000 ticks per millisecond).
+     *
+     * Some server/plugin combinations ignore the type filter or return an empty filtered
+     * projection. Retry the unfiltered endpoint in that case and filter locally. This is
+     * best-effort metadata and must never sit on the playback startup path.
+     */
+    suspend fun introSegments(id: String): List<Pair<Long, Long>> = withContext(Dispatchers.IO) {
+        fun parseSegments(payload: String): List<Pair<Long, Long>> {
+            val root = json.parseToJsonElement(payload)
+            val array = when (root) {
+                is kotlinx.serialization.json.JsonArray -> root
+                is kotlinx.serialization.json.JsonObject -> {
+                    val candidate = root["Items"] ?: root["items"]
+                        ?: root["MediaSegments"] ?: root["mediaSegments"]
+                        ?: root["Segments"] ?: root["segments"]
+                    candidate as? kotlinx.serialization.json.JsonArray
+                        ?: kotlinx.serialization.json.JsonArray(emptyList())
+                }
+                else -> kotlinx.serialization.json.JsonArray(emptyList())
+            }
+            return array.mapNotNull { element ->
+                val obj = element as? kotlinx.serialization.json.JsonObject ?: return@mapNotNull null
+                val type = (obj["Type"] ?: obj["type"])?.toString()?.trim('"').orEmpty()
+                if (!type.equals("Intro", ignoreCase = true)) return@mapNotNull null
+                val start = (obj["StartTicks"] ?: obj["startTicks"])
+                    ?.let { runCatching { it.toString().trim('"').toLong() }.getOrNull() }
+                    ?: return@mapNotNull null
+                val end = (obj["EndTicks"] ?: obj["endTicks"])
+                    ?.let { runCatching { it.toString().trim('"').toLong() }.getOrNull() }
+                    ?: return@mapNotNull null
+                if (start < 0L || end <= start) null else (start / 10_000L) to (end / 10_000L)
+            }.distinct().sortedBy { it.first }
+        }
+
+        val filtered = runCatching {
+            parseSegments(call("GET", "/MediaSegments/$id?includeSegmentTypes=Intro"))
+        }.getOrDefault(emptyList())
+        if (filtered.isNotEmpty()) return@withContext filtered
+
+        // Fallback for servers that do not honor includeSegmentTypes consistently.
+        runCatching {
+            parseSegments(call("GET", "/MediaSegments/$id"))
+        }.getOrDefault(emptyList())
+    }
+
     suspend fun favorites(): List<Item> = json.decodeFromString<ItemsResult>(
-        call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName")
+        call("GET", "/Items?userId=$userId&recursive=true&isFavorite=true&includeItemTypes=Movie,Series,Episode&sortBy=SortName&fields=Genres,Tags,ParentId,SeriesId,ImageTags,BackdropImageTags,ParentBackdropItemId")
     ).items
 
     suspend fun setFavorite(id: String, favorite: Boolean) {
@@ -313,25 +386,72 @@ object Api {
     }
 
     // ---- images ----
-    fun poster(i: Item): String =
-        if (i.type == "Episode" && i.seriesId != null) "$base/Items/${i.seriesId}/Images/Primary?maxHeight=500&quality=90"
-        else "$base/Items/${i.id}/Images/Primary?maxHeight=500&quality=90"
-    fun heroImage(i: Item): String =
-        if (i.type == "Episode" && i.seriesId != null) "$base/Items/${i.seriesId}/Images/Primary?maxHeight=900&quality=90"
-        else "$base/Items/${i.id}/Images/Primary?maxHeight=900&quality=90"
-    fun landscape(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> "$base/Items/${i.id}/Images/Backdrop?maxWidth=600&quality=85"
-        i.imageTags?.containsKey("Thumb") == true -> "$base/Items/${i.id}/Images/Thumb?maxWidth=600"
-        else -> "$base/Items/${i.id}/Images/Primary?maxWidth=600"
+    // Coil does not inherit the authenticated OkHttp headers used by Api.call().
+    // Jellyfin image requests therefore need the API token in the URL.
+    private fun authenticatedImage(path: String): String =
+        base + path + (if (token.isNotBlank()) (if (path.contains("?")) "&" else "?") + "api_key=$token" else "")
+
+    /** Lightweight artwork for small Home orbit nodes; avoid downloading full posters. */
+    fun orbitPoster(i: Item): String {
+        val imageId = if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id
+        val imageType = when {
+            i.imageTags?.containsKey("Primary") == true -> "Primary"
+            i.imageTags?.containsKey("Thumb") == true -> "Thumb"
+            !i.backdropTags.isNullOrEmpty() -> "Backdrop/0"
+            !i.parentBackdropItemId.isNullOrBlank() -> return authenticatedImage(
+                "/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=192&quality=65"
+            )
+            else -> "Primary"
+        }
+        return authenticatedImage("/Items/$imageId/Images/$imageType?maxWidth=192&quality=65")
     }
+
+    fun poster(i: Item): String {
+        // Episodes often have no poster of their own; use series artwork in that case.
+        val hasOwnArtwork = i.imageTags?.containsKey("Primary") == true ||
+            i.imageTags?.containsKey("Thumb") == true || !i.backdropTags.isNullOrEmpty()
+        val imageId = if (i.type == "Episode" && !hasOwnArtwork && !i.seriesId.isNullOrBlank()) i.seriesId else i.id
+        val imageType = when {
+            i.imageTags?.containsKey("Primary") == true -> "Primary"
+            i.imageTags?.containsKey("Thumb") == true -> "Thumb"
+            !i.backdropTags.isNullOrEmpty() -> "Backdrop/0"
+            !i.parentBackdropItemId.isNullOrBlank() -> return authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxHeight=500&quality=90")
+            else -> "Primary"
+        }
+        return authenticatedImage("/Items/$imageId/Images/$imageType?maxHeight=500&quality=90")
+    }
+
+    fun heroImage(i: Item): String =
+        authenticatedImage("/Items/${if (i.type == "Episode" && i.seriesId != null) i.seriesId else i.id}/Images/Primary?maxHeight=640&quality=75")
+
+    /** Center artwork is displayed in a ~200dp circle; cap requests to reduce swap latency. */
+    fun homeCenterImage(i: Item): String = when {
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=480&quality=70")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=480&quality=70")
+        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=480&quality=70")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=480&quality=70")
+    }
+
+    fun landscape(i: Item): String = when {
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=600&quality=85")
+        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=600")
+        i.imageTags?.containsKey("Primary") == true -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=600")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=600")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=600")
+    }
+
     /** Tiny image; upscaled + blurred in the UI for the home-page background. */
-    fun blurBg(i: Item): String =
-        if (!i.backdropTags.isNullOrEmpty()) "$base/Items/${i.id}/Images/Backdrop?maxWidth=96&quality=40"
-        else "$base/Items/${i.id}/Images/Primary?maxWidth=96&quality=40"
+    fun blurBg(i: Item): String = when {
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=96&quality=40")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=96&quality=40")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=96&quality=40")
+    }
+
     fun backdrop(i: Item): String = when {
-        !i.backdropTags.isNullOrEmpty() -> "$base/Items/${i.id}/Images/Backdrop?maxWidth=1280&quality=85"
-        !i.parentBackdropItemId.isNullOrEmpty() -> "$base/Items/${i.parentBackdropItemId}/Images/Backdrop?maxWidth=1280&quality=85"
-        else -> "$base/Items/${i.id}/Images/Primary?maxWidth=1280"
+        !i.backdropTags.isNullOrEmpty() -> authenticatedImage("/Items/${i.id}/Images/Backdrop/0?maxWidth=1280&quality=85")
+        !i.parentBackdropItemId.isNullOrEmpty() -> authenticatedImage("/Items/${i.parentBackdropItemId}/Images/Backdrop/0?maxWidth=1280&quality=85")
+        i.imageTags?.containsKey("Thumb") == true -> authenticatedImage("/Items/${i.id}/Images/Thumb?maxWidth=1280&quality=85")
+        else -> authenticatedImage("/Items/${i.id}/Images/Primary?maxWidth=1280")
     }
 
     // ---- playback ----
@@ -521,10 +641,14 @@ object Api {
         "$base/Videos/$id/$sourceId/Subtitles/$index/Stream.$ext?api_key=$token"
 
     suspend fun fetchBytes(url: String): ByteArray = withContext(Dispatchers.IO) {
-        val req = Request.Builder().url(url).build()
-        http.newCall(req).execute().use { r ->
-            if (!r.isSuccessful) error("HTTP ${r.code}")
-            r.body?.bytes() ?: ByteArray(0)
+        val req = Request.Builder()
+            .url(url)
+            .header("X-Emby-Token", token)
+            .header("X-MediaBrowser-Token", token)
+            .build()
+        http.newCall(req).execute().use { response ->
+            if (!response.isSuccessful) error("HTTP ${response.code}")
+            response.body?.bytes() ?: ByteArray(0)
         }
     }
 

@@ -14,18 +14,22 @@ import androidx.fragment.app.FragmentActivity
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -45,8 +49,6 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
     var pw by remember { mutableStateOf("") }
     var err by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    var setupBiometric by remember { mutableStateOf(false) }
-    var pendingCredentials by remember { mutableStateOf<Pair<String, String>?>(null) }
     val biometricAvailable = remember(ctx) {
         BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
             BiometricManager.BIOMETRIC_SUCCESS
@@ -55,14 +57,16 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = Red, unfocusedBorderColor = Color(0xFF555555),
         cursorColor = Red, focusedLabelColor = Red, unfocusedLabelColor = Grey,
-        focusedTextColor = Color.White, unfocusedTextColor = Color.White
+        focusedTextColor = Color.White, unfocusedTextColor = Color.White,
+        focusedContainerColor = Color(0xFF201D30),
+        unfocusedContainerColor = Color(0xFF1A1828)
     )
 
-    fun showBiometricPrompt(encrypt: Boolean) {
+    fun showBiometricPrompt() {
         val host = activity
         if (host == null) { err = "Biometric sign-in isn't available in this screen."; return }
         try {
-            val cipher = if (encrypt) BiometricLogin.newEncryptCipher() else BiometricLogin.newDecryptCipher(ctx)
+            val cipher = BiometricLogin.newDecryptCipher(ctx)
             val prompt = BiometricPrompt(
                 host, host.mainExecutor,
                 object : BiometricPrompt.AuthenticationCallback() {
@@ -70,35 +74,27 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                         val unlockedCipher = result.cryptoObject?.cipher
                         if (unlockedCipher == null) {
                             err = "Secure biometric authentication failed. Use your password."
-                            if (encrypt) onDone()
                             return
                         }
-                        if (encrypt) {
-                            val credentials = pendingCredentials
-                            if (credentials != null) {
-                                runCatching {
-                                    BiometricLogin.save(ctx, unlockedCipher, credentials.first, credentials.second)
-                                }.onSuccess { onDone() }
-                                    .onFailure { err = "Couldn't enable biometric sign-in."; onDone() }
-                            } else onDone()
-                        } else {
-                            try {
-                                val credentials = BiometricLogin.decrypt(ctx, unlockedCipher)
-                                scope.launch {
-                                    try { Api.login(ctx, credentials.username, credentials.password); onDone() }
-                                    catch (e: Exception) { BiometricLogin.clear(ctx); err = "Saved biometric login is no longer valid. Sign in with your password and enable it again." }
+                        try {
+                            val credentials = BiometricLogin.decrypt(ctx, unlockedCipher)
+                            scope.launch {
+                                try {
+                                    Api.login(ctx, credentials.username, credentials.password)
+                                    onDone()
+                                } catch (e: Exception) {
+                                    BiometricLogin.clear(ctx)
+                                    err = "Saved biometric login is no longer valid. Sign in with your password and enable it again."
                                 }
-                            } catch (e: Exception) {
-                                BiometricLogin.clear(ctx)
-                                err = "Biometric login needs to be set up again. Sign in with your password."
                             }
+                        } catch (e: Exception) {
+                            BiometricLogin.clear(ctx)
+                            err = "Biometric login needs to be set up again. Sign in with your password."
                         }
                     }
 
                     override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                        err = if (encrypt) "Biometric setup cancelled. You can enable it later." else
-                            "Biometric sign-in cancelled. Use your password instead."
-                        if (encrypt) onDone()
+                        err = "Biometric sign-in cancelled. Use your password instead."
                     }
 
                     override fun onAuthenticationFailed() {
@@ -107,7 +103,7 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
                 }
             )
             val info = BiometricPrompt.PromptInfo.Builder()
-                .setTitle(if (encrypt) "Enable Allervue biometric sign-in" else "Sign in to Allervue")
+                .setTitle("Sign in to Allervue")
                 .setSubtitle("Use your enrolled fingerprint or supported face authentication")
                 .setNegativeButtonText("Use password")
                 .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
@@ -115,106 +111,161 @@ fun LoginScreen(onDone: () -> Unit, onSettings: () -> Unit, onForgot: () -> Unit
             prompt.authenticate(info, BiometricPrompt.CryptoObject(cipher))
         } catch (e: Exception) {
             err = "Biometric sign-in isn't available. Use your password."
-            if (encrypt) onDone()
         }
     }
 
-    AppBackground {
+    Box(
+        Modifier.fillMaxSize().drawBehind {
+            drawRect(Brush.verticalGradient(
+                listOf(Color(0xFF32191F), Color(0xFF17152D), Color(0xFF071F27))
+            ))
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x66FF665D), Color.Transparent)),
+                radius = size.minDimension * .72f,
+                center = androidx.compose.ui.geometry.Offset(size.width * .08f, size.height * .12f)
+            )
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x559B46E8), Color.Transparent)),
+                radius = size.minDimension * .78f,
+                center = androidx.compose.ui.geometry.Offset(size.width * .94f, size.height * .32f)
+            )
+            drawCircle(
+                Brush.radialGradient(listOf(Color(0x3328D5D0), Color.Transparent)),
+                radius = size.minDimension * .62f,
+                center = androidx.compose.ui.geometry.Offset(size.width * .38f, size.height * .98f)
+            )
+        }
+    ) {
         Column(
-            Modifier.fillMaxSize().padding(horizontal = 28.dp).padding(bottom = 90.dp),
-            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+            Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp).padding(top = 54.dp, bottom = 112.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Image(painterResource(R.drawable.ic_allervue_emblem), "Allervue emblem", Modifier.size(72.dp))
-                Spacer(Modifier.width(12.dp))
-                Text("ALLERVUE", color = Color(0xFFD8B77E), fontSize = 25.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
-            }
-            Spacer(Modifier.height(24.dp))
-            Text("Sign In", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                modifier = Modifier.align(Alignment.Start))
-            Spacer(Modifier.height(16.dp))
-            OutlinedTextField(user, { user = it }, label = { Text("Username") }, singleLine = true,
-                colors = fieldColors, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(pw, { pw = it }, label = { Text("Password") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), colors = fieldColors,
-                modifier = Modifier.fillMaxWidth())
-            if (biometricAvailable && hasBiometricLogin) {
-                Spacer(Modifier.height(12.dp))
-                OutlinedButton(
-                    enabled = !busy, onClick = { err = ""; showBiometricPrompt(false) },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(4.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Red)
-                ) {
-                    Text("◎  Sign in with fingerprint / face", color = Red, fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(18.dp))
-            Button(
-                enabled = !busy, modifier = Modifier.fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(4.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
-                onClick = {
-                    busy = true; err = ""
-                    scope.launch {
-                        try {
-                            val name = user.trim()
-                            Api.login(ctx, name, pw)
-                            if (biometricAvailable && activity != null) {
-                                pendingCredentials = name to pw
-                                setupBiometric = true
-                            } else onDone()
-                        } catch (e: Exception) {
-                            err = "Couldn't sign in. Check your username and password."
-                        }
-                        busy = false
+            AllervueWordmark(
+                emblemSize = 64.dp,
+                textSize = 38.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "SEE IT ALL",
+                color = Color(0xFFB9B4C8),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 4.sp
+            )
+            Spacer(Modifier.height(34.dp))
+
+            Column(
+                Modifier.fillMaxWidth()
+                    .clip(RoundedCornerShape(28.dp))
+                    .background(Color(0xCC141323))
+                    .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(28.dp))
+                    .padding(horizontal = 22.dp, vertical = 26.dp)
+            ) {
+                Text("Welcome back", fontSize = 27.sp, fontWeight = FontWeight.Bold,
+                    color = Color.White)
+                Spacer(Modifier.height(6.dp))
+                Text("Sign in to continue watching", fontSize = 14.sp,
+                    color = Color(0xFFAAA8B8))
+                Spacer(Modifier.height(24.dp))
+
+                OutlinedTextField(
+                    user, { user = it },
+                    label = { Text("Username") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(15.dp),
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    pw, { pw = it },
+                    label = { Text("Password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    shape = RoundedCornerShape(15.dp),
+                    colors = fieldColors,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (biometricAvailable && hasBiometricLogin) {
+                    Spacer(Modifier.height(14.dp))
+                    OutlinedButton(
+                        enabled = !busy, onClick = { err = ""; showBiometricPrompt() },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(15.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFF6682))
+                    ) {
+                        Text("Use fingerprint / face", color = Color(0xFFFF8298),
+                            fontWeight = FontWeight.SemiBold)
                     }
                 }
-            ) { Text(if (busy) "Signing in…" else "Sign In", fontWeight = FontWeight.Bold) }
-            TextButton(onClick = onForgot) { Text("Forgot password?", color = Grey) }
-            if (err.isNotEmpty()) {
-                Spacer(Modifier.height(12.dp))
-                Text(err, color = Color(0xFFFF6B6B))
+                Spacer(Modifier.height(20.dp))
+                Button(
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF557D),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF75405A)
+                    ),
+                    onClick = {
+                        busy = true; err = ""
+                        scope.launch {
+                            try {
+                                val name = user.trim()
+                                Api.login(ctx, name, pw)
+                                onDone()
+                            } catch (e: Exception) {
+                                err = "Couldn't sign in. Check your username and password."
+                            }
+                            busy = false
+                        }
+                    }
+                ) {
+                    Text(if (busy) "Signing in…" else "Sign In",
+                        fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+                TextButton(
+                    onClick = onForgot,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text("Forgot password?", color = Color(0xFFB9B4C8))
+                }
+                if (err.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(err, color = Color(0xFFFF8298), fontSize = 13.sp)
+                }
             }
+            Spacer(Modifier.height(24.dp))
+            Text(
+                "PRIVATE ACCESS  •  AUTHORIZED MEMBERS ONLY",
+                color = Color(0xFFAAA6B8),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.5.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "By signing in you accept the terms. Personal, non-commercial viewing only. " +
+                    "Copying, recording, sharing accounts or redistributing content is prohibited.",
+                color = Color(0xFF858294), fontSize = 11.sp, lineHeight = 15.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
-        TextButton(onClick = onSettings, modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)) {
-            Text("⚙", fontSize = 24.sp, color = Grey)
+        TextButton(
+            onClick = onSettings,
+            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp)
+                .clip(RoundedCornerShape(14.dp)).background(Color(0x331C1930))
+        ) {
+            Text("⚙", fontSize = 22.sp, color = Color(0xFFD5D0E2))
         }
-        Text(
-            "DISCLAIMER: Allervue is a private service for authorized members only. " +
-                "Content is provided for personal, non-commercial viewing. Copying, recording, " +
-                "sharing your account or redistributing any content is prohibited. " +
-                "By signing in you accept these terms.",
-            color = Color(0xFF8C8C8C), fontSize = 11.sp, lineHeight = 15.sp,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 24.dp, vertical = 20.dp)
-        )
     }
 
-    if (setupBiometric) {
-        AlertDialog(
-            onDismissRequest = { setupBiometric = false; onDone() },
-            containerColor = Color(0xFF181818),
-            title = { Text("Enable biometric sign-in?", color = Color.White) },
-            text = {
-                Text(
-                    "Save this account securely on this device so you can sign in next time with an enrolled fingerprint or supported face unlock. Your password is encrypted with Android Keystore and requires biometric authentication to decrypt.",
-                    color = Grey
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { setupBiometric = false; showBiometricPrompt(true) }) {
-                    Text("Enable", color = Red)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { setupBiometric = false; onDone() }) {
-                    Text("Not now", color = Grey)
-                }
-            }
-        )
-    }
+
 }
 
 
@@ -335,34 +386,69 @@ private fun appFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = Color.White, unfocusedTextColor = Color.White
 )
 
+private val DriftCoral = Color(0xFFFF6B72)
+private val DriftPink = Color(0xFFFF3F83)
+private val DriftPanel = Color(0xD91A1530)
+private val DriftText = Color(0xFFF5F0FA)
+private val DriftMuted = Color(0xFFB8B0C6)
+private val DriftBorder = Color(0x554F4564)
+
+@Composable
+private fun SettingsBackdrop(modifier: Modifier = Modifier) {
+    Box(modifier.background(Brush.linearGradient(
+        colorStops = arrayOf(
+            0f to Color(0xFF351719),
+            .38f to Color(0xFF21142D),
+            .68f to Color(0xFF24145A),
+            1f to Color(0xFF061B20)
+        )
+    )))
+}
+
 @Composable
 private fun ScreenHeader(title: String, back: () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        TextButton(onClick = back) { Text("‹", color = Color.White, fontSize = 28.sp) }
-        Text(title, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier.size(44.dp).clip(CircleShape)
+                .background(Color(0x5520182C)).border(1.dp, Color(0x66FFFFFF), CircleShape)
+                .clickable(onClick = back),
+            contentAlignment = Alignment.Center
+        ) { Text("‹", color = DriftText, fontSize = 30.sp) }
+        Text(title, Modifier.padding(start = 16.dp), color = DriftText,
+            fontSize = 27.sp, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 private fun SettingsRow(icon: String, title: String, subtitle: String, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 16.dp),
+        Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 3.dp)
+            .clip(RoundedCornerShape(18.dp)).background(DriftPanel)
+            .border(1.dp, DriftBorder, RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick).padding(horizontal = 17.dp, vertical = 15.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(icon, fontSize = 22.sp, modifier = Modifier.width(40.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold)
-            if (subtitle.isNotEmpty()) Text(subtitle, color = Grey, fontSize = 13.sp)
+        Box(
+            Modifier.size(38.dp).clip(RoundedCornerShape(12.dp))
+                .background(Brush.horizontalGradient(listOf(DriftCoral, DriftPink))),
+            contentAlignment = Alignment.Center
+        ) { Text(icon, color = Color.White, fontSize = 17.sp) }
+        Column(Modifier.weight(1f).padding(start = 13.dp)) {
+            Text(title, color = DriftText, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            if (subtitle.isNotEmpty()) Text(subtitle, color = DriftMuted, fontSize = 12.sp)
         }
-        Text("›", color = Grey, fontSize = 22.sp)
+        Text("›", color = DriftMuted, fontSize = 25.sp)
     }
-    HorizontalDivider(color = Color(0xFF222222))
 }
 
 @Composable
 fun SettingsMenuScreen(
     back: () -> Unit, onRequest: () -> Unit, onClient: () -> Unit, onPlayback: () -> Unit,
-    onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit
+    onSignOut: () -> Unit, onWeb: (String, String) -> Unit, onDiagnostics: () -> Unit,
+    onProfile: () -> Unit, onAppearance: () -> Unit
 ) {
     var help by remember { mutableStateOf(false) }
     var about by remember { mutableStateOf(false) }
@@ -371,8 +457,10 @@ fun SettingsMenuScreen(
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
             .getOrNull() ?: "Unknown"
     }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader("Settings", back)
+        SettingsRow("◉", "Profile & account", Api.username.ifBlank { "Manage your Jellyfin account" }, onProfile)
+        SettingsRow("✦", "Appearance", "Theme and display preferences", onAppearance)
         SettingsRow("🎬", "Request a show", "Ask for a movie, series or anime to be added", onRequest)
         SettingsRow("▶", "Playback settings", "Quality, audio, speed, auto-play", onPlayback)
         SettingsRow("⚙", "Client settings", "Server address and password", onClient)
@@ -435,12 +523,23 @@ fun ClientSettingsScreen(
     var new2 by remember { mutableStateOf("") }
     var pwStatus by remember { mutableStateOf("") }
     var pwBusy by remember { mutableStateOf(false) }
-    val colors = appFieldColors()
+    val clientPrefs = remember(ctx) { ctx.getSharedPreferences("allervue_client_settings", Context.MODE_PRIVATE) }
+    var biometricEnabled by remember { mutableStateOf(clientPrefs.getBoolean("biometric_enabled", false)) }
+    val colors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = DriftCoral, unfocusedBorderColor = DriftBorder,
+        cursorColor = DriftCoral, focusedLabelColor = DriftCoral, unfocusedLabelColor = DriftMuted,
+        focusedTextColor = DriftText, unfocusedTextColor = DriftText,
+        focusedContainerColor = Color(0x661A1530),
+        unfocusedContainerColor = Color(0x661A1530)
+    )
 
-    Column(Modifier.fillMaxSize().background(BgDark).verticalScroll(rememberScrollState())) {
+
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(
+        listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))
+    )).verticalScroll(rememberScrollState())) {
         ScreenHeader("Client settings", back)
-        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-            Text("SERVER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+            Text("SERVER CONNECTION", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 url, { url = it; status = "" }, label = { Text("Server URL") }, singleLine = true,
@@ -450,7 +549,7 @@ fun ClientSettingsScreen(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedButton(
-                    enabled = !busy, shape = RoundedCornerShape(4.dp),
+                    enabled = !busy, shape = RoundedCornerShape(14.dp),
                     onClick = {
                         busy = true; status = "Testing…"
                         scope.launch {
@@ -459,10 +558,10 @@ fun ClientSettingsScreen(
                             busy = false
                         }
                     }
-                ) { Text("Test connection", color = Color.White) }
+                ) { Text("Test connection", color = DriftText) }
                 Button(
-                    shape = RoundedCornerShape(4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DriftCoral, contentColor = DriftText),
                     onClick = {
                         val n = Api.normalize(url)
                         if (n.isEmpty()) status = "Enter a server URL"
@@ -475,16 +574,16 @@ fun ClientSettingsScreen(
                     }
                 ) { Text("Save", fontWeight = FontWeight.Bold) }
             }
-            if (status.isNotEmpty()) Text(status, color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
-            TextButton(onClick = { url = Api.SERVER; status = "" }) { Text("Reset to default", color = Grey) }
+            if (status.isNotEmpty()) Text(status, color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+            TextButton(onClick = { url = Api.SERVER; status = "" }) { Text("Reset to default", color = DriftMuted) }
             Text("Changing the server signs you out so you can log in to the new one.",
-                color = Color(0xFF777777), fontSize = 12.sp)
+                color = DriftMuted, fontSize = 12.sp)
 
             if (loggedIn) {
                 Spacer(Modifier.height(20.dp))
-                HorizontalDivider(color = Color(0xFF333333))
+                HorizontalDivider(color = DriftBorder)
                 Spacer(Modifier.height(16.dp))
-                Text("CHANGE PASSWORD", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text("ACCOUNT SECURITY", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(cur, { cur = it }, label = { Text("Current password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), colors = colors, modifier = Modifier.fillMaxWidth())
@@ -496,8 +595,8 @@ fun ClientSettingsScreen(
                     visualTransformation = PasswordVisualTransformation(), colors = colors, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(10.dp))
                 Button(
-                    enabled = !pwBusy, shape = RoundedCornerShape(4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+                    enabled = !pwBusy, shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = DriftCoral, contentColor = DriftText),
                     onClick = {
                         when {
                             new1.isEmpty() -> pwStatus = "Enter a new password"
@@ -519,19 +618,35 @@ fun ClientSettingsScreen(
                         }
                     }
                 ) { Text("Change password", fontWeight = FontWeight.Bold) }
-                if (pwStatus.isNotEmpty()) Text(pwStatus, color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                if (pwStatus.isNotEmpty()) Text(pwStatus, color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
             }
 
-            if (loggedIn && Api.JFA_URL.isNotEmpty()) {
-                TextButton(onClick = { onWeb(Api.ACCOUNT_URL, "My account") }) { Text("Manage account on the web (email, Telegram, Discord)", color = Red) }
+            if (loggedIn) {
+                Spacer(Modifier.height(20.dp))
+                HorizontalDivider(color = DriftBorder)
+                Spacer(Modifier.height(16.dp))
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("BIOMETRIC AUTHENTICATION", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Enable biometric protection for this device.", color = DriftMuted, fontSize = 13.sp)
+                    }
+                    Switch(
+                        checked = biometricEnabled,
+                        onCheckedChange = { enabled ->
+                            biometricEnabled = enabled
+                            clientPrefs.edit().putBoolean("biometric_enabled", enabled).apply()
+                        }
+                    )
+                }
             }
+
             Spacer(Modifier.height(20.dp))
-            HorizontalDivider(color = Color(0xFF333333))
+            HorizontalDivider(color = DriftBorder)
             Spacer(Modifier.height(16.dp))
-            Text("PLAYER", color = Red, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text("Set default video quality and audio output in Settings, Playback settings. " +
+            Text("PLAYER", color = DriftCoral, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text("Playback preferences are managed in Playback settings. " +
                 "You can also change them from the More menu inside the player.",
-                color = Grey, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -553,7 +668,7 @@ fun RequestShowScreen(back: () -> Unit) {
         if (connected) requests = runCatching { SeerrApi.myRequests() }.getOrDefault(emptyList())
     }
 
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))))) {
         ScreenHeader("Request Movies & TV", back)
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -561,8 +676,8 @@ fun RequestShowScreen(back: () -> Unit) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("ALLERVUE REQUESTS", color = Color(0xFFD8B77E), fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
-                    Text("Search the catalog and request titles for your library.", color = Grey, fontSize = 13.sp)
+                    Text("ALLERVUE REQUESTS", color = DriftCoral, fontSize = 12.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                    Text("Search the catalog and request titles for your library.", color = DriftMuted, fontSize = 13.sp)
                 }
                 Text(if (connected) "CONNECTED" else "NOT CONNECTED",
                     color = if (connected) Color(0xFF72C99A) else Grey, fontSize = 10.sp, fontWeight = FontWeight.Bold)
@@ -571,9 +686,9 @@ fun RequestShowScreen(back: () -> Unit) {
 
             if (!connected) {
                 Column(
-                    Modifier.fillMaxWidth().background(Color(0xFF171719), RoundedCornerShape(14.dp)).padding(16.dp)
+                    Modifier.fillMaxWidth().background(DriftPanel, RoundedCornerShape(18.dp)).padding(16.dp)
                 ) {
-                    Text("Finish connecting your account", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("Finish connecting your account", color = DriftText, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
                     Text(
                         "Allervue connects your request account automatically when you sign in. If you were already signed in before this update, sign out of Allervue and sign in again once. You won't need a separate request login.",
@@ -597,7 +712,7 @@ fun RequestShowScreen(back: () -> Unit) {
                             busy = false
                         }
                     },
-                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Red)
+                    modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = DriftCoral)
                 ) { Text(if (busy) "Searching…" else "Search Allervue", color = Color.White) }
 
                 if (results.isNotEmpty()) {
@@ -606,7 +721,7 @@ fun RequestShowScreen(back: () -> Unit) {
                     results.forEach { item ->
                         Row(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                                .background(Color(0xFF171719), RoundedCornerShape(12.dp)).padding(10.dp),
+                                .background(Color(0xFF171719), RoundedCornerShape(16.dp)).padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (item.posterPath.isNotBlank()) {
@@ -622,7 +737,7 @@ fun RequestShowScreen(back: () -> Unit) {
                                 Text((if (item.year.isNotBlank()) item.year + " · " else "") +
                                     if (item.mediaType == "movie") "Movie" else "TV Series",
                                     color = Grey, fontSize = 11.sp)
-                                if (item.overview.isNotBlank()) Text(item.overview, color = Dim, fontSize = 11.sp,
+                                if (item.overview.isNotBlank()) Text(item.overview, color = DriftMuted, fontSize = 11.sp,
                                     maxLines = 3, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                 Spacer(Modifier.height(6.dp))
                                 if (item.requestStatus.isNotBlank()) {
@@ -670,7 +785,7 @@ fun RequestShowScreen(back: () -> Unit) {
                     ) {
                         Box(
                             Modifier.width(64.dp).height(94.dp).clip(RoundedCornerShape(7.dp))
-                                .background(Color(0xFF29292D)),
+                                .background(Color(0xFF332B4A)),
                             contentAlignment = Alignment.Center
                         ) {
                             if (request.posterPath.isNotBlank()) {
@@ -737,26 +852,48 @@ private fun <T> ChoiceDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF181818),
-        title = { Text(title, color = Color.White) },
+        shape = RoundedCornerShape(26.dp),
+        containerColor = Color(0xFF21172F),
+        tonalElevation = 12.dp,
+        title = {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("PLAYBACK PREFERENCE", color = DriftCoral, fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp)
+                Text(title, color = DriftText, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+            }
+        },
         text = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 options.forEach { (label, value) ->
+                    val isSelected = value == selected
                     Row(
-                        Modifier.fillMaxWidth().clickable { onPick(value); onDismiss() }.padding(vertical = 4.dp),
+                        Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (isSelected) DriftCoral.copy(alpha = .13f) else Color(0xFF191426))
+                            .border(1.dp, if (isSelected) DriftCoral.copy(alpha = .8f) else DriftBorder, RoundedCornerShape(14.dp))
+                            .clickable { onPick(value); onDismiss() }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(
-                            selected = value == selected, onClick = { onPick(value); onDismiss() },
-                            colors = RadioButtonDefaults.colors(selectedColor = Red, unselectedColor = Grey)
+                            selected = isSelected, onClick = { onPick(value); onDismiss() },
+                            colors = RadioButtonDefaults.colors(selectedColor = DriftCoral, unselectedColor = DriftMuted)
                         )
-                        Text(label, color = Color.White, fontSize = 15.sp)
+                        Text(label, color = if (isSelected) DriftText else DriftMuted,
+                            fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
+                        Spacer(Modifier.weight(1f))
+                        if (isSelected) Text("SELECTED", color = DriftCoral, fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     }
                 }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Close", color = Grey) } }
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CLOSE", color = DriftCoral, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+        }
     )
 }
 
@@ -778,7 +915,7 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
     var saveData by remember { mutableStateOf(prefs.getBoolean("save_data", true)) }
     var dialog by remember { mutableStateOf(0) }
 
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader("Playback Settings", back)
         Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().glass(18.dp)) {
             SettingsRow("HD", "Quality", quality.label) { dialog = 1 }
@@ -798,8 +935,9 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
                     checked = saveData,
                     onCheckedChange = { saveData = it; prefs.edit().putBoolean("save_data", it).apply() },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White, checkedTrackColor = Red,
-                        uncheckedThumbColor = Grey, uncheckedTrackColor = Color(0xFF333333)
+                        checkedThumbColor = Color.White, checkedTrackColor = DriftCoral,
+                        checkedBorderColor = DriftCoral, uncheckedThumbColor = DriftMuted,
+                        uncheckedTrackColor = Color(0xFF342B43), uncheckedBorderColor = DriftBorder
                     )
                 )
             }
@@ -815,8 +953,9 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
                     checked = autoPlay,
                     onCheckedChange = { autoPlay = it; prefs.edit().putBoolean("autoplay", it).apply() },
                     colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White, checkedTrackColor = Red,
-                        uncheckedThumbColor = Grey, uncheckedTrackColor = Color(0xFF333333)
+                        checkedThumbColor = Color.White, checkedTrackColor = DriftCoral,
+                        checkedBorderColor = DriftCoral, uncheckedThumbColor = DriftMuted,
+                        uncheckedTrackColor = Color(0xFF342B43), uncheckedBorderColor = DriftBorder
                     )
                 )
             }
@@ -853,6 +992,95 @@ fun PlaybackSettingsScreen(back: () -> Unit) {
     }
 }
 
+
+@Composable
+fun ProfileScreen(
+    back: () -> Unit,
+    onServer: () -> Unit,
+    onPortal: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20)))).verticalScroll(rememberScrollState())) {
+        ScreenHeader("Profile & account", back)
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(DriftPanel)
+                .border(1.dp, DriftText.copy(alpha = .08f), RoundedCornerShape(22.dp))
+                .padding(20.dp)
+        ) {
+            Text(Api.username.ifBlank { "Jellyfin user" }, color = Color.White,
+                fontSize = 23.sp, fontWeight = FontWeight.Bold)
+            Text("Signed in to Allervue", color = DriftMuted, fontSize = 13.sp)
+            Spacer(Modifier.height(18.dp))
+            Text("JELLYFIN SERVER", color = DriftCoral, fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp)
+            Text(Api.base, color = Color.White, fontSize = 14.sp,
+                modifier = Modifier.padding(top = 5.dp))
+            Text("USER ID", color = Color(0xFF65D6D0), fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(top = 16.dp))
+            Text(Api.userId.ifBlank { "Unavailable" }, color = DriftMuted,
+                fontSize = 12.sp, modifier = Modifier.padding(top = 5.dp))
+            Text("REQUESTS", color = Color(0xFF65D6D0), fontSize = 11.sp,
+                fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+                modifier = Modifier.padding(top = 16.dp))
+            Text(if (SeerrApi.isConnected()) "Request account connected" else "Request account not connected",
+                color = if (SeerrApi.isConnected()) Color(0xFF72D6A2) else Color(0xFFB6BFCC),
+                fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
+        }
+        SettingsRow("⚙", "Server & security", "Server address, password and biometric sign-in", onServer)
+        SettingsRow("⎋", "Sign out", "Sign out of this Jellyfin account", onSignOut)
+        Text("Your profile details are read from the active Jellyfin session. Passwords and access tokens are not displayed.",
+            color = Color(0xFF7F8998), fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp))
+    }
+}
+
+@Composable
+fun AppearanceSettingsScreen(back: () -> Unit) {
+    val ctx = LocalContext.current
+    val prefs = remember { ctx.getSharedPreferences("allervue_appearance", Context.MODE_PRIVATE) }
+    var mode by remember { mutableStateOf(prefs.getString("theme_mode", "SYSTEM") ?: "SYSTEM") }
+    val options = listOf("SYSTEM" to "Follow device", "DARK" to "Dark", "LIGHT" to "Light")
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20)))).verticalScroll(rememberScrollState())) {
+        ScreenHeader("Appearance", back)
+        Text("THEME", color = DriftMuted, fontSize = 12.sp,
+            fontWeight = FontWeight.Bold, letterSpacing = 1.2.sp,
+            modifier = Modifier.padding(start = 20.dp, top = 16.dp, bottom = 8.dp))
+        options.forEach { (value, label) ->
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(DriftPanel)
+                    .border(1.dp, if (mode == value) DriftCoral.copy(alpha = .72f) else DriftBorder, RoundedCornerShape(18.dp)).clickable {
+                    mode = value
+                    prefs.edit().putString("theme_mode", value).apply()
+                    (ctx as? android.app.Activity)?.recreate()
+                }.padding(horizontal = 16.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(label, color = DriftText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    Text(when (value) {
+                        "DARK" -> "Always use the dark Allervue interface"
+                        "LIGHT" -> "Always use the light Allervue interface"
+                        else -> "Match your Android display setting"
+                    }, color = Grey, fontSize = 12.sp)
+                }
+                RadioButton(selected = mode == value, onClick = {
+                    mode = value
+                    prefs.edit().putString("theme_mode", value).apply()
+                    (ctx as? android.app.Activity)?.recreate()
+                }, colors = RadioButtonDefaults.colors(selectedColor = DriftCoral, unselectedColor = DriftMuted))
+            }
+            Spacer(Modifier.height(5.dp))
+        }
+        Text("The selected theme is saved on this device and applied immediately.",
+            color = Grey, fontSize = 12.sp, modifier = Modifier.padding(20.dp))
+    }
+}
+
 // ------------------------------------------------------------------ in-app web page
 @Composable
 fun WebScreen(url: String, title: String, back: () -> Unit) {
@@ -863,7 +1091,7 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
         if (w != null && w.canGoBack()) w.goBack() else back()
     }
     DisposableEffect(Unit) { onDispose { holder[0]?.destroy() } }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize()) {
         ScreenHeader(title, back)
         if (progress in 1..99) {
             LinearProgressIndicator(
@@ -895,12 +1123,12 @@ fun WebScreen(url: String, title: String, back: () -> Unit) {
 fun DiagnosticScreen(back: () -> Unit) {
     val ctx = LocalContext.current
     var log by remember { mutableStateOf(DiagnosticLog.read(ctx)) }
-    Column(Modifier.fillMaxSize().background(BgDark)) {
+    Column(Modifier.fillMaxSize().background(Brush.linearGradient(listOf(Color(0xFF351719), Color(0xFF21142D), Color(0xFF24145A), Color(0xFF061B20))))) {
         ScreenHeader("Diagnostics", back)
         Text("If Allervue closes when you tap a video, reproduce the issue and return here. The log records player startup and crash details without your Jellyfin password or access token.",
-            color = Grey, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+            color = DriftMuted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(onClick = { log = DiagnosticLog.read(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF29272A))) {
+            Button(onClick = { log = DiagnosticLog.read(ctx) }, colors = ButtonDefaults.buttonColors(containerColor = DriftPanel)) {
                 Text("Refresh log", color = Color.White)
             }
             Button(onClick = {
@@ -915,10 +1143,10 @@ fun DiagnosticScreen(back: () -> Unit) {
                     putExtra(Intent.EXTRA_TEXT, log.ifBlank { "No diagnostic log yet." })
                 }
                 ctx.startActivity(Intent.createChooser(send, "Share diagnostic log"))
-            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD8B77E))) { Text("Share", color = Color(0xFF171515)) }
+            }, colors = ButtonDefaults.buttonColors(containerColor = DriftCoral)) { Text("Share", color = DriftText) }
         }
         Text(if (log.isBlank()) "No diagnostic entries yet. Play a video, then return and tap Refresh log." else log,
-            color = Color(0xFFD5D1CA), fontSize = 11.sp, lineHeight = 15.sp,
+            color = DriftText, fontSize = 11.sp, lineHeight = 15.sp,
             modifier = Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()))
     }
 }
