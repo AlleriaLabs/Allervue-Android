@@ -1225,7 +1225,9 @@ private fun ContinueWatchingShelf(
     onSeeAll: () -> Unit
 ) {
     if (entries.isEmpty()) return
+    val device = LocalAllervueDeviceProfile.current
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
+    val shelfCardWidth = if (device.isTablet) 380.dp else (screenWidth - 40.dp).coerceAtLeast(280.dp)
     Column(
         Modifier.fillMaxWidth()
             .padding(top = 20.dp, bottom = 22.dp)
@@ -1280,11 +1282,11 @@ private fun ContinueWatchingShelf(
                 } else null
                 var menuExpanded by remember(item.id) { mutableStateOf(false) }
                 Column(
-                    Modifier.width((screenWidth - 40.dp).coerceAtLeast(280.dp))
+                    Modifier.width(shelfCardWidth)
                         .clip(RoundedCornerShape(18.dp))
                         .background(Color(0x66100E20))
                 ) {
-                    Box(Modifier.fillMaxWidth().height(190.dp)
+                    Box(Modifier.fillMaxWidth().height(if (device.isTablet) 220.dp else 190.dp)
                         .clickable { onPlay(item) }) {
                         AsyncImage(
                             model = Api.landscape(item),
