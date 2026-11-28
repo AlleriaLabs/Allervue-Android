@@ -994,7 +994,7 @@ private fun RebuildSearch(onOpen: (Item) -> Unit, back: () -> Unit) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No results found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        } else LazyVerticalGrid(GridCells.Fixed(2), Modifier.fillMaxSize(),
+        } else LazyVerticalGrid(GridCells.Adaptive(minSize = if (LocalAllervueDeviceProfile.current.isTablet) 190.dp else 150.dp), Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(results.size, key = { results[it].id }) { index ->
