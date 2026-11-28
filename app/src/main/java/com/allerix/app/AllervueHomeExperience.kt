@@ -1212,19 +1212,38 @@ private fun ContinueWatchingShelf(
             .padding(top = 20.dp, bottom = 22.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 2.dp),
+            Modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(Modifier.size(width = 22.dp, height = 3.dp).clip(CircleShape)
-                .background(Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFFFF5D91)))))
+            Box(
+                Modifier.size(width = 22.dp, height = 3.dp)
+                    .clip(CircleShape)
+                    .background(Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFFFF5D91))))
+            )
             Spacer(Modifier.width(8.dp))
-            Text("CONTINUE WATCHING", Modifier.weight(1f), color = Color(0xFF9BE7E6),
-                fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp, maxLines = 1)
-            Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x22FF7FA8))
-                .border(1.dp, Color(0x66FF8BAE), RoundedCornerShape(50))
-                .clickable(onClick = onSeeAll).padding(horizontal = 9.dp, vertical = 5.dp)) {
-                Text("SEE ALL", color = Color(0xFFFFB4C8), fontSize = 8.sp,
-                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Text(
+                "CONTINUE WATCHING",
+                Modifier.weight(1f),
+                color = Color(0xFF9BE7E6),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.ExtraBold,
+                letterSpacing = 1.8.sp,
+                maxLines = 1
+            )
+            Box(
+                Modifier.clip(RoundedCornerShape(50))
+                    .background(Color(0x22FF7FA8))
+                    .border(1.dp, Color(0x66FF8BAE), RoundedCornerShape(50))
+                    .clickable(onClick = onSeeAll)
+                    .padding(horizontal = 9.dp, vertical = 5.dp)
+            ) {
+                Text(
+                    "SEE ALL",
+                    color = Color(0xFFFFB4C8),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
             }
         }
         LazyRow(
