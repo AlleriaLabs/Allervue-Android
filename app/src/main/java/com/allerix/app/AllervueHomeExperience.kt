@@ -956,6 +956,11 @@ internal fun AllervueHome(
         Column(
             Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .border(
+                    1.dp,
+                    Brush.horizontalGradient(listOf(Color(0x6643D9D0), Color(0x55A77AFF), Color(0x66FF6E9D))),
+                    RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp)
+                )
                 .drawBehind {
                     drawRect(Brush.verticalGradient(if (isDaytime) listOf(Color(0xF22B293D), Color(0xE61B3040)) else listOf(Color(0xF2141930), Color(0xE60D1D2B))))
                     val phase = Math.toRadians((automaticRotation * .52f).toDouble())
@@ -973,6 +978,34 @@ internal fun AllervueHome(
                 }
                 .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 14.dp)
         ) {
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(width = 22.dp, height = 3.dp)
+                        .clip(CircleShape)
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFFFF5D91)))
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "FEATURED FOR YOU",
+                    color = Color(0xFF9BE7E6),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.8.sp
+                )
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.clip(RoundedCornerShape(50))
+                        .background(Color(0x22FF7FA8))
+                        .border(1.dp, Color(0x66FF8BAE), RoundedCornerShape(50))
+                        .padding(horizontal = 9.dp, vertical = 5.dp)
+                ) {
+                    Text("CURATED", color = Color(0xFFFFB4C8), fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                }
+            }
             Row(
                 Modifier.fillMaxWidth().height(82.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -999,18 +1032,35 @@ internal fun AllervueHome(
                         overflow = TextOverflow.Ellipsis
                     )
                     Spacer(Modifier.height(5.dp))
-                    val meta = shownCenterItem?.let {
-                        listOfNotNull(it.type, it.year?.toString(), it.officialRating).joinToString("  •  ")
-                    } ?: "Explore your Jellyfin library"
-                    Text(
-                        meta,
-                        Modifier.fillMaxWidth(),
-                        color = Color(0xFFB7B2C7),
-                        fontSize = 11.sp,
-                        lineHeight = 14.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    val metaParts = shownCenterItem?.let {
+                        listOfNotNull(it.type, it.year?.toString(), it.officialRating)
+                    } ?: listOf("Explore your Jellyfin library")
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        metaParts.forEachIndexed { index, part ->
+                            Box(
+                                Modifier.clip(RoundedCornerShape(6.dp))
+                                    .background(if (index == 0) Color(0x3343D9D0) else Color(0x332B2942))
+                                    .border(
+                                        1.dp,
+                                        if (index == 0) Color(0x5543D9D0) else Color(0x445F5878),
+                                        RoundedCornerShape(6.dp)
+                                    )
+                                    .padding(horizontal = 7.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    part.uppercase(),
+                                    color = if (index == 0) Color(0xFF9BE7E6) else Color(0xFFD0CBDA),
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
                 }
                 Box(
                     Modifier.size(116.dp).drawBehind {
@@ -1034,21 +1084,30 @@ internal fun AllervueHome(
                     },
                     contentAlignment = Alignment.Center
                 ) {
-                Box(
-                    Modifier.size(62.dp).clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
-                        .clickable { shownCenterItem?.let(onPlay) },
-                    contentAlignment = Alignment.Center
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Canvas(Modifier.size(25.dp)) {
-                        val play = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(size.width * .29f, size.height * .12f)
-                            lineTo(size.width * .92f, size.height * .50f)
-                            lineTo(size.width * .29f, size.height * .88f)
-                            close()
+                    Box(
+                        Modifier.size(58.dp).clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(Color(0xFFFF7654), AHot)))
+                            .border(1.dp, Color(0xFFFFC0D0).copy(alpha = .72f), CircleShape)
+                            .clickable { shownCenterItem?.let(onPlay) },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Canvas(Modifier.size(23.dp)) {
+                            val play = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(size.width * .29f, size.height * .12f)
+                                lineTo(size.width * .92f, size.height * .50f)
+                                lineTo(size.width * .29f, size.height * .88f)
+                                close()
+                            }
+                            drawPath(play, Color(0xFF170D1B))
                         }
-                        drawPath(play, Color(0xFF170D1B))
                     }
+                    Spacer(Modifier.height(5.dp))
+                    Text("PLAY NOW", color = Color(0xFFFFC0D0), fontSize = 8.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = 1.1.sp)
                 }
                 }
             }
