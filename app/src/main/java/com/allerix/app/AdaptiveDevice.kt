@@ -63,21 +63,18 @@ val LocalAllervueDeviceProfile = staticCompositionLocalOf {
 }
 
 /**
- * Re-evaluates automatically when Android reports a configuration/window
- * size change. TV mode is detected from the platform UI mode, while tablet
- * classification also considers the current window and smallest width.
+ * Pure classifier kept separate from Android configuration access so the
+ * phone/tablet/TV breakpoints can be regression-tested on the CI JVM.
  */
-@Composable
-fun rememberAllervueDeviceProfile(): AllervueDeviceProfile {
-    val configuration = LocalConfiguration.current
-    val context = LocalContext.current
-
-    val width = configuration.screenWidthDp.coerceAtLeast(1)
-    val height = configuration.screenHeightDp.coerceAtLeast(1)
-    val smallestWidth = configuration.smallestScreenWidthDp
-    val isTv = (context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
-        Configuration.UI_MODE_TYPE_TELEVISION
-
+internal fun createAllervueDeviceProfile(
+    widthDp: Int,
+    heightDp: Int,
+    smallestWidthDp: Int,
+    isLandscape: Boolean,
+    isTv: Boolean
+): AllervueDeviceProfile {
+    val width = widthDp.coerceAtLeast(1)
+    val height = heightDp.coerceAtLeast(1)
     val widthClass = when {
         width < 600 -> AllervueWindowClass.COMPACT
         width < 840 -> AllervueWindowClass.MEDIUM
@@ -88,13 +85,11 @@ fun rememberAllervueDeviceProfile(): AllervueDeviceProfile {
         height < 900 -> AllervueWindowClass.MEDIUM
         else -> AllervueWindowClass.EXPANDED
     }
-
     val deviceType = when {
         isTv -> AllervueDeviceType.TV
-        smallestWidth >= 600 || width >= 600 -> AllervueDeviceType.TABLET
+        smallestWidthDp >= 600 || width >= 600 -> AllervueDeviceType.TABLET
         else -> AllervueDeviceType.PHONE
     }
-
     val maxContentWidth = when {
         isTv -> 1600
         widthClass == AllervueWindowClass.EXPANDED -> 1440
@@ -107,17 +102,36 @@ fun rememberAllervueDeviceProfile(): AllervueDeviceProfile {
         widthClass == AllervueWindowClass.MEDIUM -> 28
         else -> 20
     }
-
     return AllervueDeviceProfile(
         deviceType = deviceType,
         widthClass = widthClass,
         heightClass = heightClass,
         screenWidthDp = width,
         screenHeightDp = height,
-        smallestScreenWidthDp = smallestWidth,
-        isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+        smallestScreenWidthDp = smallestWidthDp,
+        isLandscape = isLandscape,
         contentMaxWidthDp = maxContentWidth,
         horizontalGutterDp = gutter
+    )
+}
+
+/**
+ * Re-evaluates automatically when Android reports a configuration/window
+ * size change. TV mode is detected from the platform UI mode, while tablet
+ * classification also considers the current window and smallest width.
+ */
+@Composable
+fun rememberAllervueDeviceProfile(): AllervueDeviceProfile {
+    val configuration = LocalConfiguration.current
+    val context = LocalContext.current
+    val isTv = (context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK) ==
+        Configuration.UI_MODE_TYPE_TELEVISION
+    return createAllervueDeviceProfile(
+        widthDp = configuration.screenWidthDp,
+        heightDp = configuration.screenHeightDp,
+        smallestWidthDp = configuration.smallestScreenWidthDp,
+        isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE,
+        isTv = isTv
     )
 }
 
