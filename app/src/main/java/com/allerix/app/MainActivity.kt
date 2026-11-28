@@ -113,12 +113,6 @@ fun App() {
     var pendingCrashReport by remember { mutableStateOf(DiagnosticLog.pendingFatalReport(ctx)) }
     LaunchedEffect(Unit) { delay(1800); splash = false }
 
-    var availableUpdate by remember { mutableStateOf<UpdateInfo?>(null) }
-    LaunchedEffect(Unit) {
-        delay(2800)
-        availableUpdate = runCatching { UpdateChecker.checkForUpdate(ctx) }.getOrNull()
-    }
-
     Box(Modifier.fillMaxSize()) {
         if (splash) {
             SplashScreen()
@@ -144,15 +138,6 @@ fun App() {
             )
         }
 
-        availableUpdate?.let { update ->
-            UpdateAvailableDialog(
-                update = update,
-                onDismiss = {
-                    UpdateChecker.dismissUpdate(ctx, update.tag)
-                    availableUpdate = null
-                }
-            )
-        }
     }
 }
 
