@@ -191,7 +191,8 @@ internal fun AllervueHome(
     onPlay: (Item) -> Unit,
     onSearch: () -> Unit,
     onSettings: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSeeAllContinueWatching: (List<Item>) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -1176,6 +1177,7 @@ internal fun AllervueHome(
             ContinueWatchingShelf(
                 entries = resume,
                 onPlay = onPlay,
+                onSeeAll = { onSeeAllContinueWatching(resume) },
                 onHide = { item ->
                     ContinueWatching.hide(context, item.id)
                     resume = resume.filterNot { it.id == item.id }
@@ -1200,7 +1202,8 @@ private fun ContinueWatchingShelf(
     entries: List<Item>,
     onPlay: (Item) -> Unit,
     onHide: (Item) -> Unit,
-    onDoneWatching: (Item) -> Unit
+    onDoneWatching: (Item) -> Unit,
+    onSeeAll: () -> Unit
 ) {
     if (entries.isEmpty()) return
     val screenWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
@@ -1209,19 +1212,20 @@ private fun ContinueWatchingShelf(
             .padding(top = 20.dp, bottom = 22.dp)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp, bottom = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("◷", color = AHot, fontSize = 23.sp, modifier = Modifier.padding(end = 9.dp))
-            Text(
-                "Continue Watching",
-                Modifier.weight(1f),
-                color = Color(0xFFF7F3FF),
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text("SEE ALL", color = Color(0xFF8CE0E2), fontSize = 10.sp,
-                fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            Box(Modifier.size(width = 22.dp, height = 3.dp).clip(CircleShape)
+                .background(Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFFFF5D91)))))
+            Spacer(Modifier.width(8.dp))
+            Text("CONTINUE WATCHING", Modifier.weight(1f), color = Color(0xFF9BE7E6),
+                fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.8.sp, maxLines = 1)
+            Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x22FF7FA8))
+                .border(1.dp, Color(0x66FF8BAE), RoundedCornerShape(50))
+                .clickable(onClick = onSeeAll).padding(horizontal = 9.dp, vertical = 5.dp)) {
+                Text("SEE ALL", color = Color(0xFFFFB4C8), fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
         }
         LazyRow(
             contentPadding = PaddingValues(horizontal = 0.dp, vertical = 12.dp),
@@ -1330,5 +1334,71 @@ private fun ContinueWatchingShelf(
                 }
             }
         }
+    }
+}
+@Composable
+internal fun ContinueWatchingAllScreen(entries: List<Item>, onPlay: (Item) -> Unit, onOpen: (Item) -> Unit, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Color(0xFF100E20))
+        .verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(38.dp).clip(CircleShape).background(Color(0x332B2942))
+                .clickable(onClick = onBack), contentAlignment = Alignment.Center) {
+                Text("‹", color = Color.White, fontSize = 30.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("YOUR WATCHLIST IN PROGRESS", color = Color(0xFF9BE7E6), fontSize = 9.sp,
+                    fontWeight = FontWeight.ExtraBold, letterSpacing = 1.5.sp)
+                Text("Continue Watching", color = Color(0xFFF7F3FF), fontSize = 23.sp,
+                    fontWeight = FontWeight.ExtraBold)
+            }
+            Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0x22FF7FA8))
+                .border(1.dp, Color(0x66FF8BAE), RoundedCornerShape(50)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                Text("${entries.size} TITLES", color = Color(0xFFFFB4C8), fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(
+            Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFF8067F2), Color(0xFFFF5D91)))))
+        Spacer(Modifier.height(16.dp))
+        if (entries.isEmpty()) {
+            Text("You're all caught up.", color = Color(0xFFD0CBDA), fontSize = 14.sp)
+        } else entries.forEach { item ->
+            val runtime = item.runTimeTicks ?: 0L
+            val position = item.userData?.positionTicks ?: 0L
+            val progress = (item.userData?.playedPercentage?.toFloat()
+                ?: if (runtime > 0L) position.toFloat() / runtime.toFloat() * 100f else 0f).coerceIn(0f, 100f)
+            val remaining = if (runtime > 0L) (((runtime - position).coerceAtLeast(0L) / 10_000_000L) / 60L).toInt() else null
+            Row(Modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(18.dp))
+                .background(Color(0x991B1830)).border(1.dp, Color(0x335F5878), RoundedCornerShape(18.dp))
+                .clickable { onOpen(item) }.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.width(132.dp).height(82.dp).clip(RoundedCornerShape(12.dp)).clickable { onPlay(item) }) {
+                    AsyncImage(model = Api.landscape(item), contentDescription = item.name,
+                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                    Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, Color(0x990D0B18)))))
+                    Box(Modifier.align(Alignment.Center).size(34.dp).clip(CircleShape).background(Color(0xCC17152C)),
+                        contentAlignment = Alignment.Center) { Text("▶", color = Color.White, fontSize = 13.sp) }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(item.seriesName?.takeIf { it.isNotBlank() }?.let { "$it · ${item.name}" } ?: item.name,
+                        color = Color(0xFFF7F3FF), fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(6.dp))
+                    Text(remaining?.let { "${it}m left" } ?: "${progress.toInt()}% watched",
+                        color = Color(0xFFBEB8CE), fontSize = 10.sp)
+                    Spacer(Modifier.height(8.dp))
+                    LinearProgressIndicator(progress = { progress / 100f },
+                        modifier = Modifier.fillMaxWidth().height(4.dp).clip(CircleShape),
+                        color = AHot, trackColor = Color(0x665F596C))
+                    Spacer(Modifier.height(7.dp))
+                    Text("PLAY NOW  ›", color = Color(0xFFFFB4C8), fontSize = 9.sp,
+                        fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp,
+                        modifier = Modifier.clickable { onPlay(item) })
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }
