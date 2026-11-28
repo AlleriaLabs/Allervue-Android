@@ -107,15 +107,30 @@ class MainActivity : FragmentActivity() {
 fun App() {
     val ctx = LocalContext.current
     var splash by remember { mutableStateOf(true) }
+    var splashProgress by remember { mutableFloatStateOf(0f) }
     var loggedIn by remember { mutableStateOf(Api.token.isNotEmpty()) }
     var loginSettings by remember { mutableStateOf(false) }
     var forgotPassword by remember { mutableStateOf(false) }
     var pendingCrashReport by remember { mutableStateOf(DiagnosticLog.pendingFatalReport(ctx)) }
-    LaunchedEffect(Unit) { delay(1800); splash = false }
+    LaunchedEffect(Unit) {
+        // Advance only as the local startup checks complete; this is a real
+        // determinate startup indicator, not an endlessly looping fake bar.
+        splashProgress = 0.22f
+        val sessionReady = Api.token.isNotEmpty()
+        splashProgress = 0.58f
+        val recoveryReport = DiagnosticLog.pendingFatalReport(ctx)
+        loggedIn = sessionReady
+        pendingCrashReport = recoveryReport
+        splashProgress = 0.86f
+        delay(260)
+        splashProgress = 1f
+        delay(220)
+        splash = false
+    }
 
     Box(Modifier.fillMaxSize()) {
         if (splash) {
-            SplashScreen()
+            SplashScreen(progress = splashProgress)
         } else if (pendingCrashReport != null) {
             CrashRecoveryScreen(
                 report = pendingCrashReport.orEmpty(),
@@ -142,7 +157,7 @@ fun App() {
 }
 
 @Composable
-fun SplashScreen() {
+fun SplashScreen(progress: Float) {
     var started by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { started = true }
     val entrance by animateFloatAsState(if (started) 1f else 0f,
@@ -150,9 +165,12 @@ fun SplashScreen() {
     val orbitPulse = rememberInfiniteTransition(label = "splashOrbit")
     val orbitRotation by orbitPulse.animateFloat(0f, 360f,
         infiniteRepeatable(tween(24000, easing = LinearEasing)), label = "orbitRotation")
-    val progress by orbitPulse.animateFloat(.43f, .49f,
-        infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "splashProgress")
+    val logoPulse by orbitPulse.animateFloat(.985f, 1.025f,
+        infiniteRepeatable(tween(1800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "splashLogoPulse")
+    val glowPulse by orbitPulse.animateFloat(.72f, 1f,
+        infiniteRepeatable(tween(1500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "splashGlowPulse")
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Color(0xFF080A11))) {
         val w = maxWidth
@@ -188,8 +206,8 @@ fun SplashScreen() {
                             floatArrayOf(2.dp.toPx(), 11.dp.toPx()), orbitRotation * (index + 1) / 3f)))
             }
 
-            val mainR = size.width * .202f
-            drawCircle(Color(0xFFFF8B62).copy(alpha = .17f), mainR * 1.23f, Offset(cx, cy))
+            val mainR = size.width * .202f * logoPulse
+            drawCircle(Color(0xFFFF8B62).copy(alpha = .17f * glowPulse), mainR * 1.28f, Offset(cx, cy))
             drawCircle(Brush.sweepGradient(listOf(Color(0xFF58D8CF), Color(0xFFFFA45E),
                 Color(0xFFFF4D83), Color(0xFF7547E8), Color(0xFF58D8CF)), Offset(cx, cy)),
                 mainR * 1.035f, Offset(cx, cy))
@@ -253,7 +271,7 @@ fun SplashScreen() {
         }
 
         Column(
-            Modifier.fillMaxWidth().offset(y = h * .60f).alpha(entrance),
+            Modifier.fillMaxWidth().offset(y = h * .60f).alpha(entrance).scale(.94f + .06f * entrance),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
