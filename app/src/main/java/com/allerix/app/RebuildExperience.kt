@@ -278,7 +278,8 @@ private fun RebuildShelf(title: String, entries: List<Item>, onItem: (Item) -> U
 
 @Composable
 private fun RebuildPoster(item: Item, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.width(116.dp).clickable(onClick = onClick)) {
+    val posterWidth = if (LocalAllervueDeviceProfile.current.isTablet) 142.dp else 116.dp
+    Column(modifier.width(posterWidth).clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth().aspectRatio(0.68f).clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceVariant)) {
             AsyncImage(Api.poster(item), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             val progress = item.userData?.playedPercentage?.toFloat()
