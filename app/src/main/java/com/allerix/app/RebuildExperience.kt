@@ -58,7 +58,7 @@ private val VGold = AllervueDesign.Gold
  * harmless for touch users.
  */
 @Composable
-private fun Modifier.remoteFocusable(): Modifier {
+internal fun Modifier.remoteFocusable(): Modifier {
     var focused by remember { mutableStateOf(false) }
     return this
         .onFocusChanged { focused = it.isFocused }
@@ -805,7 +805,7 @@ private fun RebuildSaved(onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, showHea
                     color=Color.White,fontSize=14.sp,fontWeight=FontWeight.SemiBold)
                 Text("Save titles from their details page to keep them here.",color=Color(0xFFBEB2C8),fontSize=11.sp,modifier=Modifier.padding(top=5.dp))
             }
-        } else LazyVerticalGrid(GridCells.Adaptive(minSize = if (LocalAllervueDeviceProfile.current.isTablet) 190.dp else 150.dp),Modifier.fillMaxSize(),
+        } else LazyVerticalGrid(GridCells.Adaptive(minSize = when { LocalAllervueDeviceProfile.current.isTv -> 220.dp; LocalAllervueDeviceProfile.current.isTablet -> 190.dp; else -> 150.dp }),Modifier.fillMaxSize(),
             contentPadding=PaddingValues(start=16.dp,end=16.dp,top=8.dp,bottom=24.dp),
             horizontalArrangement=Arrangement.spacedBy(13.dp),verticalArrangement=Arrangement.spacedBy(17.dp)) {
             items(visible.size,key={visible[it].id}) { index ->
