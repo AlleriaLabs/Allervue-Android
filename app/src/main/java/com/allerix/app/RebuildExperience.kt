@@ -83,7 +83,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
         Box(Modifier.weight(1f)) {
             when (top) {
                 null -> when (tab) {
-                    RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut)
+                    RebuildTab.HOME -> RebuildHome(onOpen, onPlay, { stack.add(Nav.Search) }, settings, signOut) { entries -> stack.add(Nav.ContinueWatching(entries)) }
                     RebuildTab.MOVIES -> RebuildCatalog("Movies", "Movie", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
                     RebuildTab.SHOWS -> RebuildCatalog("TV Shows", "Series", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
                     RebuildTab.ANIME -> RebuildCatalog("Anime", "Anime", onOpen, { stack.add(Nav.Search) }, onBack = { tab = RebuildTab.HOME })
@@ -91,6 +91,7 @@ fun RebuildMainShell(onLogout: () -> Unit) {
                 }
                 is Nav.Grid -> RebuildFolderScreen(top.item, onOpen, back)
                 is Nav.Detail -> RebuildDetail(top.item, onOpen, onPlay, back)
+                is Nav.ContinueWatching -> ContinueWatchingAllScreen(top.entries, onPlay, onOpen, back)
                 Nav.Search -> RebuildSearch(onOpen, back)
                 Nav.Settings -> RebuildSettingsScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) },
@@ -202,14 +203,16 @@ private fun RebuildHeader(title: String, subtitle: String? = null, action: (() -
 @Composable
 private fun RebuildHome(
     onOpen: (Item) -> Unit, onPlay: (Item) -> Unit, onSearch: () -> Unit,
-    onSettings: () -> Unit, onLogout: () -> Unit
+    onSettings: () -> Unit, onLogout: () -> Unit,
+    onSeeAllContinueWatching: (List<Item>) -> Unit
 ) {
     AllervueHome(
         onOpen = onOpen,
         onPlay = onPlay,
         onSearch = onSearch,
         onSettings = onSettings,
-        onLogout = onLogout
+        onLogout = onLogout,
+        onSeeAllContinueWatching = onSeeAllContinueWatching
     )
 }
 
