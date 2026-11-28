@@ -77,7 +77,7 @@ Allervue is a client: media availability, user permissions, library access, tran
 
 1. Open the repository's **Actions** tab.
 2. Select a successful **Build APK** workflow run.
-3. Download the `Allervue-apk` artifact.
+3. Download the `Allervue-debug` artifact.
 4. Extract the downloaded ZIP archive.
 5. Install the `Allervue.apk` file on your Android device.
 
@@ -101,9 +101,9 @@ The workflow currently produces a **debug APK**. It is suitable for testing; it 
    app/build/outputs/apk/debug/app-debug.apk
    ```
 
-The repository's **Build APK** GitHub Actions workflow runs on pushes and can also be started manually from the Actions tab. A successful workflow uploads an artifact named `Allervue-apk`.
+The repository's **Allervue Android APK** GitHub Actions workflow runs on pushes and can also be started manually from the Actions tab. A successful workflow runs the JVM regression tests, builds the debug APK, verifies the output, and uploads an artifact named `Allervue-debug`.
 
-To publish a GitHub Release from the workflow, run it manually and provide a release tag. Leaving the tag empty builds and uploads the APK without creating a Release.
+The current workflow produces a debug APK only. A signed production release has not been configured; review `docs/RELEASE_CHECKLIST.md` before publishing a public release.
 
 ## Technical overview
 
