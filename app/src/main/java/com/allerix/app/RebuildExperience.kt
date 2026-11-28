@@ -8,7 +8,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.remoteFocusable().clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -51,6 +51,26 @@ private enum class RebuildTab(val label: String, val icon: Int) { HOME("Home", R
 private val rebuildDetailTypes = setOf("Series", "Season", "Movie", "Episode", "Video", "MusicVideo")
 private val VCyan = AllervueDesign.Cyan
 private val VGold = AllervueDesign.Gold
+
+/**
+ * Adds a visible focus treatment and keyboard/DPAD focus semantics to
+ * interactive Compose surfaces. Used on tablet and TV, while remaining
+ * harmless for touch users.
+ */
+@Composable
+private fun Modifier.remoteFocusable(): Modifier {
+    var focused by remember { mutableStateOf(false) }
+    return this
+        .onFocusChanged { focused = it.isFocused }
+        .focusable()
+        .then(
+            if (focused) Modifier.border(
+                width = 2.dp,
+                color = Color(0xFFFFB18F),
+                shape = RoundedCornerShape(12.dp)
+            ) else Modifier
+        )
+}
 
 @Composable
 fun RebuildMainShell(onLogout: () -> Unit) {
