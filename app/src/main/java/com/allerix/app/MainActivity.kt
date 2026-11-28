@@ -52,6 +52,7 @@ enum class NavTab(val label: String, val icon: Int) {
 sealed class Nav {
     data class Grid(val item: Item) : Nav()
     data class Detail(val item: Item) : Nav()
+    data class ContinueWatching(val entries: List<Item>) : Nav()
     object Search : Nav()
     object Settings : Nav()
     object Profile : Nav()
@@ -328,7 +329,8 @@ fun MainShell(onLogout: () -> Unit) {
                         onPlay = onPlay,
                         onSearch = { stack.add(Nav.Search) },
                         onSettings = openSettings,
-                        onLogout = signOut
+                        onLogout = signOut,
+                        onSeeAllContinueWatching = { entries -> stack.add(Nav.ContinueWatching(entries)) }
                     )
                     NavTab.MOVIES -> LibraryTab("Movies", "Movie", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, libraryNames = listOf("Movies", "Kid's Movies"))
                     NavTab.SHOWS -> LibraryTab("TV Shows", "Series", onOpen, onSearch = { stack.add(Nav.Search) }, onSettings = openSettings, isShows = true, libraryNames = listOf("Series"))
@@ -337,6 +339,7 @@ fun MainShell(onLogout: () -> Unit) {
                 }
                 is Nav.Grid -> key(top) { GridScreen(top.item, onOpen, back) }
                 is Nav.Detail -> key(top) { DetailScreen(top.item, onOpen, onPlay, back) }
+                is Nav.ContinueWatching -> key(top) { ContinueWatchingAllScreen(top.entries, onPlay, onOpen, back) }
                 Nav.Search -> SearchScreen(onOpen, back)
                 Nav.Settings -> SettingsMenuScreen(
                     back, onRequest = { stack.add(Nav.RequestShow) }, onClient = { stack.add(Nav.ClientSettings) },
