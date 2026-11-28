@@ -109,6 +109,31 @@ class ExoPlayerEngine(
         }
     }
 
+    private fun findTrackOverride(
+        groups: List<androidx.media3.common.Tracks.Group>,
+        selection: PlaybackTrackSelection
+    ): androidx.media3.common.TrackSelectionOverride? {
+        val candidates = buildList {
+            groups.forEachIndexed { groupIndex, group ->
+                for (trackIndex in 0 until group.length) {
+                    val format = group.getTrackFormat(trackIndex)
+                    add(
+                        PlaybackTrackCandidate(
+                            groupIndex = groupIndex,
+                            trackIndex = trackIndex,
+                            formatId = format.id,
+                            language = format.language,
+                            label = format.label
+                        )
+                    )
+                }
+            }
+        }
+        val match = PlaybackTrackMatcher.find(candidates, selection) ?: return null
+        val group = groups.getOrNull(match.groupIndex) ?: return null
+        return androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, match.trackIndex)
+    }
+
     private fun applyRequestedTracks() {
         if (player.currentTracks.groups.isEmpty()) return
         val builder = player.trackSelectionParameters.buildUpon()
@@ -118,17 +143,7 @@ class ExoPlayerEngine(
             it.type == androidx.media3.common.C.TRACK_TYPE_AUDIO && it.isSupported
         }
         requestedAudioTrack?.let { selected ->
-            val group = audioGroups.firstOrNull { candidate ->
-                (0 until candidate.length).any { index ->
-                    val format = candidate.getTrackFormat(index)
-                    format.id?.toIntOrNull() == selected.streamIndex ||
-                        (selected.language != null && normalizedLanguage(format.language) == normalizedLanguage(selected.language)) ||
-                        (selected.title != null && format.label?.contains(selected.title, true) == true)
-                }
-            }
-            if (group != null) builder.setOverrideForType(
-                androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, 0)
-            )
+            findTrackOverride(audioGroups, selected)?.let(builder::setOverrideForType)
         }
         val textGroups = player.currentTracks.groups.filter {
             it.type == androidx.media3.common.C.TRACK_TYPE_TEXT && it.isSupported
@@ -137,19 +152,10 @@ class ExoPlayerEngine(
         if (subtitle == null) {
             builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, true)
         } else {
-            val group = textGroups.firstOrNull { candidate ->
-                (0 until candidate.length).any { index ->
-                    val format = candidate.getTrackFormat(index)
-                    format.id?.toIntOrNull() == subtitle.streamIndex ||
-                        (subtitle.language != null && normalizedLanguage(format.language) == normalizedLanguage(subtitle.language)) ||
-                        (subtitle.title != null && format.label?.contains(subtitle.title, true) == true)
-                }
-            }
-            if (group != null) {
+            val override = findTrackOverride(textGroups, subtitle)
+            if (override != null) {
                 builder.setTrackTypeDisabled(androidx.media3.common.C.TRACK_TYPE_TEXT, false)
-                    .setOverrideForType(
-                        androidx.media3.common.TrackSelectionOverride(group.mediaTrackGroup, 0)
-                    )
+                    .setOverrideForType(override)
             }
         }
         player.trackSelectionParameters = builder.build()
