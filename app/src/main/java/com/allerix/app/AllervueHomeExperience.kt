@@ -857,12 +857,23 @@ internal fun AllervueHome(
                         Box(
                             Modifier.size(nodeOuterSize).drawBehind {
                                 val c = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
-                                val glowRadius = size.minDimension * (.43f + orbitPulse * .12f)
+                                // Broad, high-contrast halo with a clearly visible breathing
+                                // cycle; keep it outside the poster ring so the artwork stays crisp.
+                                val pulse = orbitPulse.coerceIn(.28f, .95f)
+                                val glowRadius = size.minDimension * (.62f + pulse * .30f)
                                 drawCircle(
-                                    Brush.radialGradient(
-                                        listOf(artworkGlow.copy(alpha = orbitPulse), artworkGlow.copy(alpha = orbitPulse * .30f), Color.Transparent),
-                                        c, glowRadius
-                                    ), glowRadius, c
+                                    brush = Brush.radialGradient(
+                                        colors = listOf(
+                                            artworkGlow.copy(alpha = .12f + pulse * .18f),
+                                            Color(0xFFFF5D91).copy(alpha = .10f + pulse * .22f),
+                                            Color(0xFF43D9D0).copy(alpha = .06f + pulse * .12f),
+                                            Color.Transparent
+                                        ),
+                                        center = c,
+                                        radius = glowRadius
+                                    ),
+                                    radius = glowRadius,
+                                    center = c
                                 )
                             },
                             contentAlignment = Alignment.Center
@@ -1299,8 +1310,6 @@ private fun ContinueWatchingShelf(
                             IconButton(
                                 onClick = { menuExpanded = true },
                                 modifier = Modifier.size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(0xCC17152C))
                             ) {
                                 Text("⋮", color = Color.White, fontSize = 23.sp,
                                     fontWeight = FontWeight.Bold)
