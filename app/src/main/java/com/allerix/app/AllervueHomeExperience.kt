@@ -985,7 +985,7 @@ internal fun AllervueHome(
                 Box(
                     Modifier.size(width = 22.dp, height = 3.dp)
                         .clip(CircleShape)
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFFFF5D91)))
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF43D9D0), Color(0xFFFF5D91))))
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
