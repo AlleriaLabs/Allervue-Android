@@ -98,7 +98,11 @@ class MainActivity : FragmentActivity() {
         Api.load(this)
         SeerrApi.load(this)
         setContent {
-            AllervueTheme { Surface(color = MaterialTheme.colorScheme.background) { App() } }
+            AllervueAdaptiveRoot {
+                AllervueTheme {
+                    Surface(color = MaterialTheme.colorScheme.background) { App() }
+                }
+            }
         }
     }
 }
