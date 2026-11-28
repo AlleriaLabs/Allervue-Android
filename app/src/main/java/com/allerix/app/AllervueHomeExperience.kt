@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -318,6 +319,15 @@ internal fun AllervueHome(
         targetValue = 360f,
         animationSpec = infiniteRepeatable(animation = tween(durationMillis = 52000, easing = LinearEasing)),
         label = "home-orbit-rotation"
+    )
+    val orbitPulse by orbitMotion.animateFloat(
+        initialValue = .28f,
+        targetValue = .82f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1900),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "home-orbit-pulse"
     )
 
     LaunchedEffect(Api.userId) {
@@ -740,7 +750,10 @@ internal fun AllervueHome(
                 Spacer(Modifier.width(10.dp))
                 AllervueNotificationBell(
                     entries = notificationEntries,
-                    onRefresh = { notificationEntries = AllervueNotificationStore.load(context) },
+                    onRefresh = {
+                        notificationEntries = runCatching { AllervueNotificationStore.sync(context) }
+                            .getOrDefault(AllervueNotificationStore.load(context))
+                    },
                     onOpenContent = { itemId ->
                         scope.launch {
                             runCatching { Api.item(itemId) }.getOrNull()?.let(onOpen)
@@ -835,10 +848,10 @@ internal fun AllervueHome(
                         Box(
                             Modifier.size(nodeOuterSize).drawBehind {
                                 val c = androidx.compose.ui.geometry.Offset(size.width / 2f, size.height / 2f)
-                                val glowRadius = size.minDimension * .50f
+                                val glowRadius = size.minDimension * (.43f + orbitPulse * .12f)
                                 drawCircle(
                                     Brush.radialGradient(
-                                        listOf(artworkGlow.copy(alpha = .70f), artworkGlow.copy(alpha = .24f), Color.Transparent),
+                                        listOf(artworkGlow.copy(alpha = orbitPulse), artworkGlow.copy(alpha = orbitPulse * .30f), Color.Transparent),
                                         c, glowRadius
                                     ), glowRadius, c
                                 )
